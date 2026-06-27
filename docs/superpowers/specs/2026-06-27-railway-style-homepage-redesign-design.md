@@ -34,9 +34,9 @@ This design rebuilds the homepage and shared shell to match the Railway aestheti
 | `--surface` | `oklch(0.22 0.06 265)` `#0d1635` | `oklch(0.20 0.06 250)` `#0a1430` (slightly bluer) |
 | `--primary` | `oklch(0.58 0.21 262)` `#2563eb` | unchanged (keep blue) |
 | `--glow` | (existing) | unchanged |
-| Display type | Inter bold | **Instrument Serif** for hero headlines (e.g. *"Pay per heartbeat."* in italic) |
+| Display type | Inter bold | **Instrument Serif** for hero headlines (e.g. *"Pay per heartbeat."* in italic) — loaded via `@import` from Google Fonts in `styles.css` |
 | Body type | Inter | Inter (kept) |
-| Mono type | system mono | **JetBrains Mono** for code, streaming counters, nav-demo labels |
+| Mono type | system mono | **JetBrains Mono** for code, streaming counters, nav-demo labels — loaded via `@import` from Google Fonts in `styles.css` |
 | Hero gradient | black + starfield | sunset gradient (deep navy → mid blue → lighter blue at bottom) |
 | Section dividers | hairline borders | alternating bg-color sections (no hard dividers between Build / Network / Scale / Monitor / Evolve) |
 
@@ -73,11 +73,11 @@ Top to bottom:
    - CTAs: primary "Browse compute →" (filled), secondary "List your server" (ghost)
    - **HeroCanvas component** — animated SVG with sidebar nav (Canvas / Providers / Jobs / Wallet, services list), canvas area (Job → Broker → H100 × 8 / A100 × 4 nodes), animated gradient pulse lines from Job→Broker→Provider, live streaming rate counter (`$0.00018420 streaming`), status line ("broker matched inference-gpu-01 (compute score: 942) · streaming USDC @ $0.00001/sec")
 2. **Logo strip** — 7-8 placeholder customer names (Arcol, G2X, Bilt, Vendora, TripAdvisor, Cognizant, Mercado Libre) on dark band
-3. **Build / Deploy section** — left: eyebrow "Deploy", serif heading "Deploy anything without the complexity.", body copy, "Alternative to RunPod / Vast.ai / AWS / GCP" tags; right: deploy-style illustration card with "Alternative to" overlay row
-4. **Network section** — alternating bg; right: copy; left: provider-routing illustration card
-5. **Scale section** — alternating bg; left: copy; right: scale illustration card
-6. **Monitor section** — alternating bg; right: copy; left: log/dashboard mock card
-7. **Evolve section** — alternating bg; left: copy; right: environment/preview illustration
+3. **Build / Deploy section** — left: eyebrow "Deploy", serif heading "Deploy anything without the complexity.", body copy, "Alternative to RunPod / Vast.ai / AWS / GCP" tags; right: card with gradient + SVG icon glyph (no external illustration file in v1 — see *Illustration assets* below)
+4. **Network section** — alternating bg; right: copy; left: gradient card with provider-routing SVG glyph
+5. **Scale section** — alternating bg; left: copy; right: gradient card with scale SVG glyph
+6. **Monitor section** — alternating bg; right: copy; left: gradient card with log/dashboard mock SVG glyph
+7. **Evolve section** — alternating bg; left: copy; right: gradient card with environment/preview SVG glyph
 8. **Trust layer** — eyebrow "Real-time", italic heading "0+ jobs and counting", 5-stat grid (Providers online / $/sec minimum / Uptime SLA / Broker match time / Jobs completed), 2 testimonial cards
 9. **CTA** — "Got idle hardware? Turn it into yield." with two CTAs
 10. **Footer** — new layout (rendered by `PageShell`, not in `index.tsx`)
@@ -142,10 +142,15 @@ No changes to `src/lib/`, `src/hooks/`, route configs, or business logic.
 
 None — user approved scope 2 and the design as presented on 2026-06-27.
 
+## Illustration assets
+
+The brainstorming mockup (`railway-faithful.html`, `railway-faithful-v2.html`) used Railway's actual public image URLs (e.g. `https://railway.com/landing-2/features/illustration-01-deploy--light.svg`) for visual reference. The implementation will **not** hot-link Railway's assets — instead, each section's right-hand illustration card will be a hand-built placeholder: a CSS gradient background with a small inline SVG glyph (icon-style) inside. This avoids external-asset risk and keeps the design self-contained. Real product illustration assets are deferred (see *Out of scope*).
+
 ## Out of scope (deferred)
 
 - Dashboard / Marketplace / Provider / Docs visual overhauls
 - Light-mode toggle
 - Real customer logos (placeholders used)
 - Full design-token overhaul (font scale, spacing scale, motion tokens)
-- Real product illustration assets (using placeholder-style SVG/CSS for now)
+- Real product illustration assets (placeholder SVG glyphs used instead)
+- Light/dark theme tokens (one dark theme only for this pass)
