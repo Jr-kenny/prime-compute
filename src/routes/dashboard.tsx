@@ -36,6 +36,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
+  const runningJobs = activeJobs.filter((j) => j.status === "running");
   return (
     <WorkspaceShell
       path="/dashboard"
@@ -48,12 +49,8 @@ function Dashboard() {
             <WorkspaceItem label="Wallet" />
           </WorkspaceSection>
           <WorkspaceSection label="Active jobs">
-            {activeJobs.slice(0, 3).map((j) => (
-              <JobItem
-                key={j.id}
-                name={j.name}
-                provider={j.providerAlias.split("-").slice(0, 2).join("-")}
-              />
+            {runningJobs.slice(0, 3).map((j) => (
+              <JobItem key={j.id} name={j.name} provider={shortProvider(j.providerAlias)} />
             ))}
           </WorkspaceSection>
           <WalletCard balance="$1,284.93" note="USDC streaming wallet" />
@@ -61,9 +58,9 @@ function Dashboard() {
       }
       status={
         <>
-          <span>{activeJobs.filter((j) => j.status === "running").length} jobs running</span>
+          <span>{runningJobs.length} jobs running</span>
           <span className="text-glow">
-            streaming ${activeJobs.reduce((acc, j) => acc + j.ratePerSecond, 0).toFixed(7)}/sec
+            streaming ${runningJobs.reduce((acc, j) => acc + j.ratePerSecond, 0).toFixed(7)}/sec
           </span>
           <span>wallet $1,284.93</span>
           <span>8ms broker match</span>
@@ -294,4 +291,11 @@ function StatusBadge({ status }: { status: JobStatus }) {
       {status}
     </span>
   );
+}
+
+function shortProvider(alias: string): string {
+  // Take the first two dash-separated parts. If fewer than 2 parts exist,
+  // return the whole alias. Matches the visual rhythm of "node-alpha-7" → "node-alpha".
+  const parts = alias.split("-");
+  return parts.length >= 2 ? parts.slice(0, 2).join("-") : alias;
 }
