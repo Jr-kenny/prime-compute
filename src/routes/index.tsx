@@ -4,7 +4,6 @@ import { PageShell } from "@/components/site/PageShell";
 import { HeroGradient } from "@/components/site/HeroGradient";
 import { HeroCanvas } from "@/components/site/HeroCanvas";
 import { Button } from "@/components/ui/button";
-import { providers } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -170,9 +169,9 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-20">
           <div className="text-center">
             <div className="text-[11px] uppercase tracking-[0.18em] text-[#5b8cff]">Real-time</div>
-            <h3 className="mt-3 text-3xl md:text-4xl font-display italic text-white">
+            <h2 className="mt-3 text-3xl md:text-4xl font-display italic text-white">
               0+ jobs and counting
-            </h3>
+            </h2>
           </div>
           <div className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-6 text-center">
             {[
