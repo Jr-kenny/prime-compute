@@ -6,9 +6,7 @@ export function HeroCanvas() {
         <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
         <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
         <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-        <span className="ml-3 text-[11px] text-white/40 font-mono">
-          primecompute.app/canvas
-        </span>
+        <span className="ml-3 text-[11px] text-white/40 font-mono">primecompute.app/canvas</span>
       </div>
 
       {/* App body */}
@@ -23,9 +21,7 @@ export function HeroCanvas() {
               <div
                 key={label}
                 className={`flex items-center gap-2 px-2.5 py-2 rounded-md text-xs ${
-                  i === 0
-                    ? "bg-primary/20 text-white"
-                    : "text-[#8aa3c7]"
+                  i === 0 ? "bg-primary/20 text-white" : "text-[#8aa3c7]"
                 }`}
               >
                 <span>{i === 0 ? "●" : "○"}</span>
@@ -54,7 +50,12 @@ export function HeroCanvas() {
 
         {/* Canvas */}
         <div className="rounded-lg border border-white/5 bg-[radial-gradient(circle_at_30%_30%,rgba(37,99,235,0.08),transparent_60%)_#0a0e1f] p-4">
-          <svg viewBox="0 0 600 280" className="w-full h-full" role="img" aria-label="Job routed from consumer through AI broker to two GPU providers">
+          <svg
+            viewBox="0 0 600 280"
+            className="w-full h-full"
+            role="img"
+            aria-label="Job routed from consumer through AI broker to two GPU providers"
+          >
             <style>
               {`@media (prefers-reduced-motion: reduce) { animate { display: none; } }`}
             </style>
@@ -72,40 +73,164 @@ export function HeroCanvas() {
             </defs>
 
             {/* Static wireframe */}
-            <line x1="120" y1="140" x2="300" y2="140" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-            <line x1="300" y1="140" x2="480" y2="90" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-            <line x1="300" y1="140" x2="480" y2="200" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+            <line
+              x1="120"
+              y1="140"
+              x2="300"
+              y2="140"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth="1"
+            />
+            <line
+              x1="300"
+              y1="140"
+              x2="480"
+              y2="90"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth="1"
+            />
+            <line
+              x1="300"
+              y1="140"
+              x2="480"
+              y2="200"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth="1"
+            />
 
             {/* Animated pulse: consumer -> broker */}
-            <line x1="120" y1="140" x2="264" y2="140" stroke="url(#pc-grad-job)" strokeWidth="2" strokeDasharray="40 600">
-              <animate attributeName="stroke-dashoffset" from="640" to="0" dur="2.5s" repeatCount="indefinite" />
+            <line
+              x1="120"
+              y1="140"
+              x2="264"
+              y2="140"
+              stroke="url(#pc-grad-job)"
+              strokeWidth="2"
+              strokeDasharray="40 600"
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="640"
+                to="0"
+                dur="2.5s"
+                repeatCount="indefinite"
+              />
             </line>
 
             {/* Animated pulse: broker -> provider 1 */}
-            <line x1="336" y1="140" x2="460" y2="88" stroke="url(#pc-grad-route)" strokeWidth="2" strokeDasharray="30 200">
-              <animate attributeName="stroke-dashoffset" from="230" to="0" dur="1.5s" repeatCount="indefinite" begin="2s" />
+            <line
+              x1="336"
+              y1="140"
+              x2="460"
+              y2="88"
+              stroke="url(#pc-grad-route)"
+              strokeWidth="2"
+              strokeDasharray="30 200"
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="230"
+                to="0"
+                dur="1.5s"
+                repeatCount="indefinite"
+                begin="2s"
+              />
             </line>
 
             {/* Animated pulse: broker -> provider 2 (delayed) */}
-            <line x1="336" y1="140" x2="460" y2="200" stroke="url(#pc-grad-route)" strokeWidth="2" strokeDasharray="30 200">
-              <animate attributeName="stroke-dashoffset" from="230" to="0" dur="1.5s" repeatCount="indefinite" begin="2.7s" />
+            <line
+              x1="336"
+              y1="140"
+              x2="460"
+              y2="200"
+              stroke="url(#pc-grad-route)"
+              strokeWidth="2"
+              strokeDasharray="30 200"
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="230"
+                to="0"
+                dur="1.5s"
+                repeatCount="indefinite"
+                begin="2.7s"
+              />
             </line>
 
             {/* Consumer node */}
             <g transform="translate(80,108)">
-              <rect x="0" y="0" width="80" height="64" rx="8" fill="#142a5a" stroke="#5b8cff" strokeWidth="1.5" />
-              <text x="40" y="24" textAnchor="middle" fill="#fff" fontSize="11" fontFamily="ui-sans-serif">Job</text>
-              <text x="40" y="40" textAnchor="middle" fill="#8aa3c7" fontSize="9" fontFamily="ui-monospace">train.py</text>
+              <rect
+                x="0"
+                y="0"
+                width="80"
+                height="64"
+                rx="8"
+                fill="#142a5a"
+                stroke="#5b8cff"
+                strokeWidth="1.5"
+              />
+              <text
+                x="40"
+                y="24"
+                textAnchor="middle"
+                fill="#fff"
+                fontSize="11"
+                fontFamily="ui-sans-serif"
+              >
+                Job
+              </text>
+              <text
+                x="40"
+                y="40"
+                textAnchor="middle"
+                fill="#8aa3c7"
+                fontSize="9"
+                fontFamily="ui-monospace"
+              >
+                train.py
+              </text>
               <circle cx="40" cy="52" r="3" fill="#7fffaf">
-                <animate attributeName="opacity" values="1;0.2;1" dur="1.5s" repeatCount="indefinite" />
+                <animate
+                  attributeName="opacity"
+                  values="1;0.2;1"
+                  dur="1.5s"
+                  repeatCount="indefinite"
+                />
               </circle>
             </g>
 
             {/* Broker node */}
             <g transform="translate(264,108)">
-              <rect x="0" y="0" width="72" height="64" rx="8" fill="#1e4080" stroke="#5b8cff" strokeWidth="1.5" />
-              <text x="36" y="24" textAnchor="middle" fill="#fff" fontSize="11" fontFamily="ui-sans-serif">Broker</text>
-              <text x="36" y="40" textAnchor="middle" fill="#8aa3c7" fontSize="9" fontFamily="ui-monospace">AI matcher</text>
+              <rect
+                x="0"
+                y="0"
+                width="72"
+                height="64"
+                rx="8"
+                fill="#1e4080"
+                stroke="#5b8cff"
+                strokeWidth="1.5"
+              />
+              <text
+                x="36"
+                y="24"
+                textAnchor="middle"
+                fill="#fff"
+                fontSize="11"
+                fontFamily="ui-sans-serif"
+              >
+                Broker
+              </text>
+              <text
+                x="36"
+                y="40"
+                textAnchor="middle"
+                fill="#8aa3c7"
+                fontSize="9"
+                fontFamily="ui-monospace"
+              >
+                AI matcher
+              </text>
               <circle cx="36" cy="52" r="3" fill="#5b8cff">
                 <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite" />
               </circle>
@@ -113,26 +238,94 @@ export function HeroCanvas() {
 
             {/* Provider node 1 (H100) */}
             <g transform="translate(460,58)">
-              <rect x="0" y="0" width="100" height="60" rx="8" fill="#0f2a1e" stroke="#7fffaf" strokeWidth="1.5" />
-              <text x="50" y="22" textAnchor="middle" fill="#fff" fontSize="11" fontFamily="ui-sans-serif">H100 × 8</text>
-              <text x="50" y="38" textAnchor="middle" fill="#8aa3c7" fontSize="9" fontFamily="ui-monospace">$0.00001/s</text>
+              <rect
+                x="0"
+                y="0"
+                width="100"
+                height="60"
+                rx="8"
+                fill="#0f2a1e"
+                stroke="#7fffaf"
+                strokeWidth="1.5"
+              />
+              <text
+                x="50"
+                y="22"
+                textAnchor="middle"
+                fill="#fff"
+                fontSize="11"
+                fontFamily="ui-sans-serif"
+              >
+                H100 × 8
+              </text>
+              <text
+                x="50"
+                y="38"
+                textAnchor="middle"
+                fill="#8aa3c7"
+                fontSize="9"
+                fontFamily="ui-monospace"
+              >
+                $0.00001/s
+              </text>
               <circle cx="50" cy="50" r="3" fill="#7fffaf" />
             </g>
 
             {/* Provider node 2 (A100) */}
             <g transform="translate(460,170)">
-              <rect x="0" y="0" width="100" height="60" rx="8" fill="#0f2a1e" stroke="#7fffaf" strokeWidth="1.5" />
-              <text x="50" y="22" textAnchor="middle" fill="#fff" fontSize="11" fontFamily="ui-sans-serif">A100 × 4</text>
-              <text x="50" y="38" textAnchor="middle" fill="#8aa3c7" fontSize="9" fontFamily="ui-monospace">$0.00003/s</text>
+              <rect
+                x="0"
+                y="0"
+                width="100"
+                height="60"
+                rx="8"
+                fill="#0f2a1e"
+                stroke="#7fffaf"
+                strokeWidth="1.5"
+              />
+              <text
+                x="50"
+                y="22"
+                textAnchor="middle"
+                fill="#fff"
+                fontSize="11"
+                fontFamily="ui-sans-serif"
+              >
+                A100 × 4
+              </text>
+              <text
+                x="50"
+                y="38"
+                textAnchor="middle"
+                fill="#8aa3c7"
+                fontSize="9"
+                fontFamily="ui-monospace"
+              >
+                $0.00003/s
+              </text>
               <circle cx="50" cy="50" r="3" fill="#febc2e">
-                <animate attributeName="fill" values="#febc2e;#7fffaf;#7fffaf" dur="3s" repeatCount="indefinite" />
+                <animate
+                  attributeName="fill"
+                  values="#febc2e;#7fffaf;#7fffaf"
+                  dur="3s"
+                  repeatCount="indefinite"
+                />
               </circle>
             </g>
 
             {/* Streaming rate */}
             <g transform="translate(20, 250)">
-              <text fill="#7fffaf" fontFamily="ui-monospace, monospace" fontSize="13" fontWeight="600">$0.00018420</text>
-              <text x="105" fill="#8aa3c7" fontFamily="ui-monospace, monospace" fontSize="10">streaming</text>
+              <text
+                fill="#7fffaf"
+                fontFamily="ui-monospace, monospace"
+                fontSize="13"
+                fontWeight="600"
+              >
+                $0.00018420
+              </text>
+              <text x="105" fill="#8aa3c7" fontFamily="ui-monospace, monospace" fontSize="10">
+                streaming
+              </text>
             </g>
           </svg>
         </div>
