@@ -55,6 +55,9 @@ export function HeroCanvas() {
         {/* Canvas */}
         <div className="rounded-lg border border-white/5 bg-[radial-gradient(circle_at_30%_30%,rgba(37,99,235,0.08),transparent_60%)_#0a0e1f] p-4">
           <svg viewBox="0 0 600 280" className="w-full h-full" role="img" aria-label="Job routed from consumer through AI broker to two GPU providers">
+            <style>
+              {`@media (prefers-reduced-motion: reduce) { animate { display: none; } }`}
+            </style>
             <defs>
               <linearGradient id="pc-grad-job" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#2563eb" stopOpacity="0" />
@@ -74,17 +77,17 @@ export function HeroCanvas() {
             <line x1="300" y1="140" x2="480" y2="200" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
 
             {/* Animated pulse: consumer -> broker */}
-            <line x1="120" y1="140" x2="300" y2="140" stroke="url(#pc-grad-job)" strokeWidth="2" strokeDasharray="40 600">
+            <line x1="120" y1="140" x2="264" y2="140" stroke="url(#pc-grad-job)" strokeWidth="2" strokeDasharray="40 600">
               <animate attributeName="stroke-dashoffset" from="640" to="0" dur="2.5s" repeatCount="indefinite" />
             </line>
 
             {/* Animated pulse: broker -> provider 1 */}
-            <line x1="300" y1="140" x2="480" y2="90" stroke="url(#pc-grad-route)" strokeWidth="2" strokeDasharray="30 200">
+            <line x1="336" y1="140" x2="460" y2="88" stroke="url(#pc-grad-route)" strokeWidth="2" strokeDasharray="30 200">
               <animate attributeName="stroke-dashoffset" from="230" to="0" dur="1.5s" repeatCount="indefinite" begin="2s" />
             </line>
 
             {/* Animated pulse: broker -> provider 2 (delayed) */}
-            <line x1="300" y1="140" x2="480" y2="200" stroke="url(#pc-grad-route)" strokeWidth="2" strokeDasharray="30 200">
+            <line x1="336" y1="140" x2="460" y2="200" stroke="url(#pc-grad-route)" strokeWidth="2" strokeDasharray="30 200">
               <animate attributeName="stroke-dashoffset" from="230" to="0" dur="1.5s" repeatCount="indefinite" begin="2.7s" />
             </line>
 
