@@ -25,8 +25,11 @@ export function WorkspaceShell({
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 md:py-8">
           <div className="rounded-2xl overflow-hidden border border-border/60 bg-[#0a0e1f] shadow-[0_0_60px_-20px_rgba(91,140,255,0.25)]">
-            {/* Browser chrome */}
-            <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/8 bg-white/2">
+            {/* Browser chrome (decorative) */}
+            <div
+              aria-hidden="true"
+              className="flex items-center gap-1.5 px-4 py-3 border-b border-white/8 bg-white/2"
+            >
               <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
@@ -37,9 +40,12 @@ export function WorkspaceShell({
 
             {/* Body: sidebar + main */}
             <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 p-3 bg-[#050a18]">
-              <aside className="rounded-lg bg-[#0f1530] border border-white/5 p-3 order-2 lg:order-1">
+              <nav
+                aria-label="Workspace navigation"
+                className="rounded-lg bg-[#0f1530] border border-white/5 p-3 order-2 lg:order-1"
+              >
                 {sidebar}
-              </aside>
+              </nav>
 
               <div className="rounded-lg border border-white/5 bg-[radial-gradient(circle_at_30%_30%,rgba(37,99,235,0.08),transparent_60%)_#0a0e1f] p-4 order-1 lg:order-2 min-h-[400px]">
                 {children}
@@ -47,8 +53,14 @@ export function WorkspaceShell({
             </div>
 
             {/* Status bar */}
-            <div className="mx-3 mb-3 px-3 py-2.5 rounded-lg bg-primary/10 border border-primary/15 font-mono text-[11px] text-[#8aa3c7] flex items-center gap-2">
-              <span className="text-[#7fffaf]">▸</span>
+            <div
+              role="status"
+              aria-live="polite"
+              className="mx-3 mb-3 px-3 py-2.5 rounded-lg bg-primary/10 border border-primary/15 font-mono text-[11px] text-[#8aa3c7] flex items-center gap-2"
+            >
+              <span aria-hidden="true" className="text-[#7fffaf]">
+                ▸
+              </span>
               {status}
             </div>
           </div>
@@ -73,11 +85,12 @@ export function WorkspaceSection({ label, children }: { label: string; children:
 export function WorkspaceItem({ label, active = false }: { label: string; active?: boolean }) {
   return (
     <div
+      aria-current={active ? "page" : undefined}
       className={`flex items-center gap-2 px-2.5 py-2 rounded-md text-xs ${
         active ? "bg-primary/20 text-white" : "text-[#8aa3c7]"
       }`}
     >
-      <span>{active ? "●" : "○"}</span>
+      <span aria-hidden="true">{active ? "●" : "○"}</span>
       <span>{label}</span>
     </div>
   );
