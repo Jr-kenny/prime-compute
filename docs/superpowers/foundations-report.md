@@ -17,12 +17,17 @@ matching"); relaxed to `^5`, resolved to 5.9.3. Newer majors exist for ai (v7), 
 (v4), openai-compatible (v3) but the v4/v0.1/v3 set installed is mutually compatible
 and the `tool()` + `createOpenAICompatible` APIs type-check.
 
-## Kimchi tool-calling (Task 4) — PENDING RUN
+## Kimchi tool-calling (Task 4) — BLOCKED (provider credits exhausted)
 
-- Needs `KIMCHI_API_KEY` in `services/.env`, then `bun run probe:kimchi`.
-- Result: TBD (WORKS / DOES NOT WORK)
-- Decision: broker uses Kimchi tool-calls if it works, else the deterministic scorer
-  in `src/scoring.ts` as primary.
+- Ran `bun run probe:kimchi` with a valid key. Auth and the gateway work (we get
+  structured responses + provider headers), but every model returns
+  `"the provider for model <m> has exhausted its credits and cannot process
+  requests"` — tried kimi-k2.6, minimax-m3, minimax-m2.7, nemotron-3-ultra-fp4.
+- So tool-calling could not be observed yet. Rerun once Kimchi credits are topped up.
+- Gateway also silently remaps model ids (`x-model-actual` header): kimi-k2.6 →
+  kimi-k2.7, minimax-m2.7 → minimax-m3.
+- Decision until then: the deterministic scorer in `src/scoring.ts` is primary; we
+  confirm the Kimchi tool-call path when credits return.
 
 ## Arc testnet config (Task 6) — CONFIRMED
 
@@ -45,13 +50,44 @@ Connectivity probe (Task 6 step 3): PASS — `getChainId()` returned `5042002`
 (matches) and `getBlockNumber()` returned a live block (~49073890) against the
 public RPC. Arc testnet is reachable with the config above; no key needed.
 
-## x402 settlement (Task 7) — PENDING RUN
+## x402 settlement (Task 7) — PASS (real settlement on Arc testnet)
 
-- x402 facilitator base URL is NOT listed on the Arc contract-addresses page; pin it
-  from the Circle x402 / Gateway docs and the installed `@circle-fin/x402-batching`
-  package during Task 7.
-- Needs funded broker + provider wallets (faucet) and the buyer's one-time Gateway
-  deposit. Result: TBD.
+Package: `@circle-fin/x402-batching@3.2.0`. Peer deps required (install manually):
+`@x402/core@^2.3.0`, `@x402/evm@^2.3.0`. Seller also needs `express`.
+
+**Seller API** (`@circle-fin/x402-batching/server`):
+```ts
+const gateway = createGatewayMiddleware({
+  sellerAddress,
+  networks: ["eip155:5042002"],            // Arc testnet, CAIP-2
+  facilitatorUrl: "https://gateway-api-testnet.circle.com", // testnet (default is mainnet)
+});
+app.get("/tick", gateway.require("$0.0001"), (req, res) => {
+  const pay = (req as PaymentRequest).payment; // { verified, payer, amount, network, transaction }
+  res.json({ ... });
+});
+```
+
+**Buyer API** (`@circle-fin/x402-batching/client`):
+```ts
+const client = new GatewayClient({ chain: "arcTestnet", privateKey });
+await client.deposit("0.10");               // one-time, real on-chain tx (depositTxHash)
+const { data, amount } = await client.pay(url); // gas-free; amount is bigint atomic units
+```
+Lower-level: `BatchEvmScheme` exposes `onBeforePaymentCreation` returning
+`{ abort, reason }` on amount — this is the deterministic guardrail seam for Plan 5.
+
+**Probe result:** deposit tx `0x87f8e02d...` (on-chain, on the explorer); buyer paid
+`$0.0001` (100 atomic units) gas-free; seller saw payer + amount.
+
+**Key nuance:** `req.payment.transaction` returned a **settlement UUID**
+(`3f14c4dd-...`), not a tx hash — settlement is batched, the on-chain `submitBatch`
+lands async. The `deposit` is a real immediate tx; per-tick settlement is the batch.
+This matches the spec's "record optimistically, reconcile when the batch lands."
+
+Facilitator URLs: testnet `https://gateway-api-testnet.circle.com`,
+mainnet `https://gateway-api.circle.com`. USDC has 6 decimals
+($0.0001 = 100 atomic).
 
 ## Decisions locked for Plans 2-6
 

@@ -69,4 +69,31 @@ could act on it. Concrete beats vague.
   agent framework.
 - **Date:** 2026-06-28
 
+### x402-batching peer deps aren't installed or flagged clearly
+- **Area:** SDK / x402 / Gateway
+- **What happened:** `@circle-fin/x402-batching@3.2.0` lists `@x402/core` and
+  `@x402/evm` as peerDependencies with no `dependencies`. Installing just the Circle
+  package and running it throws at runtime: `Cannot find module '@x402/evm/exact/server'`.
+  You only discover the two `@x402/*` peers by reading the package's `package.json`.
+- **Impact:** First run of any integration crashes with a module-not-found that
+  doesn't name Circle's own package, which is confusing.
+- **Suggestion:** Either depend on `@x402/core` / `@x402/evm` directly, or put a loud
+  "also install these peers" line at the top of the Quick Start, or fail with a
+  friendly error ("install @x402/core and @x402/evm") instead of a raw module error.
+- **Date:** 2026-06-28
+
+### Batched settlement returns a UUID where devs expect a tx hash
+- **Area:** x402 / Gateway
+- **What happened:** On the seller, `req.payment.transaction` (typed/named like a
+  "Transaction hash after settlement") returns a settlement **UUID**
+  (e.g. `3f14c4dd-...`), not an on-chain tx hash, because settlement is batched and
+  the `submitBatch` lands asynchronously. The `deposit` call, by contrast, returns a
+  real immediate `depositTxHash`.
+- **Impact:** Naively building `${explorer}/tx/${transaction}` produces a dead link,
+  and it's easy to assume settlement failed when it's just batched.
+- **Suggestion:** Name/type the field to reflect that it's a settlement reference for
+  batched payments (or expose both the UUID and the eventual batch tx hash once it
+  lands), and say so in the lifecycle-hooks docs.
+- **Date:** 2026-06-28
+
 <!-- Add new entries above this line as we hit them during implementation. -->
