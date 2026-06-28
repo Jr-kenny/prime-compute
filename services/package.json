@@ -9,7 +9,8 @@
     "seed": "bun run scripts/seed-providers.ts",
     "provider": "bun run scripts/run-provider.ts",
     "provider:roundtrip": "bun run scripts/provider-roundtrip.ts",
-    "settlement:roundtrip": "bun run scripts/settlement-roundtrip.ts"
+    "settlement:roundtrip": "bun run scripts/settlement-roundtrip.ts",
+    "broker:roundtrip": "bun run scripts/broker-roundtrip.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.1.0",
