@@ -1,0 +1,90 @@
+import type { Provider, Rent, RentDecision, Tick } from "../domain";
+import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
+
+export class InMemoryRegistry implements Registry {
+  private providers = new Map<string, Provider>();
+  private rents = new Map<string, Rent>();
+  private decisions: RentDecision[] = [];
+  private ticks: Tick[] = [];
+
+  async registerProvider(p: NewProvider): Promise<Provider> {
+    const provider: Provider = { id: crypto.randomUUID(), ...p, computeScore: p.computeScore ?? 80 };
+    this.providers.set(provider.id, provider);
+    return provider;
+  }
+
+  async listProviders(filter?: ProviderFilter): Promise<Provider[]> {
+    let out = [...this.providers.values()];
+    if (filter?.resourceType) out = out.filter((p) => p.resourceType === filter.resourceType);
+    if (filter?.onlineOnly) out = out.filter((p) => p.online);
+    return out;
+  }
+
+  async getProvider(id: string): Promise<Provider | null> {
+    return this.providers.get(id) ?? null;
+  }
+
+  async setProviderOnline(id: string, online: boolean): Promise<void> {
+    const p = this.providers.get(id);
+    if (p) this.providers.set(id, { ...p, online });
+  }
+
+  async bumpComputeScore(id: string, delta: number): Promise<Provider> {
+    const p = this.providers.get(id);
+    if (!p) throw new Error(`provider not found: ${id}`);
+    const next = { ...p, computeScore: p.computeScore + delta };
+    this.providers.set(id, next);
+    return next;
+  }
+
+  async createRent(r: NewRent): Promise<Rent> {
+    const rent: Rent = {
+      id: crypto.randomUUID(),
+      name: r.name,
+      userId: r.userId,
+      spec: r.spec,
+      estimatedUsage: r.estimatedUsage ?? null,
+      autonomyArmed: r.autonomyArmed ?? false,
+      status: "queued",
+      providerId: null,
+      totalCost: 0,
+      createdAt: new Date().toISOString(),
+      startedAt: null,
+      endedAt: null,
+    };
+    this.rents.set(rent.id, rent);
+    return rent;
+  }
+
+  async getRent(id: string): Promise<Rent | null> {
+    return this.rents.get(id) ?? null;
+  }
+
+  async updateRent(id: string, patch: RentPatch): Promise<Rent> {
+    const r = this.rents.get(id);
+    if (!r) throw new Error(`rent not found: ${id}`);
+    const next = { ...r, ...patch };
+    this.rents.set(id, next);
+    return next;
+  }
+
+  async recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision> {
+    const decision: RentDecision = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...d };
+    this.decisions.push(decision);
+    return decision;
+  }
+
+  async recordTick(t: Omit<Tick, "id" | "createdAt">): Promise<Tick> {
+    const tick: Tick = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...t };
+    this.ticks.push(tick);
+    return tick;
+  }
+
+  async listTicks(rentId: string): Promise<Tick[]> {
+    return this.ticks.filter((t) => t.rentId === rentId).sort((a, b) => a.seq - b.seq);
+  }
+
+  async rentCost(rentId: string): Promise<number> {
+    return this.ticks.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount, 0);
+  }
+}

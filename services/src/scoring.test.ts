@@ -1,14 +1,16 @@
 import { test, expect } from "bun:test";
-import { hardFilter, scoreProviders, type Provider, type JobSpec } from "./scoring";
+import { hardFilter, scoreProviders } from "./scoring";
+import type { Provider, RentSpec } from "./domain";
 
+const base = { alias: "n", ownerWallet: "0x0", endpointUrl: "http://x", specs: {} };
 const providers: Provider[] = [
-  { id: "A", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerTick: 0.000006, computeScore: 70, avgLatencyMs: 5 },
-  { id: "B", resourceType: "GPU", region: "EU-West", online: true, stakeAmount: 100, pricePerTick: 0.000004, computeScore: 92, avgLatencyMs: 8 },
-  { id: "C", resourceType: "GPU", region: "US-East", online: false, stakeAmount: 100, pricePerTick: 0.000003, computeScore: 99, avgLatencyMs: 4 },
-  { id: "D", resourceType: "CPU", region: "US-East", online: true, stakeAmount: 0, pricePerTick: 0.000002, computeScore: 80, avgLatencyMs: 4 },
+  { id: "A", ...base, resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerTick: 0.000006, computeScore: 70, avgLatencyMs: 5 },
+  { id: "B", ...base, resourceType: "GPU", region: "EU-West", online: true, stakeAmount: 100, pricePerTick: 0.000004, computeScore: 92, avgLatencyMs: 8 },
+  { id: "C", ...base, resourceType: "GPU", region: "US-East", online: false, stakeAmount: 100, pricePerTick: 0.000003, computeScore: 99, avgLatencyMs: 4 },
+  { id: "D", ...base, resourceType: "CPU", region: "US-East", online: true, stakeAmount: 0, pricePerTick: 0.000002, computeScore: 80, avgLatencyMs: 4 },
 ];
 
-const job: JobSpec = { resourceType: "GPU", region: null };
+const job: RentSpec = { resourceType: "GPU", region: null };
 
 test("hardFilter drops offline, wrong-type, and unstaked providers", () => {
   const kept = hardFilter(providers, job).map((p) => p.id);
