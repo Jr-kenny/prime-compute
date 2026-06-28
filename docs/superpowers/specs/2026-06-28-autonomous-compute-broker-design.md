@@ -271,6 +271,15 @@ engine autonomously to re-pick mid-job.
 - **Broker depth.** Workload splitting across providers, live workload-state
   migration, price negotiation.
 
+## Developer feedback capture (ongoing, all sessions)
+
+As we build on Circle's stack, every friction point, missing example, docs gap, or
+DX improvement idea gets logged the same session to `feedback.md` at the repo root,
+using the entry format in that file. The hackathon recognizes the most useful
+feedback on Circle's developer tooling, and useful friction is noticed in the
+moment and lost otherwise. This is not a one-time task: treat `feedback.md` as a
+living log throughout implementation.
+
 ## Open risks
 
 - **Kimchi tool-calling through the gateway is unconfirmed.** OpenAI-compatible
