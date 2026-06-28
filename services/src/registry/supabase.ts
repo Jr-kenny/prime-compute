@@ -173,6 +173,11 @@ export class SupabaseRegistry implements Registry {
     return toCharge(row);
   }
 
+  async markChargeSettled(chargeId: string): Promise<void> {
+    const { error } = await this.db.from("charges").update({ settled: true }).eq("id", chargeId);
+    if (error) throw new Error(`markChargeSettled: ${error.message}`);
+  }
+
   async listCharges(rentId: string): Promise<Charge[]> {
     const { data, error } = await this.db.from("charges").select().eq("rent_id", rentId).order("seq");
     if (error) throw new Error(`listCharges: ${error.message}`);

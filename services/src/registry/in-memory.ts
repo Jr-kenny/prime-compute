@@ -80,6 +80,11 @@ export class InMemoryRegistry implements Registry {
     return charge;
   }
 
+  async markChargeSettled(chargeId: string): Promise<void> {
+    const c = this.charges.find((x) => x.id === chargeId);
+    if (c) c.settled = true;
+  }
+
   async listCharges(rentId: string): Promise<Charge[]> {
     return this.charges.filter((t) => t.rentId === rentId).sort((a, b) => a.seq - b.seq);
   }
