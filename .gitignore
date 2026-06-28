@@ -41,3 +41,7 @@ services/node_modules
 
 # Superpowers brainstorming companion (local ephemeral artifacts)
 .superpowers/
+
+# Scaffolding tool metadata (not used by the app)
+.kimchi/
+.lovable/
