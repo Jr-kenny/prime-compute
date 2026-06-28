@@ -10,7 +10,7 @@ create table if not exists providers (
   specs jsonb not null default '{}',
   online boolean not null default true,
   stake_amount numeric not null default 0,
-  price_per_tick numeric not null,
+  price_per_charge numeric not null,
   compute_score numeric not null default 80,
   avg_latency_ms numeric not null default 0,
   created_at timestamptz not null default now()
@@ -42,7 +42,7 @@ create table if not exists rent_decisions (
   created_at timestamptz not null default now()
 );
 
-create table if not exists ticks (
+create table if not exists charges (
   id uuid primary key default gen_random_uuid(),
   rent_id uuid not null references rents(id) on delete cascade,
   provider_id uuid not null references providers(id),
@@ -58,12 +58,12 @@ create table if not exists settlements (
   id uuid primary key default gen_random_uuid(),
   batch_ref text,
   tx_hash text,
-  tick_ids uuid[] not null default '{}',
+  charge_ids uuid[] not null default '{}',
   amount numeric not null default 0,
   status text not null default 'pending',
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_ticks_rent on ticks(rent_id);
+create index if not exists idx_charges_rent on charges(rent_id);
 create index if not exists idx_rents_status on rents(status);
 create index if not exists idx_providers_type_online on providers(resource_type, online);

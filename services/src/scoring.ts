@@ -14,14 +14,14 @@ export function hardFilter(providers: Provider[], job: RentSpec): Provider[] {
 // Normalize each dimension across the candidate set, then weight.
 export function scoreProviders(providers: Provider[], _job: RentSpec): Provider[] {
   if (providers.length === 0) return [];
-  const prices = providers.map((p) => p.pricePerTick);
+  const prices = providers.map((p) => p.pricePerCharge);
   const minP = Math.min(...prices);
   const maxP = Math.max(...prices);
   const norm = (v: number, lo: number, hi: number) =>
     hi === lo ? 1 : (v - lo) / (hi - lo);
 
   function rank(p: Provider): number {
-    const priceTerm = 1 - norm(p.pricePerTick, minP, maxP); // cheaper => higher
+    const priceTerm = 1 - norm(p.pricePerCharge, minP, maxP); // cheaper => higher
     const scoreTerm = p.computeScore / 100;
     const latencyTerm = 1 - norm(p.avgLatencyMs, 0, 20);
     return 0.4 * priceTerm + 0.45 * scoreTerm + 0.15 * latencyTerm;

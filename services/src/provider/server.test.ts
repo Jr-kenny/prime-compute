@@ -38,9 +38,9 @@ test("/health returns provider metadata without payment", async () => {
   });
 });
 
-test("/tick without payment is rejected with 402", async () => {
+test("/compute without payment is rejected with 402", async () => {
   const { server, base } = boot();
   open = server;
-  const res = await fetch(`${base}/tick`);
+  const res = await fetch(`${base}/compute`);
   expect(res.status).toBe(402);
 });

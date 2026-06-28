@@ -31,11 +31,11 @@ export function createProviderApp(opts: ProviderAppOptions): Express {
     res.json({ ok: true, kind: executor.kind, price, ...meta });
   });
 
-  // Paywalled: one x402 micro-payment buys one compute tick.
-  app.get("/tick", gateway.require(price), async (req, res) => {
+  // Paywalled: one x402 micro-payment buys one unit of compute.
+  app.get("/compute", gateway.require(price), async (req, res) => {
     const pay = (req as PaymentRequest).payment;
     const sessionId = (typeof req.query.session === "string" && req.query.session) || "default";
-    const telemetry = await executor.tick(sessionId);
+    const telemetry = await executor.compute(sessionId);
     res.json({
       ok: true,
       payment: pay
