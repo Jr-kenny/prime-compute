@@ -2,7 +2,6 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, MapPin, Star } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
-import { PageShell } from "@/components/site/PageShell";
 import { ComputeScoreRing } from "@/components/site/ComputeScoreRing";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -23,19 +22,15 @@ export const Route = createFileRoute("/marketplace/$id")({
   }),
   component: ProviderDetail,
   notFoundComponent: () => (
-    <PageShell>
-      <div className="mx-auto max-w-3xl px-6 py-24 text-center">
-        <h1 className="text-3xl font-bold">Provider not found</h1>
-        <Button asChild className="mt-6"><Link to="/marketplace">Back to marketplace</Link></Button>
-      </div>
-    </PageShell>
+    <div className="mx-auto max-w-3xl px-6 py-24 text-center">
+      <h1 className="text-3xl font-bold">Provider not found</h1>
+      <Button asChild className="mt-6"><Link to="/marketplace">Back to marketplace</Link></Button>
+    </div>
   ),
   errorComponent: () => (
-    <PageShell>
-      <div className="mx-auto max-w-3xl px-6 py-24 text-center">
-        <h1 className="text-2xl font-semibold">Couldn't load this provider</h1>
-      </div>
-    </PageShell>
+    <div className="mx-auto max-w-3xl px-6 py-24 text-center">
+      <h1 className="text-2xl font-semibold">Couldn't load this provider</h1>
+    </div>
   ),
 });
 
@@ -45,9 +40,8 @@ function ProviderDetail() {
   const history = historicalJobs.slice(0, 20);
 
   return (
-    <PageShell>
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 pb-32 md:pb-12">
-        <Link to="/marketplace" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 pb-32 md:pb-12">
+      <Link to="/marketplace" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Back to marketplace
         </Link>
 
@@ -173,11 +167,6 @@ function ProviderDetail() {
           </TabsContent>
         </Tabs>
       </div>
-
-      <div className="md:hidden fixed bottom-0 inset-x-0 border-t border-border bg-surface/95 backdrop-blur-xl p-3 z-30">
-        <Button className="w-full bg-primary text-primary-foreground">Deploy a job →</Button>
-      </div>
-    </PageShell>
   );
 }
 
