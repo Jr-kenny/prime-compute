@@ -1,18 +1,4 @@
-export type Provider = {
-  id: string;
-  resourceType: "GPU" | "CPU" | "Storage" | "Full Server";
-  region: string;
-  online: boolean;
-  stakeAmount: number;
-  pricePerTick: number;
-  computeScore: number;
-  avgLatencyMs: number;
-};
-
-export type JobSpec = {
-  resourceType: Provider["resourceType"];
-  region: string | null;
-};
+import type { Provider, JobSpec } from "./domain";
 
 export function hardFilter(providers: Provider[], job: JobSpec): Provider[] {
   return providers.filter(
