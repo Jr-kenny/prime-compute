@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
-    "probe:kimchi": "bun run probes/kimchi-toolcall.ts",
+    "probe:llm": "bun run probes/llm-toolcall.ts",
     "probe:x402": "bun run probes/x402-roundtrip.ts"
   },
   "dependencies": {

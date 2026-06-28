@@ -6,12 +6,14 @@ function required(env: Env, key: string): string {
   return v;
 }
 
+// The broker brain is any OpenAI-compatible endpoint (NVIDIA NIM, Kimchi, etc.).
+// Swapping providers is a config change, not a code change.
 export function loadConfig(env: Env = process.env) {
   return {
-    kimchi: {
-      baseUrl: required(env, "KIMCHI_BASE_URL"),
-      apiKey: required(env, "KIMCHI_API_KEY"),
-      model: env.KIMCHI_MODEL ?? "kimi-k2.6",
+    llm: {
+      baseUrl: required(env, "LLM_BASE_URL"),
+      apiKey: required(env, "LLM_API_KEY"),
+      model: env.LLM_MODEL ?? "meta/llama-3.3-70b-instruct",
     },
   };
 }

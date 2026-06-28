@@ -1,8 +1,8 @@
 import { generateText, tool } from "ai";
 import { z } from "zod";
-import { makeKimchi } from "../src/kimchi";
+import { makeModel } from "../src/llm";
 
-const { provider, modelId } = makeKimchi();
+const { provider, modelId } = makeModel();
 
 const result = await generateText({
   model: provider(modelId),
@@ -24,12 +24,13 @@ const result = await generateText({
   maxSteps: 1,
 });
 
+console.log("model:", modelId);
 console.log("toolCalls:", JSON.stringify(result.toolCalls, null, 2));
 console.log("finishReason:", result.finishReason);
 console.log("text:", result.text);
 
 if (result.toolCalls.length > 0) {
-  console.log("\n✅ TOOL CALLING WORKS through Kimchi.");
+  console.log("\n✅ TOOL CALLING WORKS through this provider.");
 } else {
   console.log(
     "\n❌ No tool call emitted. Broker must use the deterministic scorer (scoring.ts).",

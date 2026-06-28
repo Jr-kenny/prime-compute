@@ -17,17 +17,25 @@ matching"); relaxed to `^5`, resolved to 5.9.3. Newer majors exist for ai (v7), 
 (v4), openai-compatible (v3) but the v4/v0.1/v3 set installed is mutually compatible
 and the `tool()` + `createOpenAICompatible` APIs type-check.
 
-## Kimchi tool-calling (Task 4) — BLOCKED (provider credits exhausted)
+## Tool-calling (Task 4) — PASS (via NVIDIA NIM)
 
-- Ran `bun run probe:kimchi` with a valid key. Auth and the gateway work (we get
-  structured responses + provider headers), but every model returns
-  `"the provider for model <m> has exhausted its credits and cannot process
-  requests"` — tried kimi-k2.6, minimax-m3, minimax-m2.7, nemotron-3-ultra-fp4.
-- So tool-calling could not be observed yet. Rerun once Kimchi credits are topped up.
-- Gateway also silently remaps model ids (`x-model-actual` header): kimi-k2.6 →
-  kimi-k2.7, minimax-m2.7 → minimax-m3.
-- Decision until then: the deterministic scorer in `src/scoring.ts` is primary; we
-  confirm the Kimchi tool-call path when credits return.
+- `bun run probe:llm` against **NVIDIA NIM** (`https://integrate.api.nvidia.com/v1`,
+  model `meta/llama-3.3-70b-instruct`) emitted a real tool call:
+  `pick_provider({ provider_id: "B", reason: "Cheapest provider for GPU job" })`,
+  `finishReason: tool-calls`. It also picked the correct provider. Tool-calling
+  through the AI SDK works. NVIDIA free tier limit is ~40 RPM, fine for the broker
+  (it calls the model on decisions, not per tick).
+- The broker brain is provider-agnostic by design: `LLM_BASE_URL`/`LLM_API_KEY`/
+  `LLM_MODEL` select the endpoint; `src/llm.ts` + the AI SDK openai-compatible
+  provider are unchanged across providers.
+- Kimchi note: every Kimchi model (kimi-k2.6/k2.7, minimax-m3/m2.7,
+  nemotron-3-ultra-fp4, deepseek-v4-flash, glm-5.2-fp8) returned
+  `"the provider for model <m> has exhausted its credits"` despite a non-zero
+  account balance — looks key-scoped (the `prime compute` key's provider pools),
+  the `Kimchi CLI` key has working usage on kimi-k2.7. Kimchi remains a drop-in
+  alternative once that key can reach a model (config in `.env.example`).
+- The deterministic scorer in `src/scoring.ts` remains the hard pre-filter and the
+  fallback whenever the model is unavailable.
 
 ## Arc testnet config (Task 6) — CONFIRMED
 
