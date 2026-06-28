@@ -96,4 +96,55 @@ could act on it. Concrete beats vague.
   lands), and say so in the lifecycle-hooks docs.
 - **Date:** 2026-06-28
 
+### GatewayClient doesn't compose with Circle's own developer-controlled wallets
+- **Area:** SDK / x402 / Gateway
+- **What happened:** The buyer `GatewayClient` (`@circle-fin/x402-batching/client`)
+  only accepts `privateKey: Hex`. The lower-level `BatchEvmScheme` does take a
+  `BatchEvmSigner` (`{ address, signTypedData }`), which a Circle developer-controlled
+  wallet could satisfy, but `GatewayClient` (the thing that has `deposit()` and the
+  full 402 `pay()` flow) gives you no way to pass a custom signer, and `deposit()` is
+  an on-chain approve+deposit that needs a transaction sender, not just a typed-data
+  signer.
+- **Impact:** You can't drive the batching buyer flow with Circle's *own* wallet
+  product without abandoning `GatewayClient` and reimplementing deposit + the 402
+  retry loop around `BatchEvmScheme` + `x402Client` yourself. Two Circle products
+  (developer-controlled wallets + x402 batching) don't compose on the buyer side.
+- **Suggestion:** Let `GatewayClient` accept a `signer: BatchEvmSigner` (or a wallet
+  adapter) as an alternative to `privateKey`, and document a deposit path that works
+  with a developer-controlled wallet. That makes "autonomous agent on a Circle wallet
+  paying via x402" a first-class, documented path.
+- **Date:** 2026-06-28
+
+### Spend-guard abort surfaces as an untyped string error
+- **Area:** SDK / x402
+- **What happened:** Registering a guard via `onBeforePaymentCreation` and returning
+  `{ abort: true, reason }` makes `pay()` throw a generic
+  `Error("Payment creation aborted: <reason>")`. There's no typed error class, so to
+  react to "the guard stopped this payment" vs any other failure you have to
+  string-match the message or track your own flag. I ended up stashing the last abort
+  reason and rethrowing my own typed `SpendCapError` around `pay()`.
+- **Impact:** Programmatic handling of the deterministic spend guard (the whole point
+  of the hook) is awkward and brittle; string-matching an error message is the only
+  built-in way to distinguish an intentional abort from a real fault.
+- **Suggestion:** Throw a typed error (e.g. `PaymentAbortedError` with a `.reason`
+  field) when a before-payment hook aborts, so callers can `instanceof`-check it.
+- **Date:** 2026-06-28
+
+### No confirmation signal or stated latency for when a batched payment settles
+- **Area:** x402 / Gateway / Docs
+- **What happened:** After every `pay()` across three separate live runs on Arc
+  testnet, `getTransferById(transferId)` returned `status: "received"` with
+  `settled: false`, and the batch never flipped to settled within a script's runtime.
+  There's no documented expected settlement latency, the `TransferStatus` enum
+  (`received | batched | confirmed | completed | failed`) isn't explained (which of
+  these counts as "money landed"?), and there's no webhook/event to learn when a batch
+  settles, so reconciliation is reduced to "poll `getTransferById` and hope."
+- **Impact:** You can pay successfully but have no reliable, documented way to know
+  when it actually settled on-chain, which makes building correct reconciliation (and
+  knowing when it's safe to consider a charge final) guesswork.
+- **Suggestion:** Document each `TransferStatus` and a rough settlement-time
+  expectation, and offer a settlement webhook/notification (or a documented
+  "terminal status" to poll for) so reconciliation isn't blind polling.
+- **Date:** 2026-06-28
+
 <!-- Add new entries above this line as we hit them during implementation. -->
