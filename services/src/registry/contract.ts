@@ -89,6 +89,15 @@ export function registryContract(
       expect((await reg.listCharges(rent.id)).length).toBe(2);
     });
 
+    test("markChargeSettled flips a charge to settled", async () => {
+      const provider = await reg.registerProvider(sampleProvider);
+      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const charge = await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, authorizationRef: null, settled: false, settlementRef: "ref-0" });
+      await reg.markChargeSettled(charge.id);
+      const charges = await reg.listCharges(rent.id);
+      expect(charges[0]?.settled).toBe(true);
+    });
+
     test("recordDecision stores candidates + rationale", async () => {
       const a = await reg.registerProvider({ ...sampleProvider, alias: "cand-a" });
       const b = await reg.registerProvider({ ...sampleProvider, alias: "cand-b" });

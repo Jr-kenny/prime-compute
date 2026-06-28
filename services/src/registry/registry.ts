@@ -41,6 +41,7 @@ export interface Registry {
 
   recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision>;
   recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge>;
+  markChargeSettled(chargeId: string): Promise<void>;
   listCharges(rentId: string): Promise<Charge[]>;
   rentCost(rentId: string): Promise<number>;
 }
