@@ -15,6 +15,10 @@ export function loadConfig(env: Env = process.env) {
       apiKey: required(env, "LLM_API_KEY"),
       model: env.LLM_MODEL ?? "meta/llama-3.3-70b-instruct",
     },
+    supabase:
+      env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
+        ? { url: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY }
+        : null,
   };
 }
 
