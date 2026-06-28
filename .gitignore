@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# This project uses bun (bun.lock). Ignore stray lockfiles from npm/yarn.
+package-lock.json
+yarn.lock
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
