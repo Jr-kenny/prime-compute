@@ -27,5 +27,5 @@ const app = createProviderApp({
 });
 
 app.listen(port, () => {
-  console.log(`provider ${sellerAddress} serving x402 ticks on :${port} at ${price}/tick`);
+  console.log(`provider ${sellerAddress} serving compute on :${port} at ${price}/charge`);
 });

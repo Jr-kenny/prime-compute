@@ -31,12 +31,12 @@ try {
   const dep = await client.deposit("0.10");
   console.log("  deposit tx:", `${explorer}/tx/${dep.depositTxHash}`);
 
-  console.log("buyer: paying for one /tick (gas-free)...");
-  const result = await client.pay(`http://localhost:${port}/tick?session=roundtrip`);
+  console.log("buyer: paying for one /compute (gas-free)...");
+  const result = await client.pay(`http://localhost:${port}/compute?session=roundtrip`);
   console.log("  telemetry:", JSON.stringify((result.data as { telemetry?: unknown }).telemetry));
   console.log("  amount (atomic):", result.amount.toString());
 
-  console.log("\n✅ provider template served a real paid tick on Arc testnet.");
+  console.log("\n✅ provider template served a real paid compute on Arc testnet.");
 } catch (err) {
   console.error("\n❌ round-trip failed:", err instanceof Error ? err.message : err);
   console.error("If the buyer has no testnet USDC, fund it at https://faucet.circle.com and retry.");

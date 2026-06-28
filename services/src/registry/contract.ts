@@ -10,7 +10,7 @@ const sampleProvider: NewProvider = {
   specs: { gpu: "H100", vramGb: 80 },
   online: true,
   stakeAmount: 100,
-  pricePerTick: 0.000006,
+  pricePerCharge: 0.000006,
   avgLatencyMs: 5,
 };
 
@@ -80,13 +80,13 @@ export function registryContract(
       expect(updated.providerId).toBe(provider.id);
     });
 
-    test("recordTick + rentCost sums consumed ticks exactly", async () => {
+    test("recordCharge + rentCost sums consumed charges exactly", async () => {
       const provider = await reg.registerProvider(sampleProvider);
       const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
-      await reg.recordTick({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, authorizationRef: "a0", settled: false, settlementRef: null });
-      await reg.recordTick({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, authorizationRef: "a1", settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, authorizationRef: "a0", settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, authorizationRef: "a1", settled: false, settlementRef: null });
       expect(await reg.rentCost(rent.id)).toBe(200);
-      expect((await reg.listTicks(rent.id)).length).toBe(2);
+      expect((await reg.listCharges(rent.id)).length).toBe(2);
     });
 
     test("recordDecision stores candidates + rationale", async () => {

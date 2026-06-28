@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Provider, Rent, RentDecision, Tick } from "../domain";
+import type { Provider, Rent, RentDecision, Charge } from "../domain";
 import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
 
 type Row = Record<string, unknown>;
@@ -18,7 +18,7 @@ function toProvider(raw: unknown): Provider {
     specs: (r.specs as Record<string, unknown>) ?? {},
     online: r.online as boolean,
     stakeAmount: Number(r.stake_amount),
-    pricePerTick: Number(r.price_per_tick),
+    pricePerCharge: Number(r.price_per_charge),
     computeScore: Number(r.compute_score),
     avgLatencyMs: Number(r.avg_latency_ms),
   };
@@ -42,7 +42,7 @@ function toRent(raw: unknown): Rent {
   };
 }
 
-function toTick(raw: unknown): Tick {
+function toCharge(raw: unknown): Charge {
   const r = raw as Row;
   return {
     id: r.id as string,
@@ -75,7 +75,7 @@ export class SupabaseRegistry implements Registry {
       this.db.from("providers").insert({
         alias: p.alias, owner_wallet: p.ownerWallet, endpoint_url: p.endpointUrl,
         resource_type: p.resourceType, region: p.region, specs: p.specs,
-        online: p.online, stake_amount: p.stakeAmount, price_per_tick: p.pricePerTick,
+        online: p.online, stake_amount: p.stakeAmount, price_per_charge: p.pricePerCharge,
         compute_score: p.computeScore ?? 80, avg_latency_ms: p.avgLatencyMs,
       }).select().single(),
       "registerProvider",
@@ -162,25 +162,25 @@ export class SupabaseRegistry implements Registry {
     };
   }
 
-  async recordTick(t: Omit<Tick, "id" | "createdAt">): Promise<Tick> {
+  async recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge> {
     const row = await this.one(
-      this.db.from("ticks").insert({
+      this.db.from("charges").insert({
         rent_id: t.rentId, provider_id: t.providerId, seq: t.seq, amount: t.amount,
         authorization_ref: t.authorizationRef, settled: t.settled, settlement_ref: t.settlementRef,
       }).select().single(),
-      "recordTick",
+      "recordCharge",
     );
-    return toTick(row);
+    return toCharge(row);
   }
 
-  async listTicks(rentId: string): Promise<Tick[]> {
-    const { data, error } = await this.db.from("ticks").select().eq("rent_id", rentId).order("seq");
-    if (error) throw new Error(`listTicks: ${error.message}`);
-    return (data ?? []).map((r) => toTick(r));
+  async listCharges(rentId: string): Promise<Charge[]> {
+    const { data, error } = await this.db.from("charges").select().eq("rent_id", rentId).order("seq");
+    if (error) throw new Error(`listCharges: ${error.message}`);
+    return (data ?? []).map((r) => toCharge(r));
   }
 
   async rentCost(rentId: string): Promise<number> {
-    const { data, error } = await this.db.from("ticks").select("amount").eq("rent_id", rentId);
+    const { data, error } = await this.db.from("charges").select("amount").eq("rent_id", rentId);
     if (error) throw new Error(`rentCost: ${error.message}`);
     return (data ?? []).reduce((s, r) => s + Number((r as Row).amount), 0);
   }

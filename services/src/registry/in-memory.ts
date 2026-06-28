@@ -1,11 +1,11 @@
-import type { Provider, Rent, RentDecision, Tick } from "../domain";
+import type { Provider, Rent, RentDecision, Charge } from "../domain";
 import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
 
 export class InMemoryRegistry implements Registry {
   private providers = new Map<string, Provider>();
   private rents = new Map<string, Rent>();
   private decisions: RentDecision[] = [];
-  private ticks: Tick[] = [];
+  private charges: Charge[] = [];
 
   async registerProvider(p: NewProvider): Promise<Provider> {
     const provider: Provider = { id: crypto.randomUUID(), ...p, computeScore: p.computeScore ?? 80 };
@@ -74,17 +74,17 @@ export class InMemoryRegistry implements Registry {
     return decision;
   }
 
-  async recordTick(t: Omit<Tick, "id" | "createdAt">): Promise<Tick> {
-    const tick: Tick = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...t };
-    this.ticks.push(tick);
-    return tick;
+  async recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge> {
+    const charge: Charge = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...t };
+    this.charges.push(charge);
+    return charge;
   }
 
-  async listTicks(rentId: string): Promise<Tick[]> {
-    return this.ticks.filter((t) => t.rentId === rentId).sort((a, b) => a.seq - b.seq);
+  async listCharges(rentId: string): Promise<Charge[]> {
+    return this.charges.filter((t) => t.rentId === rentId).sort((a, b) => a.seq - b.seq);
   }
 
   async rentCost(rentId: string): Promise<number> {
-    return this.ticks.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount, 0);
+    return this.charges.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount, 0);
   }
 }

@@ -17,7 +17,7 @@ export type Provider = {
   specs: Record<string, unknown>;
   online: boolean;
   stakeAmount: number;
-  pricePerTick: number;
+  pricePerCharge: number;
   computeScore: number;
   avgLatencyMs: number;
 };
@@ -51,7 +51,7 @@ export type RentDecision = {
   createdAt: string;
 };
 
-export type Tick = {
+export type Charge = {
   id: string;
   rentId: string;
   providerId: string;

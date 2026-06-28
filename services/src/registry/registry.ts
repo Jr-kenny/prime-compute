@@ -2,7 +2,7 @@ import type {
   Provider,
   Rent,
   RentDecision,
-  Tick,
+  Charge,
   RentSpec,
   ResourceType,
 } from "../domain";
@@ -40,7 +40,7 @@ export interface Registry {
   updateRent(id: string, patch: RentPatch): Promise<Rent>;
 
   recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision>;
-  recordTick(t: Omit<Tick, "id" | "createdAt">): Promise<Tick>;
-  listTicks(rentId: string): Promise<Tick[]>;
+  recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge>;
+  listCharges(rentId: string): Promise<Charge[]>;
   rentCost(rentId: string): Promise<number>;
 }

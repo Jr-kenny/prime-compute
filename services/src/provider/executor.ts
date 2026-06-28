@@ -2,7 +2,7 @@ export type Telemetry = {
   cpu: number; // % utilization
   ramGb: number; // GB in use
   gpuUtil: number; // % (0 for CPU-only providers)
-  seq: number; // tick counter for this session
+  seq: number; // compute counter for this session
   ts: number; // epoch ms
 };
 
@@ -12,7 +12,7 @@ export type Telemetry = {
 export interface ComputeExecutor {
   readonly kind: string;
   /** One unit of compute for a session; returns a telemetry heartbeat. */
-  tick(sessionId: string): Promise<Telemetry>;
+  compute(sessionId: string): Promise<Telemetry>;
   /** Release any resources held for a session. */
   release(sessionId: string): Promise<void>;
 }
@@ -23,10 +23,10 @@ export class SimulatedExecutor implements ComputeExecutor {
 
   constructor(private profile: { hasGpu: boolean } = { hasGpu: true }) {}
 
-  async tick(sessionId: string): Promise<Telemetry> {
+  async compute(sessionId: string): Promise<Telemetry> {
     const seq = this.sessions.get(sessionId) ?? 0;
     this.sessions.set(sessionId, seq + 1);
-    // Synthetic load that wobbles per tick so the live meter looks alive.
+    // Synthetic load that wobbles per compute so the live meter looks alive.
     const wobble = (base: number, span: number) =>
       Math.round((base + span * (0.5 + 0.5 * Math.sin(seq / 3))) * 10) / 10;
     return {
