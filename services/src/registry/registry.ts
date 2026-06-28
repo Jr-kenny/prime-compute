@@ -1,9 +1,9 @@
 import type {
   Provider,
-  Job,
-  JobDecision,
+  Rent,
+  RentDecision,
   Tick,
-  JobSpec,
+  RentSpec,
   ResourceType,
 } from "../domain";
 
@@ -11,16 +11,16 @@ export type NewProvider = Omit<Provider, "id" | "computeScore"> & {
   computeScore?: number;
 };
 
-export type NewJob = {
+export type NewRent = {
   name: string;
   userId: string;
-  spec: JobSpec;
+  spec: RentSpec;
   estimatedUsage?: number | null;
   autonomyArmed?: boolean;
 };
 
-export type JobPatch = Partial<
-  Pick<Job, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt">
+export type RentPatch = Partial<
+  Pick<Rent, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt">
 >;
 
 export type ProviderFilter = {
@@ -35,12 +35,12 @@ export interface Registry {
   setProviderOnline(id: string, online: boolean): Promise<void>;
   bumpComputeScore(id: string, delta: number): Promise<Provider>;
 
-  createJob(j: NewJob): Promise<Job>;
-  getJob(id: string): Promise<Job | null>;
-  updateJob(id: string, patch: JobPatch): Promise<Job>;
+  createRent(r: NewRent): Promise<Rent>;
+  getRent(id: string): Promise<Rent | null>;
+  updateRent(id: string, patch: RentPatch): Promise<Rent>;
 
-  recordDecision(d: Omit<JobDecision, "id" | "createdAt">): Promise<JobDecision>;
+  recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision>;
   recordTick(t: Omit<Tick, "id" | "createdAt">): Promise<Tick>;
-  listTicks(jobId: string): Promise<Tick[]>;
-  jobCost(jobId: string): Promise<number>;
+  listTicks(rentId: string): Promise<Tick[]>;
+  rentCost(rentId: string): Promise<number>;
 }

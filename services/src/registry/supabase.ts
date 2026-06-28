@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Provider, Job, JobDecision, Tick } from "../domain";
-import type { Registry, NewProvider, NewJob, JobPatch, ProviderFilter } from "./registry";
+import type { Provider, Rent, RentDecision, Tick } from "../domain";
+import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
 
 type Row = Record<string, unknown>;
 
@@ -24,16 +24,16 @@ function toProvider(raw: unknown): Provider {
   };
 }
 
-function toJob(raw: unknown): Job {
+function toRent(raw: unknown): Rent {
   const r = raw as Row;
   return {
     id: r.id as string,
     name: r.name as string,
     userId: r.user_id as string,
-    spec: { resourceType: r.resource_type as Job["spec"]["resourceType"], region: (r.region as string) ?? null },
+    spec: { resourceType: r.resource_type as Rent["spec"]["resourceType"], region: (r.region as string) ?? null },
     estimatedUsage: r.estimated_usage === null ? null : Number(r.estimated_usage),
     autonomyArmed: r.autonomy_armed as boolean,
-    status: r.status as Job["status"],
+    status: r.status as Rent["status"],
     providerId: (r.provider_id as string) ?? null,
     totalCost: Number(r.total_cost),
     createdAt: r.created_at as string,
@@ -46,7 +46,7 @@ function toTick(raw: unknown): Tick {
   const r = raw as Row;
   return {
     id: r.id as string,
-    jobId: r.job_id as string,
+    rentId: r.rent_id as string,
     providerId: r.provider_id as string,
     seq: Number(r.seq),
     amount: Number(r.amount),
@@ -113,25 +113,25 @@ export class SupabaseRegistry implements Registry {
     return toProvider(row);
   }
 
-  async createJob(j: NewJob): Promise<Job> {
+  async createRent(r: NewRent): Promise<Rent> {
     const row = await this.one(
-      this.db.from("jobs").insert({
-        name: j.name, user_id: j.userId,
-        resource_type: j.spec.resourceType, region: j.spec.region,
-        estimated_usage: j.estimatedUsage ?? null, autonomy_armed: j.autonomyArmed ?? false,
+      this.db.from("rents").insert({
+        name: r.name, user_id: r.userId,
+        resource_type: r.spec.resourceType, region: r.spec.region,
+        estimated_usage: r.estimatedUsage ?? null, autonomy_armed: r.autonomyArmed ?? false,
       }).select().single(),
-      "createJob",
+      "createRent",
     );
-    return toJob(row);
+    return toRent(row);
   }
 
-  async getJob(id: string): Promise<Job | null> {
-    const { data, error } = await this.db.from("jobs").select().eq("id", id).maybeSingle();
-    if (error) throw new Error(`getJob: ${error.message}`);
-    return data ? toJob(data) : null;
+  async getRent(id: string): Promise<Rent | null> {
+    const { data, error } = await this.db.from("rents").select().eq("id", id).maybeSingle();
+    if (error) throw new Error(`getRent: ${error.message}`);
+    return data ? toRent(data) : null;
   }
 
-  async updateJob(id: string, patch: JobPatch): Promise<Job> {
+  async updateRent(id: string, patch: RentPatch): Promise<Rent> {
     const dbPatch: Row = {};
     if (patch.status !== undefined) dbPatch.status = patch.status;
     if (patch.providerId !== undefined) dbPatch.provider_id = patch.providerId;
@@ -139,24 +139,24 @@ export class SupabaseRegistry implements Registry {
     if (patch.startedAt !== undefined) dbPatch.started_at = patch.startedAt;
     if (patch.endedAt !== undefined) dbPatch.ended_at = patch.endedAt;
     const row = await this.one(
-      this.db.from("jobs").update(dbPatch).eq("id", id).select().single(),
-      "updateJob",
+      this.db.from("rents").update(dbPatch).eq("id", id).select().single(),
+      "updateRent",
     );
-    return toJob(row);
+    return toRent(row);
   }
 
-  async recordDecision(d: Omit<JobDecision, "id" | "createdAt">): Promise<JobDecision> {
+  async recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision> {
     const row = await this.one(
-      this.db.from("job_decisions").insert({
-        job_id: d.jobId, candidates: d.candidates,
+      this.db.from("rent_decisions").insert({
+        rent_id: d.rentId, candidates: d.candidates,
         chosen_provider_id: d.chosenProviderId, rationale: d.rationale,
       }).select().single(),
       "recordDecision",
     );
     const r = row as unknown as Row;
     return {
-      id: r.id as string, jobId: r.job_id as string,
-      candidates: r.candidates as JobDecision["candidates"],
+      id: r.id as string, rentId: r.rent_id as string,
+      candidates: r.candidates as RentDecision["candidates"],
       chosenProviderId: (r.chosen_provider_id as string) ?? null,
       rationale: r.rationale as string, createdAt: r.created_at as string,
     };
@@ -165,7 +165,7 @@ export class SupabaseRegistry implements Registry {
   async recordTick(t: Omit<Tick, "id" | "createdAt">): Promise<Tick> {
     const row = await this.one(
       this.db.from("ticks").insert({
-        job_id: t.jobId, provider_id: t.providerId, seq: t.seq, amount: t.amount,
+        rent_id: t.rentId, provider_id: t.providerId, seq: t.seq, amount: t.amount,
         authorization_ref: t.authorizationRef, settled: t.settled, settlement_ref: t.settlementRef,
       }).select().single(),
       "recordTick",
@@ -173,15 +173,15 @@ export class SupabaseRegistry implements Registry {
     return toTick(row);
   }
 
-  async listTicks(jobId: string): Promise<Tick[]> {
-    const { data, error } = await this.db.from("ticks").select().eq("job_id", jobId).order("seq");
+  async listTicks(rentId: string): Promise<Tick[]> {
+    const { data, error } = await this.db.from("ticks").select().eq("rent_id", rentId).order("seq");
     if (error) throw new Error(`listTicks: ${error.message}`);
     return (data ?? []).map((r) => toTick(r));
   }
 
-  async jobCost(jobId: string): Promise<number> {
-    const { data, error } = await this.db.from("ticks").select("amount").eq("job_id", jobId);
-    if (error) throw new Error(`jobCost: ${error.message}`);
+  async rentCost(rentId: string): Promise<number> {
+    const { data, error } = await this.db.from("ticks").select("amount").eq("rent_id", rentId);
+    if (error) throw new Error(`rentCost: ${error.message}`);
     return (data ?? []).reduce((s, r) => s + Number((r as Row).amount), 0);
   }
 }

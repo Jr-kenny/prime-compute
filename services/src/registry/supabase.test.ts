@@ -14,7 +14,7 @@ if (!cfg.supabase) {
     // Reset tables so each contract test starts from empty (child rows first).
     const { createClient } = await import("@supabase/supabase-js");
     const db = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
-    for (const t of ["ticks", "job_decisions", "settlements", "jobs", "providers"]) {
+    for (const t of ["ticks", "rent_decisions", "settlements", "rents", "providers"]) {
       const { error } = await db.from(t).delete().neq("id", "00000000-0000-0000-0000-000000000000");
       if (error) throw new Error(`reset ${t}: ${error.message}`);
     }

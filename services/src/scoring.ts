@@ -1,6 +1,6 @@
-import type { Provider, JobSpec } from "./domain";
+import type { Provider, RentSpec } from "./domain";
 
-export function hardFilter(providers: Provider[], job: JobSpec): Provider[] {
+export function hardFilter(providers: Provider[], job: RentSpec): Provider[] {
   return providers.filter(
     (p) =>
       p.online &&
@@ -12,7 +12,7 @@ export function hardFilter(providers: Provider[], job: JobSpec): Provider[] {
 
 // Lower price is better; higher score is better; lower latency is better.
 // Normalize each dimension across the candidate set, then weight.
-export function scoreProviders(providers: Provider[], _job: JobSpec): Provider[] {
+export function scoreProviders(providers: Provider[], _job: RentSpec): Provider[] {
   if (providers.length === 0) return [];
   const prices = providers.map((p) => p.pricePerTick);
   const minP = Math.min(...prices);

@@ -1,10 +1,10 @@
-import type { Provider, Job, JobDecision, Tick } from "../domain";
-import type { Registry, NewProvider, NewJob, JobPatch, ProviderFilter } from "./registry";
+import type { Provider, Rent, RentDecision, Tick } from "../domain";
+import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
 
 export class InMemoryRegistry implements Registry {
   private providers = new Map<string, Provider>();
-  private jobs = new Map<string, Job>();
-  private decisions: JobDecision[] = [];
+  private rents = new Map<string, Rent>();
+  private decisions: RentDecision[] = [];
   private ticks: Tick[] = [];
 
   async registerProvider(p: NewProvider): Promise<Provider> {
@@ -37,14 +37,14 @@ export class InMemoryRegistry implements Registry {
     return next;
   }
 
-  async createJob(j: NewJob): Promise<Job> {
-    const job: Job = {
+  async createRent(r: NewRent): Promise<Rent> {
+    const rent: Rent = {
       id: crypto.randomUUID(),
-      name: j.name,
-      userId: j.userId,
-      spec: j.spec,
-      estimatedUsage: j.estimatedUsage ?? null,
-      autonomyArmed: j.autonomyArmed ?? false,
+      name: r.name,
+      userId: r.userId,
+      spec: r.spec,
+      estimatedUsage: r.estimatedUsage ?? null,
+      autonomyArmed: r.autonomyArmed ?? false,
       status: "queued",
       providerId: null,
       totalCost: 0,
@@ -52,24 +52,24 @@ export class InMemoryRegistry implements Registry {
       startedAt: null,
       endedAt: null,
     };
-    this.jobs.set(job.id, job);
-    return job;
+    this.rents.set(rent.id, rent);
+    return rent;
   }
 
-  async getJob(id: string): Promise<Job | null> {
-    return this.jobs.get(id) ?? null;
+  async getRent(id: string): Promise<Rent | null> {
+    return this.rents.get(id) ?? null;
   }
 
-  async updateJob(id: string, patch: JobPatch): Promise<Job> {
-    const j = this.jobs.get(id);
-    if (!j) throw new Error(`job not found: ${id}`);
-    const next = { ...j, ...patch };
-    this.jobs.set(id, next);
+  async updateRent(id: string, patch: RentPatch): Promise<Rent> {
+    const r = this.rents.get(id);
+    if (!r) throw new Error(`rent not found: ${id}`);
+    const next = { ...r, ...patch };
+    this.rents.set(id, next);
     return next;
   }
 
-  async recordDecision(d: Omit<JobDecision, "id" | "createdAt">): Promise<JobDecision> {
-    const decision: JobDecision = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...d };
+  async recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision> {
+    const decision: RentDecision = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...d };
     this.decisions.push(decision);
     return decision;
   }
@@ -80,11 +80,11 @@ export class InMemoryRegistry implements Registry {
     return tick;
   }
 
-  async listTicks(jobId: string): Promise<Tick[]> {
-    return this.ticks.filter((t) => t.jobId === jobId).sort((a, b) => a.seq - b.seq);
+  async listTicks(rentId: string): Promise<Tick[]> {
+    return this.ticks.filter((t) => t.rentId === rentId).sort((a, b) => a.seq - b.seq);
   }
 
-  async jobCost(jobId: string): Promise<number> {
-    return this.ticks.filter((t) => t.jobId === jobId).reduce((s, t) => s + t.amount, 0);
+  async rentCost(rentId: string): Promise<number> {
+    return this.ticks.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount, 0);
   }
 }

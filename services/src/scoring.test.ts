@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 import { hardFilter, scoreProviders } from "./scoring";
-import type { Provider, JobSpec } from "./domain";
+import type { Provider, RentSpec } from "./domain";
 
 const base = { alias: "n", ownerWallet: "0x0", endpointUrl: "http://x", specs: {} };
 const providers: Provider[] = [
@@ -10,7 +10,7 @@ const providers: Provider[] = [
   { id: "D", ...base, resourceType: "CPU", region: "US-East", online: true, stakeAmount: 0, pricePerTick: 0.000002, computeScore: 80, avgLatencyMs: 4 },
 ];
 
-const job: JobSpec = { resourceType: "GPU", region: null };
+const job: RentSpec = { resourceType: "GPU", region: null };
 
 test("hardFilter drops offline, wrong-type, and unstaked providers", () => {
   const kept = hardFilter(providers, job).map((p) => p.id);

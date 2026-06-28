@@ -14,6 +14,10 @@ const sampleProvider: NewProvider = {
   avgLatencyMs: 5,
 };
 
+// Generous so the network-bound SupabaseRegistry run (resets + round-trips to a
+// remote region) fits; harmless for the instant in-memory run.
+const T = 30_000;
+
 export function registryContract(
   name: string,
   makeRegistry: () => Promise<Registry>,
@@ -22,7 +26,7 @@ export function registryContract(
     let reg: Registry;
     beforeEach(async () => {
       reg = await makeRegistry();
-    });
+    }, T);
 
     test("registerProvider assigns an id and default computeScore", async () => {
       const p = await reg.registerProvider(sampleProvider);
@@ -44,7 +48,8 @@ export function registryContract(
     });
 
     test("getProvider returns null for unknown id", async () => {
-      expect(await reg.getProvider("nope")).toBeNull();
+      // A well-formed but absent id (real stores type the id column as uuid).
+      expect(await reg.getProvider(crypto.randomUUID())).toBeNull();
     });
 
     test("bumpComputeScore adjusts and persists the score", async () => {
@@ -55,43 +60,47 @@ export function registryContract(
       expect(fetched?.computeScore).toBe(85);
     });
 
-    test("createJob defaults status to queued and autonomy to false", async () => {
-      const job = await reg.createJob({
+    test("createRent defaults status to queued and autonomy to false", async () => {
+      const rent = await reg.createRent({
         name: "train-x",
         userId: "u1",
         spec: { resourceType: "GPU", region: null },
       });
-      expect(job.id).toBeTruthy();
-      expect(job.status).toBe("queued");
-      expect(job.autonomyArmed).toBe(false);
-      expect(job.totalCost).toBe(0);
+      expect(rent.id).toBeTruthy();
+      expect(rent.status).toBe("queued");
+      expect(rent.autonomyArmed).toBe(false);
+      expect(rent.totalCost).toBe(0);
     });
 
-    test("updateJob patches fields", async () => {
-      const job = await reg.createJob({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
-      const updated = await reg.updateJob(job.id, { status: "running", providerId: "p1" });
+    test("updateRent patches fields", async () => {
+      const provider = await reg.registerProvider(sampleProvider);
+      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const updated = await reg.updateRent(rent.id, { status: "running", providerId: provider.id });
       expect(updated.status).toBe("running");
-      expect(updated.providerId).toBe("p1");
+      expect(updated.providerId).toBe(provider.id);
     });
 
-    test("recordTick + jobCost sums consumed ticks exactly", async () => {
-      const job = await reg.createJob({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
-      await reg.recordTick({ jobId: job.id, providerId: "p1", seq: 0, amount: 100, authorizationRef: "a0", settled: false, settlementRef: null });
-      await reg.recordTick({ jobId: job.id, providerId: "p1", seq: 1, amount: 100, authorizationRef: "a1", settled: false, settlementRef: null });
-      expect(await reg.jobCost(job.id)).toBe(200);
-      expect((await reg.listTicks(job.id)).length).toBe(2);
+    test("recordTick + rentCost sums consumed ticks exactly", async () => {
+      const provider = await reg.registerProvider(sampleProvider);
+      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      await reg.recordTick({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, authorizationRef: "a0", settled: false, settlementRef: null });
+      await reg.recordTick({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, authorizationRef: "a1", settled: false, settlementRef: null });
+      expect(await reg.rentCost(rent.id)).toBe(200);
+      expect((await reg.listTicks(rent.id)).length).toBe(2);
     });
 
     test("recordDecision stores candidates + rationale", async () => {
-      const job = await reg.createJob({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const a = await reg.registerProvider({ ...sampleProvider, alias: "cand-a" });
+      const b = await reg.registerProvider({ ...sampleProvider, alias: "cand-b" });
+      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
       const d = await reg.recordDecision({
-        jobId: job.id,
-        candidates: [{ providerId: "B", rank: 0 }, { providerId: "A", rank: 1 }],
-        chosenProviderId: "B",
+        rentId: rent.id,
+        candidates: [{ providerId: b.id, rank: 0 }, { providerId: a.id, rank: 1 }],
+        chosenProviderId: b.id,
         rationale: "B is cheaper and higher score",
       });
       expect(d.id).toBeTruthy();
-      expect(d.chosenProviderId).toBe("B");
+      expect(d.chosenProviderId).toBe(b.id);
     });
   });
 }

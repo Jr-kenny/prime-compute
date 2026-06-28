@@ -16,7 +16,7 @@ create table if not exists providers (
   created_at timestamptz not null default now()
 );
 
-create table if not exists jobs (
+create table if not exists rents (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   user_id text not null,
@@ -33,9 +33,9 @@ create table if not exists jobs (
   ended_at timestamptz
 );
 
-create table if not exists job_decisions (
+create table if not exists rent_decisions (
   id uuid primary key default gen_random_uuid(),
-  job_id uuid not null references jobs(id) on delete cascade,
+  rent_id uuid not null references rents(id) on delete cascade,
   candidates jsonb not null default '[]',
   chosen_provider_id uuid references providers(id),
   rationale text not null default '',
@@ -44,7 +44,7 @@ create table if not exists job_decisions (
 
 create table if not exists ticks (
   id uuid primary key default gen_random_uuid(),
-  job_id uuid not null references jobs(id) on delete cascade,
+  rent_id uuid not null references rents(id) on delete cascade,
   provider_id uuid not null references providers(id),
   seq integer not null,
   amount numeric not null,
@@ -64,6 +64,6 @@ create table if not exists settlements (
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_ticks_job on ticks(job_id);
-create index if not exists idx_jobs_status on jobs(status);
+create index if not exists idx_ticks_rent on ticks(rent_id);
+create index if not exists idx_rents_status on rents(status);
 create index if not exists idx_providers_type_online on providers(resource_type, online);

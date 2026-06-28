@@ -1,5 +1,5 @@
 export type ResourceType = "GPU" | "CPU" | "Storage" | "Full Server";
-export type JobStatus =
+export type RentStatus =
   | "queued"
   | "running"
   | "paused"
@@ -22,19 +22,19 @@ export type Provider = {
   avgLatencyMs: number;
 };
 
-export type JobSpec = {
+export type RentSpec = {
   resourceType: ResourceType;
   region: string | null;
 };
 
-export type Job = {
+export type Rent = {
   id: string;
   name: string;
   userId: string;
-  spec: JobSpec;
+  spec: RentSpec;
   estimatedUsage: number | null;
   autonomyArmed: boolean;
-  status: JobStatus;
+  status: RentStatus;
   providerId: string | null;
   totalCost: number;
   createdAt: string;
@@ -42,9 +42,9 @@ export type Job = {
   endedAt: string | null;
 };
 
-export type JobDecision = {
+export type RentDecision = {
   id: string;
-  jobId: string;
+  rentId: string;
   candidates: { providerId: string; rank: number }[];
   chosenProviderId: string | null;
   rationale: string;
@@ -53,7 +53,7 @@ export type JobDecision = {
 
 export type Tick = {
   id: string;
-  jobId: string;
+  rentId: string;
   providerId: string;
   seq: number;
   amount: number; // atomic USDC units (6 decimals)
