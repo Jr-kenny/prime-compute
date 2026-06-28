@@ -91,10 +91,27 @@ mainnet `https://gateway-api.circle.com`. USDC has 6 decimals
 
 ## Decisions locked for Plans 2-6
 
+- **x402 settlement WORKS on Arc testnet** with `@circle-fin/x402-batching@3.2.0`
+  (+ `@x402/core`, `@x402/evm`, `express`). Seller = `createGatewayMiddleware`,
+  buyer = `GatewayClient` (`deposit` + `pay`), network `eip155:5042002`, testnet
+  facilitator `https://gateway-api-testnet.circle.com`. Plan 3 (provider) builds on
+  the seller API; Plan 4 (settlement adapter) builds on the buyer API.
+- Per-tick settlement is **batched/async** (`req.payment.transaction` is a settlement
+  UUID, not a tx hash). Plan 4/5 record ticks optimistically and reconcile on the
+  batch — matches the spec's error-handling section.
+- The buyer's `BatchEvmScheme.onBeforePaymentCreation(ctx → {abort,reason})` is the
+  deterministic spend guardrail seam for Plan 5.
 - Arc chain config and the Gateway Wallet address above are canonical.
 - AI SDK provider export is `createOpenAICompatible`; model id from `KIMCHI_MODEL`
   (default `kimi-k2.6`).
-- Deterministic scorer (`src/scoring.ts`) is the always-present pre-filter + ranking
-  fallback regardless of the tool-calling result.
-- Still to lock in Task 7: exact x402 middleware/client/settle API names and the
-  facilitator base URL.
+- **Kimchi tool-calling is unconfirmed (provider credits exhausted at probe time).**
+  Until credits return and the probe is rerun, the deterministic scorer
+  (`src/scoring.ts`) is the broker's primary ranking and is always the hard
+  pre-filter regardless.
+
+## Status
+
+- PASS: workspace, config, scorer, Arc connectivity, x402 settlement on Arc testnet.
+- BLOCKED (non-blocking): Kimchi tool-calling gate — rerun `bun run probe:kimchi`
+  once Kimchi credits are topped up; the deterministic fallback covers the gap.
+- Unit suite green (4 tests), full workspace type-checks.
