@@ -53,12 +53,18 @@ testnet, not simulated.
 - **Broker:** full autonomy. The AI makes the real calls (provider selection,
   migration, when to pause/cancel) with zero personality, bounded by
   deterministic guardrails it cannot override.
-- **Broker brain:** Kimchi Inference (`kimi-k2.6`) via the Vercel AI SDK. Kimchi
-  is OpenAI-compatible (`https://llm.kimchi.dev/openai/v1`), so it drops into the
-  AI SDK through the OpenAI-compatible provider. $0 vendor cost, our own infra,
-  swappable in one line.
+- **Broker brain:** any OpenAI-compatible endpoint via the Vercel AI SDK, selected
+  by config (`LLM_BASE_URL`/`LLM_API_KEY`/`LLM_MODEL`), swappable with zero code
+  change. Tool-calling is confirmed working on NVIDIA NIM
+  (`meta/llama-3.3-70b-instruct`); Kimchi Inference is a drop-in alternative once
+  its provider pools have credits. The deterministic scorer is the always-present
+  fallback.
 - **Backend:** a Node service (the app is currently frontend-only) plus Supabase
   for state and realtime. The TanStack frontend already committed stays.
+- **Wallets:** Circle wallets, not raw keys, for the real app — a developer-
+  controlled wallet for the broker agent, Modular (passkey) wallets + Paymaster
+  for end users. See the Wallet layer section. Raw keys remain the dev/fallback
+  path.
 - **Compute:** simulated for now behind a pluggable `ComputeExecutor` interface.
   Real compute is the end goal. The likely real substrate is resource-sharing:
   a provider reselling capacity they already rent on Railway/Render rather than
@@ -193,6 +199,37 @@ talks to drive search, recommend, confirm, and deploy, nothing more.
 Everything goes through a `Registry` interface and a `Settlement` adapter, so
 "registry goes on-chain" and "compute goes real" are later swaps, not rewrites.
 
+## Wallet layer
+
+Circle has three custody models; two of them map directly onto our two wallet
+roles, so users never touch seed phrases or native gas.
+
+- **Broker's autonomous wallet → Circle Developer-controlled wallet.** Circle's
+  own framing: "you create and operate wallets for your users, best when you need
+  to move funds or run actions on their behalf (payouts or automation)." That is
+  exactly the broker: a server-side agent signing a payment every tick with no
+  human present. Better than a raw KMS key because Circle handles custody and the
+  Compliance Engine screens transactions.
+- **End users (consumers + providers) → Circle Modular wallets.** Passkey custody
+  (no seed phrase), plus the gasless module, **Paymaster** (pay gas in USDC via
+  Circle's ERC-4337 paymaster), and **Gas Station** (sponsor fees). A user signs in
+  with a passkey and never needs a native gas token, which pairs naturally with
+  x402 already being gasless for the payments themselves. A provider receiving
+  earnings is just an address, so no special handling.
+
+The raw-EOA keys used in the Plan 1 settlement probe stay valid as the fallback
+signing path and for local/dev.
+
+**The one verification (a Plan 4 spike, do it first):** the x402 buyer pays by
+signing an EIP-3009 `TransferWithAuthorization`, an EOA-style signature, but
+Modular wallets are ERC-4337 smart accounts that sign via user-ops / ERC-1271.
+The integration seam exists: `@circle-fin/x402-batching`'s client takes a
+`BatchEvmSigner` (not only a raw key), so a Circle-wallet-backed signer can be
+plugged in. The spike confirms a Circle wallet (developer-controlled or modular)
+can produce a buyer authorization the Gateway facilitator accepts. The
+seller/receiver side has no such question. If there's a gap, fall back to the
+proven raw-key path and surface it in `feedback.md`.
+
 ## The broker's decision loop and guardrails
 
 **One matching engine, two surfaces.** The core is a single function: take an ask
@@ -282,10 +319,13 @@ living log throughout implementation.
 
 ## Open risks
 
-- **Kimchi tool-calling through the gateway is unconfirmed.** OpenAI-compatible
-  and an agentic model make it very likely, but the docs don't state it. The
-  first test gate verifies it; the deterministic scoring fallback covers us if
-  it's flaky.
+- **Circle-wallet x402 signing (the open one).** Whether a Circle wallet
+  (developer-controlled or modular smart account) can produce a buyer EIP-3009
+  authorization the Gateway facilitator accepts, via the SDK's `BatchEvmSigner`
+  seam. First spike in Plan 4; raw-key path is the proven fallback. See Wallet
+  layer.
+- ~~Model tool-calling unconfirmed~~ — RESOLVED in Plan 1: confirmed on NVIDIA NIM
+  `meta/llama-3.3-70b-instruct`; provider-agnostic, deterministic fallback in place.
 - **Arc testnet specifics** (exact chain id, RPC, faucet, Gateway contract
   addresses) need to be pinned from the Circle/Arc docs during implementation.
 - **x402 middleware in our runtime.** The reference stack is Next.js + Node; we
