@@ -117,6 +117,40 @@ mainnet `https://gateway-api.circle.com`. USDC has 6 decimals
   (`src/scoring.ts`) is the broker's primary ranking and is always the hard
   pre-filter regardless.
 
+## Circle-wallet signer spike (Plan 4)
+
+Question: the spec's Wallet layer wants the real broker on a Circle developer-
+controlled wallet, not a raw key. Can the buyer side sign x402 charges with a Circle
+wallet instead of a `privateKey`?
+
+Signing path: viable. `BatchEvmScheme` (from `@circle-fin/x402-batching/client`)
+takes a `BatchEvmSigner`, which is just `{ address, signTypedData(params) => Promise<Hex> }`
+where `params` is a standard EIP-712 payload (`domain` with `verifyingContract` =
+the GatewayWallet, `types`, `primaryType`, `message`). A Circle developer-controlled
+wallet can sign EIP-712 typed data, so a Circle-backed `BatchEvmSigner` could feed
+`new BatchEvmScheme(signer)` and `registerBatchScheme(x402Client, { signer })` to
+produce the EIP-3009 authorization. The deterministic guard still attaches the same
+way (`onBeforePaymentCreation`).
+
+Two gaps before a Circle-wallet adapter could replace the raw-key one:
+1. Funding. `deposit()` exists only on `GatewayClient`, and it is an on-chain ERC-20
+   approve + deposit into the GatewayWallet, i.e. it needs a transaction *sender*
+   that submits txs and pays gas, not just a typed-data signer. `GatewayClient`
+   builds its `walletClient` from the raw `privateKey`. Funding from a Circle wallet
+   means doing the approve+deposit through Circle's transaction API instead.
+2. The 402 HTTP flow. `GatewayClient.pay()` runs the whole 402 dance (request, parse
+   the 402, pick the Gateway batching option, sign, retry with the Payment-Signature
+   header). Bypassing `GatewayClient` means driving that via `x402Client` + the
+   registered scheme, which the SDK supports but is more wiring.
+
+Recommendation (taken): slice 1 stays on the raw-key `GatewaySettlementAdapter`,
+which is proven end to end on Arc testnet (`bun run settlement:roundtrip`). The
+Circle developer-controlled wallet is a Phase 2 swap behind the same
+`SettlementAdapter` interface: a `CircleWalletSettlementAdapter` that uses
+`BatchEvmScheme` + a Circle-backed `BatchEvmSigner` for pay/sign and Circle's
+transaction API for the one-time deposit. The stream engine never sees the
+difference. Not built now.
+
 ## Status
 
 - PASS: workspace, config, scorer, Arc connectivity, x402 settlement on Arc testnet.

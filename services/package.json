@@ -8,7 +8,8 @@
     "probe:x402": "bun run probes/x402-roundtrip.ts",
     "seed": "bun run scripts/seed-providers.ts",
     "provider": "bun run scripts/run-provider.ts",
-    "provider:roundtrip": "bun run scripts/provider-roundtrip.ts"
+    "provider:roundtrip": "bun run scripts/provider-roundtrip.ts",
+    "settlement:roundtrip": "bun run scripts/settlement-roundtrip.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.1.0",
