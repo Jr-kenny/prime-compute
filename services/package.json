@@ -5,7 +5,8 @@
   "scripts": {
     "test": "bun test",
     "probe:llm": "bun run probes/llm-toolcall.ts",
-    "probe:x402": "bun run probes/x402-roundtrip.ts"
+    "probe:x402": "bun run probes/x402-roundtrip.ts",
+    "seed": "bun run scripts/seed-providers.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.1.0",
