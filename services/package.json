@@ -1,0 +1,20 @@
+{
+  "name": "@prime-compute/services",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "probe:kimchi": "bun run probes/kimchi-toolcall.ts",
+    "probe:x402": "bun run probes/x402-roundtrip.ts"
+  },
+  "dependencies": {
+    "ai": "^4.0.0",
+    "@ai-sdk/openai-compatible": "^0.1.0",
+    "viem": "^2.21.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}

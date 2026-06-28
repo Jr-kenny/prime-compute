@@ -24,6 +24,10 @@ dist-ssr
 package-lock.json
 yarn.lock
 
+# Backend services
+services/.env
+services/node_modules
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
