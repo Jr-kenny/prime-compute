@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { PageShell } from "@/components/site/PageShell";
+import { AppShell } from "@/components/site/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/provider")({
 function ProviderDash() {
   const myServers = providers.slice(0, 2);
   return (
-    <PageShell>
+    <AppShell>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10">
         <div className="text-[11px] uppercase tracking-wider text-glow">Provider</div>
         <h1 className="mt-1 text-3xl md:text-4xl font-bold">Server operations</h1>
@@ -109,7 +109,7 @@ function ProviderDash() {
           </TabsContent>
         </Tabs>
       </div>
-    </PageShell>
+    </AppShell>
   );
 }
 

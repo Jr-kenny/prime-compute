@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { PageShell } from "@/components/site/PageShell";
+import { AppShell } from "@/components/site/AppShell";
 
 export const Route = createFileRoute("/docs")({
   head: () => ({
@@ -25,7 +25,7 @@ const sections = [
 function Docs() {
   const [active, setActive] = useState("start");
   return (
-    <PageShell>
+    <AppShell>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10 grid lg:grid-cols-[220px_1fr] gap-10">
         <aside className="lg:sticky lg:top-24 self-start">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-3">Docs</div>
@@ -99,7 +99,7 @@ function Docs() {
           </Section>
         </article>
       </div>
-    </PageShell>
+    </AppShell>
   );
 }
 

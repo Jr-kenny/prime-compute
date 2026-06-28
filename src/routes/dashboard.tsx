@@ -10,13 +10,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Pause, Square, Copy, Plus } from "lucide-react";
-import {
-  WorkspaceShell,
-  WorkspaceSection,
-  WorkspaceItem,
-  JobItem,
-  WalletCard,
-} from "@/components/site/WorkspaceShell";
+import { AppShell } from "@/components/site/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -37,40 +31,29 @@ export const Route = createFileRoute("/dashboard")({
 
 function Dashboard() {
   const runningJobs = activeJobs.filter((j) => j.status === "running");
+  const streamingRate = runningJobs.reduce((acc, j) => acc + j.ratePerSecond, 0);
   return (
-    <WorkspaceShell
-      path="/dashboard"
-      sidebar={
-        <>
-          <WorkspaceSection label="Workspace">
-            <WorkspaceItem label="Canvas" />
-            <WorkspaceItem label="Providers" />
-            <WorkspaceItem label="Jobs" active />
-            <WorkspaceItem label="Wallet" />
-          </WorkspaceSection>
-          <WorkspaceSection label="Active jobs">
-            {runningJobs.slice(0, 3).map((j) => (
-              <JobItem key={j.id} name={j.name} provider={shortProvider(j.providerAlias)} />
-            ))}
-          </WorkspaceSection>
-          <WalletCard balance="$1,284.93" note="USDC streaming wallet" />
-        </>
-      }
-      status={
-        <>
-          <span>{runningJobs.length} jobs running</span>
-          <span className="text-glow">
-            streaming ${runningJobs.reduce((acc, j) => acc + j.ratePerSecond, 0).toFixed(7)}/sec
-          </span>
-          <span>wallet $1,284.93</span>
-          <span>8ms broker match</span>
-        </>
-      }
-    >
-      <div className="text-[11px] uppercase tracking-wider text-glow">Consumer</div>
-      <h1 className="mt-1 text-3xl md:text-4xl font-bold">Dashboard</h1>
+    <AppShell>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+        <div className="text-[11px] uppercase tracking-wider text-glow">Consumer</div>
+        <h1 className="mt-1 text-3xl md:text-4xl font-bold">Dashboard</h1>
 
-      <Tabs defaultValue="active" className="mt-8">
+        {/* Clean live stat strip (replaces the old fake status bar) */}
+        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-success pulse-ring" />
+            {runningJobs.length} jobs running
+          </span>
+          <span>
+            streaming <span className="text-glow font-mono">${streamingRate.toFixed(7)}/sec</span>
+          </span>
+          <span>
+            wallet <span className="text-foreground font-mono">$1,284.93</span>
+          </span>
+          <span className="text-muted-foreground/70">8ms broker match</span>
+        </div>
+
+        <Tabs defaultValue="active" className="mt-8">
         <TabsList className="bg-surface border border-border">
           <TabsTrigger value="active">Active jobs</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
@@ -199,7 +182,8 @@ function Dashboard() {
           </div>
         </TabsContent>
       </Tabs>
-    </WorkspaceShell>
+      </div>
+    </AppShell>
   );
 }
 
@@ -293,9 +277,4 @@ function StatusBadge({ status }: { status: JobStatus }) {
   );
 }
 
-function shortProvider(alias: string): string {
-  // Take the first two dash-separated parts. If fewer than 2 parts exist,
-  // return the whole alias. Matches the visual rhythm of "node-alpha-7" → "node-alpha".
-  const parts = alias.split("-");
-  return parts.length >= 2 ? parts.slice(0, 2).join("-") : alias;
-}
+
