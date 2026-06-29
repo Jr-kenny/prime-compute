@@ -8,6 +8,7 @@ import { InMemoryRegistry } from "../src/registry/in-memory";
 import { GatewaySettlementAdapter } from "../src/settlement/gateway";
 import { runRent } from "../src/broker/runner";
 import { reconcileRent } from "../src/broker/reconcile";
+import { liveBrokerDeps } from "../src/broker/deps";
 
 const brokerKey = process.env.BROKER_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
 const providerKey = process.env.PROVIDER_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
@@ -36,13 +37,20 @@ const reg = new InMemoryRegistry();
 const settlement = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 5_000n });
 console.log("broker buyer:", settlement.buyerAddress);
 
+// The deployed broker ranks providers by reasoning from the shipped soul (deterministic
+// scorer is the fallback when the model is unavailable). Migration stays deterministic in
+// these scenarios (no holdBudget set), so the on-chain proof of migrate-on-degrade does not
+// depend on the model.
+const broker = await liveBrokerDeps();
+
 // ---- Scenario 1: degrade -> migrate -------------------------------------------
 const a = startProvider("prov-A");
 const b = startProvider("prov-B");
 let aClosed = false;
 
 try {
-  // A ranks first (higher score) so the broker starts there, then we kill A.
+  // A ranks first (at equal price it wins on score + latency, under the soul and the
+  // deterministic fallback alike) so the broker starts there, then we kill A.
   const provA = await reg.registerProvider({
     alias: "prov-A", ownerWallet: sellerAddress, endpointUrl: `http://localhost:${a.port}`,
     resourceType: "GPU", region: "US-East", specs: { gpu: "H100" }, online: true,
@@ -66,7 +74,7 @@ try {
   }, 25);
 
   console.log("running degrade -> migrate rent (maxUnits 4, maxMigrations 1)...");
-  const result = await runRent(rent.id, { registry: reg, settlement }, { maxUnits: 4, maxMigrations: 1 });
+  const result = await runRent(rent.id, { registry: reg, settlement, ...broker }, { maxUnits: 4, maxMigrations: 1 });
   clearInterval(watcher);
 
   const finalized = await reg.getRent(rent.id);
@@ -89,7 +97,7 @@ try {
   const rent2 = await reg.createRent({ name: "cancel-demo", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
   // Only B is up now; B is the only GPU online provider that still serves.
   let n = 0;
-  const result2 = await runRent(rent2.id, { registry: reg, settlement }, { maxUnits: 100, maxMigrations: 0, shouldStop: () => n++ >= 2 });
+  const result2 = await runRent(rent2.id, { registry: reg, settlement, ...broker }, { maxUnits: 100, maxMigrations: 0, shouldStop: () => n++ >= 2 });
   const finalized2 = await reg.getRent(rent2.id);
   console.log("  stoppedBy:", result2.stoppedBy, "units:", result2.units, "status:", finalized2?.status, "totalCost (atomic):", finalized2?.totalCost);
   if (result2.stoppedBy === "cancel" && result2.units === 2 && finalized2?.status === "cancelled" && finalized2?.totalCost === 200) {
