@@ -147,4 +147,25 @@ could act on it. Concrete beats vague.
   "terminal status" to poll for) so reconciliation isn't blind polling.
 - **Date:** 2026-06-28
 
+### `pay()` connection failures don't say which URL couldn't be reached
+- **Area:** x402 / Gateway / SDK
+- **What happened:** On a live Arc-testnet integration run, `GatewayClient.pay(url)`
+  threw `Error: "Unable to connect. Is the computer able to access the url?"` from inside
+  `@circle-fin/x402-batching/dist/client/index.mjs`. `pay()` talks to two different
+  endpoints (the x402 resource URL you pass in, and the Gateway facilitator it settles
+  through), but the error names neither, carries no `cause`, no status, and no host. The
+  provider in this case was a local server that was definitely up and had served payments
+  seconds earlier, so the unreachable endpoint was almost certainly the Gateway side, but
+  there was no way to confirm that from the error. Same run: `getTransferById` reported
+  all four prior charges still unsettled after 90s of polling, so the Gateway side did
+  look degraded/slow at that moment.
+- **Impact:** A transient Gateway connectivity blip is indistinguishable from "your
+  resource URL is wrong/down." Diagnosing it took multiple real-money testnet runs purely
+  because the error couldn't tell us which hop failed. Anyone building retry/migration
+  logic can't branch on "provider unreachable" vs "Gateway unreachable" without it.
+- **Suggestion:** Include the failing URL (or at least "resource" vs "gateway") and the
+  underlying `cause` on connection errors thrown by `pay()`. A typed error (e.g.
+  `GatewayConnectionError` with `.url` / `.phase`) would let callers react correctly.
+- **Date:** 2026-06-29
+
 <!-- Add new entries above this line as we hit them during implementation. -->
