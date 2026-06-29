@@ -6,11 +6,13 @@
     "test": "bun test",
     "probe:llm": "bun run probes/llm-toolcall.ts",
     "probe:x402": "bun run probes/x402-roundtrip.ts",
+    "rank:llm": "bun run probes/llm-rank.ts",
     "seed": "bun run scripts/seed-providers.ts",
     "provider": "bun run scripts/run-provider.ts",
     "provider:roundtrip": "bun run scripts/provider-roundtrip.ts",
     "settlement:roundtrip": "bun run scripts/settlement-roundtrip.ts",
-    "broker:roundtrip": "bun run scripts/broker-roundtrip.ts"
+    "broker:roundtrip": "bun run scripts/broker-roundtrip.ts",
+    "integration:roundtrip": "bun run scripts/integration-roundtrip.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.1.0",

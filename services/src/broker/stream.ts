@@ -13,6 +13,7 @@ export type StreamDeps = {
 export type StreamOptions = {
   maxUnits?: number; // safety bound on iterations
   shouldStop?: () => boolean; // external cancel signal, checked before each unit
+  startSeq?: number; // first charge seq for this leg (migration continues numbering)
 };
 
 export type StoppedBy = "cancel" | "cap" | "maxUnits" | "unhealthy";
@@ -39,7 +40,7 @@ export async function streamRent(
 
   let units = 0;
   let totalCostAtomic = 0n;
-  let seq = 0;
+  let seq = opts.startSeq ?? 0;
 
   const done = (stoppedBy: StoppedBy, reason: string): StreamResult =>
     ({ units, totalCostAtomic, stoppedBy, reason });

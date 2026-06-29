@@ -1,28 +1,42 @@
 import type { Registry } from "../registry/registry";
 import type { SettlementAdapter } from "../settlement/adapter";
+import type { RentStatus } from "../domain";
 import { matchProviders, type RankStrategy } from "./matching";
 import { revalidateProvider } from "./guardrails";
-import { streamRent, type StreamOptions, type StoppedBy } from "./stream";
-import { HealthMonitor } from "./health";
+import { type StreamOptions } from "./stream";
+import { streamWithMigration, type MigrationStoppedBy } from "./migrate";
 
 export type RunDeps = {
   registry: Registry;
   settlement: SettlementAdapter;
-  health?: HealthMonitor;
   rank?: RankStrategy;
 };
 
+export type RunOptions = StreamOptions & {
+  maxMigrations?: number; // 0 = no autonomous re-pointing (single provider)
+};
+
 export type RunResult = {
-  stoppedBy: StoppedBy | "no-provider" | "guard-failed";
+  stoppedBy: MigrationStoppedBy | "no-provider" | "guard-failed";
   reason: string;
   units: number;
+  migrations: number;
 };
 
 const now = () => new Date().toISOString();
 
-// One rent end to end: match -> guard -> record decision -> fund -> stream ->
-// finalize. Single provider; model-driven migration on degrade is Plan 6.
-export async function runRent(rentId: string, deps: RunDeps, opts: StreamOptions = {}): Promise<RunResult> {
+// Map how the stream stopped to the rent's terminal status. A clean budget/iteration
+// stop is completed; a user cancel is cancelled; a degradation we could not recover
+// from is failed.
+function finalStatus(stoppedBy: MigrationStoppedBy): RentStatus {
+  if (stoppedBy === "cancel") return "cancelled";
+  if (stoppedBy === "unhealthy" || stoppedBy === "no-alternative") return "failed";
+  return "completed"; // maxUnits | cap
+}
+
+// One rent end to end: match -> guard -> record decision -> fund -> stream (with
+// autonomous migration on degrade) -> finalize.
+export async function runRent(rentId: string, deps: RunDeps, opts: RunOptions = {}): Promise<RunResult> {
   const { registry, settlement } = deps;
   const rent = await registry.getRent(rentId);
   if (!rent) throw new Error(`rent not found: ${rentId}`);
@@ -30,13 +44,13 @@ export async function runRent(rentId: string, deps: RunDeps, opts: StreamOptions
   const match = await matchProviders(registry, rent.spec, deps.rank);
   if (!match.chosen) {
     await registry.updateRent(rentId, { status: "failed", endedAt: now() });
-    return { stoppedBy: "no-provider", reason: match.rationale, units: 0 };
+    return { stoppedBy: "no-provider", reason: match.rationale, units: 0, migrations: 0 };
   }
 
   const guard = revalidateProvider(match.chosen, rent.spec);
   if (!guard.ok) {
     await registry.updateRent(rentId, { status: "failed", endedAt: now() });
-    return { stoppedBy: "guard-failed", reason: guard.reason, units: 0 };
+    return { stoppedBy: "guard-failed", reason: guard.reason, units: 0, migrations: 0 };
   }
 
   await registry.recordDecision({
@@ -53,13 +67,18 @@ export async function runRent(rentId: string, deps: RunDeps, opts: StreamOptions
 
   await registry.updateRent(rentId, { status: "running", providerId: match.chosen.id, startedAt: now() });
 
-  const stream = await streamRent(rent, match.chosen, { registry, settlement, health: deps.health }, opts);
+  const stream = await streamWithMigration(
+    rent,
+    match.chosen,
+    { registry, settlement, rank: deps.rank },
+    opts,
+  );
 
   await registry.updateRent(rentId, {
-    status: stream.stoppedBy === "cancel" ? "cancelled" : "completed",
+    status: finalStatus(stream.stoppedBy),
     totalCost: await registry.rentCost(rentId),
     endedAt: now(),
   });
 
-  return { stoppedBy: stream.stoppedBy, reason: stream.reason, units: stream.units };
+  return { stoppedBy: stream.stoppedBy, reason: stream.reason, units: stream.units, migrations: stream.migrations };
 }

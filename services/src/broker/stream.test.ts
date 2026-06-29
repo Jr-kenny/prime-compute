@@ -64,3 +64,13 @@ test("a persistently failing provider trips unhealthy and stops", async () => {
   expect(result.units).toBe(0); // never paid
   expect((await reg.listCharges(rent.id)).length).toBe(0);
 });
+
+test("startSeq continues charge numbering from a previous leg", async () => {
+  const reg = new InMemoryRegistry();
+  const rent = await makeRent(reg);
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 100_000n });
+  const result = await streamRent(rent, provider, { registry: reg, settlement }, { maxUnits: 2, startSeq: 5 });
+  expect(result.units).toBe(2);
+  const seqs = (await reg.listCharges(rent.id)).map((c) => c.seq);
+  expect(seqs).toEqual([5, 6]);
+});
