@@ -83,15 +83,21 @@ create trigger profiles_wallet_address_immutable
 -- C4: atomic provisioning. A profile is created in the same transaction as its auth user,
 -- reading the wallet from the user metadata set at creation time. A user can therefore never
 -- exist without a profile. wallet_address is normalized to lower-case so C2 holds case-insensitively.
+-- IMPORTANT: this DB is shared with PrimeBot, which also uses Supabase Auth. The trigger fires for
+-- EVERY auth.users insert in the project, so it is a NO-OP unless our wallet_address metadata is
+-- present. That keeps PrimeBot's (and any other) auth-user creation completely unaffected while
+-- still provisioning our wallet users atomically.
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into profiles (id, wallet_address, wallet_id)
-  values (
-    new.id,
-    lower(new.raw_user_meta_data->>'wallet_address'),
-    new.raw_user_meta_data->>'wallet_id'
-  );
+  if new.raw_user_meta_data ? 'wallet_address' then
+    insert into profiles (id, wallet_address, wallet_id)
+    values (
+      new.id,
+      lower(new.raw_user_meta_data->>'wallet_address'),
+      new.raw_user_meta_data->>'wallet_id'
+    );
+  end if;
   return new;
 end; $$;
 
