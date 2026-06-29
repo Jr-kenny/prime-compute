@@ -168,4 +168,24 @@ could act on it. Concrete beats vague.
   `GatewayConnectionError` with `.url` / `.phase`) would let callers react correctly.
 - **Date:** 2026-06-29
 
+### Modular Wallets don't slot into standard wallet auth (counterfactual smart accounts)
+- **Area:** Modular Wallets / SDK / Docs
+- **What happened:** Designing passkey login for an app on Circle Modular Wallets, the obvious
+  path was a standard "Sign-In with Ethereum" / EIP-4361 provider (Supabase's built-in Web3 auth,
+  and most off-the-shelf wallet-auth providers work this way). It doesn't work: a Modular Wallet
+  is a passkey-controlled smart-contract account that signs via ERC-1271 with a P-256 passkey, not
+  an EOA ECDSA secp256k1 signature, and EIP-4361 providers verify ECDSA only. On top of that the
+  account is counterfactual (not deployed until the first user op), so even an ERC-1271-aware
+  verifier has to handle the undeployed case via ERC-6492. Net: you can't use the common SIWE auth
+  building blocks; you must roll your own nonce + signature verification with an ERC-6492-aware
+  verifier (e.g. viem's public-client verifyMessage) before you can mint an app session.
+- **Impact:** "Add wallet login" is a much bigger lift than it looks for Modular Wallets, because
+  the ecosystem's standard auth integrations assume EOAs. It's easy to start down the SIWE path and
+  only discover the mismatch after wiring it up.
+- **Suggestion:** Call this out prominently in the Modular Wallets auth docs ("these are smart
+  accounts; standard SIWE/EIP-4361 auth providers won't verify their signatures"), and ideally ship
+  a small helper or documented recipe for "prove control of a Modular Wallet to my backend" that
+  handles the counterfactual ERC-6492 case, so app developers don't each re-derive it.
+- **Date:** 2026-06-29
+
 <!-- Add new entries above this line as we hit them during implementation. -->
