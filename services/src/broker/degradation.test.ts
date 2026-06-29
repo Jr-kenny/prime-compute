@@ -1,4 +1,5 @@
 import { test, expect } from "bun:test";
+import { defaultTrust } from "../trust/trust";
 import { decideMigrateOrHold } from "./degradation";
 import { RetryLeash } from "../runtime/budget";
 import type { DecideClient } from "../runtime/decide";
@@ -12,7 +13,7 @@ const spec: RentSpec = { resourceType: "GPU", region: null };
 function provider(id: string): Provider {
   return {
     id, alias: id, ownerWallet: "0x0", endpointUrl: `http://${id}`, resourceType: "GPU",
-    region: "US-East", specs: {}, online: true, stakeAmount: 100, pricePerCharge: 0.0001,
+    region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001,
     computeScore: 90, avgLatencyMs: 5,
   };
 }

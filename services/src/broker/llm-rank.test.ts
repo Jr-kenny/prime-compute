@@ -1,11 +1,12 @@
 import { test, expect } from "bun:test";
+import { defaultTrust } from "../trust/trust";
 import { llmRankStrategy, type RankClient } from "./llm-rank";
 import type { Provider, RentSpec } from "../domain";
 
 function p(id: string, over: Partial<Provider> = {}): Provider {
   return {
     id, alias: id, ownerWallet: "0x0", endpointUrl: "http://x", resourceType: "GPU",
-    region: "US-East", specs: {}, online: true, stakeAmount: 100, pricePerCharge: 0.0001,
+    region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001,
     computeScore: 80, avgLatencyMs: 5, ...over,
   };
 }
