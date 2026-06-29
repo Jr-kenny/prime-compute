@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import type { Registry, NewProvider } from "./registry";
 import { defaultTrust } from "../trust/trust";
+import type { DecisionLog } from "../runtime/types";
 
 const sampleProvider: NewProvider = {
   alias: "node-astral-1",
@@ -41,6 +42,31 @@ export function registryContract(
       const fetched = await reg.getProvider(p.id);
       expect(fetched?.trust.tier).toBe("Bonded");
       expect(fetched?.trust.signals.health).toBe("healthy");
+    }, T);
+
+    test("recordDecisionLog persists structured provenance and lists it back", async () => {
+      const provider = await reg.registerProvider({ ...sampleProvider, alias: "log-target" });
+      const rent = await reg.createRent({ name: "log-rent", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const log: DecisionLog = {
+        decisionId: crypto.randomUUID(),
+        soulVersion: "1.2.3",
+        policyVersion: "0.9.0",
+        objective: "respond-to-degradation",
+        proposals: [{ action: "migrate", target: provider.id, score: 0.9, rationale: ["pricier but healthy"], userExplanation: "moving to log-target" }],
+        chosenAction: { action: "migrate", target: provider.id },
+        rejectedReason: null,
+        usedFallback: false,
+        createdAt: new Date().toISOString(),
+      };
+      await reg.recordDecisionLog(rent.id, log);
+      const logs = await reg.listDecisionLogs(rent.id);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]?.soulVersion).toBe("1.2.3");
+      expect(logs[0]?.policyVersion).toBe("0.9.0");
+      expect(logs[0]?.objective).toBe("respond-to-degradation");
+      expect(logs[0]?.chosenAction).toEqual({ action: "migrate", target: provider.id });
+      expect(logs[0]?.usedFallback).toBe(false);
+      expect(logs[0]?.proposals).toHaveLength(1);
     }, T);
 
     test("listProviders filters by resourceType and onlineOnly", async () => {
