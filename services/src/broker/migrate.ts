@@ -83,12 +83,12 @@ export async function streamWithMigration(
       });
 
       if (choice.action === "hold") {
-        await registry.recordDecision({ rentId: rent.id, candidates: [{ providerId: provider.id, rank: 0 }], chosenProviderId: provider.id, rationale: `hold ${provider.id}: ${choice.rationale}` });
+        await registry.recordDecisionLog(rent.id, choice.log);
         continue; // another bounded leg on the same provider
       }
       if (choice.action === "migrate") {
         if (migrations >= maxMigrations) return result("unhealthy", `migration cap reached after ${provider.id} degraded`);
-        await registry.recordDecision({ rentId: rent.id, candidates: [{ providerId: choice.target.id, rank: 0 }], chosenProviderId: choice.target.id, rationale: `migrate ${provider.id} -> ${choice.target.id}: ${choice.rationale}` });
+        await registry.recordDecisionLog(rent.id, choice.log);
         await registry.updateRent(rent.id, { providerId: choice.target.id });
         used.add(choice.target.id);
         provider = choice.target;
