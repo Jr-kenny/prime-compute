@@ -50,6 +50,64 @@ test("cancel stops within one unit", async () => {
   expect(result.units).toBe(2);
 });
 
+// An adapter that fails its first `transientFailures` payForCompute calls with a non-cap
+// error (a transient x402/facilitator hiccup), then pays normally. Failures within the
+// HealthMonitor tolerance keep the stream alive and make streamRent `continue` (re-poll).
+function flakyAdapter(transientFailures: number): SettlementAdapter {
+  let attempts = 0;
+  let seq = 0;
+  return {
+    buyerAddress: "0xB",
+    async ensureFunded() { return { deposited: false }; },
+    async payForCompute(): Promise<PaidCompute> {
+      attempts++;
+      if (attempts <= transientFailures) throw new Error("transient x402 hiccup");
+      return { amountAtomic: 100n, settlementRef: `ref-${seq++}`, data: {}, status: 200 };
+    },
+    async reconcile(ref): Promise<SettlementStatus> { return { ref, status: "completed", settled: true }; },
+  };
+}
+
+test("REPRO: a poll-counting cancel is consumed by transient-failure retries (cancels at 0 charges)", async () => {
+  // streamRent re-polls shouldStop on every attempt, including transient-failure retries. A
+  // cancel that counts *poll calls* (not charges) therefore fires before any charge lands when
+  // the first payments fail transiently. This is the on-chain integration scenario-2 trap.
+  const reg = new InMemoryRegistry();
+  const rent = await makeRent(reg);
+  let n = 0;
+  const result = await streamRent(rent, provider, { registry: reg, settlement: flakyAdapter(2) }, {
+    maxUnits: 100,
+    shouldStop: () => n++ >= 2, // poll-counting: burned by the 2 transient retries
+  });
+  expect(result.stoppedBy).toBe("cancel");
+  expect(result.units).toBe(0); // never charged: the trap
+  expect((await reg.listCharges(rent.id)).length).toBe(0);
+});
+
+test("a charge-counting cancel survives transient payment failures and stops after N charges", async () => {
+  // The robust pattern: cancel on charges actually made, not poll calls. Wrap the adapter to
+  // count successful payments; transient failures no longer consume the cancel budget.
+  const reg = new InMemoryRegistry();
+  const rent = await makeRent(reg);
+  const inner = flakyAdapter(2); // first 2 payments fail transiently, then succeed
+  let paid = 0;
+  const counting: SettlementAdapter = {
+    ...inner,
+    async payForCompute(url: string): Promise<PaidCompute> {
+      const res = await inner.payForCompute(url); // throws on transient; only counts on success
+      paid++;
+      return res;
+    },
+  };
+  const result = await streamRent(rent, provider, { registry: reg, settlement: counting }, {
+    maxUnits: 100,
+    shouldStop: () => paid >= 2, // charge-counting: cancel after 2 real charges
+  });
+  expect(result.stoppedBy).toBe("cancel");
+  expect(result.units).toBe(2);
+  expect((await reg.listCharges(rent.id)).length).toBe(2);
+});
+
 test("a persistently failing provider trips unhealthy and stops", async () => {
   const reg = new InMemoryRegistry();
   const rent = await makeRent(reg);

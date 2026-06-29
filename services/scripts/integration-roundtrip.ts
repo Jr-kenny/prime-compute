@@ -1,11 +1,12 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { defaultTrust } from "../src/trust/trust";
-import type { AddressInfo } from "node:net";
+import type { AddressInfo, Socket } from "node:net";
 import type { Server } from "node:http";
 import { createProviderApp } from "../src/provider/server";
 import { SimulatedExecutor } from "../src/provider/executor";
 import { InMemoryRegistry } from "../src/registry/in-memory";
 import { GatewaySettlementAdapter } from "../src/settlement/gateway";
+import type { SettlementAdapter } from "../src/settlement/adapter";
 import { runRent } from "../src/broker/runner";
 import { reconcileRent } from "../src/broker/reconcile";
 import { liveBrokerDeps } from "../src/broker/deps";
@@ -20,7 +21,7 @@ if (!brokerKey || !providerKey) {
 
 const sellerAddress = privateKeyToAccount(providerKey).address;
 
-function startProvider(alias: string): { server: Server; port: number } {
+function startProvider(alias: string): { server: Server; port: number; drop: () => void } {
   const app = createProviderApp({
     executor: new SimulatedExecutor({ hasGpu: true }),
     sellerAddress,
@@ -30,7 +31,21 @@ function startProvider(alias: string): { server: Server; port: number } {
   });
   const server = app.listen(0);
   const port = (server.address() as AddressInfo).port;
-  return { server, port };
+
+  // Track live sockets so a drop can be HARD. server.close() alone only stops accepting new
+  // connections; existing HTTP keep-alive sockets keep serving, so the x402 client can reuse a
+  // pooled connection and keep paying a "dropped" provider. Destroying the sockets makes the
+  // next payment fail immediately, so "provider dropped mid-stream" is deterministic.
+  const sockets = new Set<Socket>();
+  server.on("connection", (s) => {
+    sockets.add(s);
+    s.on("close", () => sockets.delete(s));
+  });
+  const drop = () => {
+    server.close();
+    for (const s of sockets) s.destroy();
+  };
+  return { server, port, drop };
 }
 
 const reg = new InMemoryRegistry();
@@ -68,7 +83,7 @@ try {
     const onA = (await reg.listCharges(rent.id)).filter((c) => c.providerId === provA.id).length;
     if (!aClosed && onA >= 2) {
       aClosed = true;
-      a.server.close();
+      a.drop();
       console.log("  ⚡ provider A dropped after", onA, "charges; broker should migrate to B");
     }
   }, 25);
@@ -95,9 +110,31 @@ try {
   // ---- Scenario 2: cancel-mid-stream ------------------------------------------
   console.log("\nrunning cancel-mid-stream rent on B (cancel after 2)...");
   const rent2 = await reg.createRent({ name: "cancel-demo", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
-  // Only B is up now; B is the only GPU online provider that still serves.
-  let n = 0;
-  const result2 = await runRent(rent2.id, { registry: reg, settlement, ...broker }, { maxUnits: 100, maxMigrations: 0, shouldStop: () => n++ >= 2 });
+  // Only B is up now; B is the only GPU online provider that still serves. Cancel after 2
+  // charges *actually made*, not after 2 shouldStop polls: streamRent re-polls shouldStop on
+  // every attempt including transient-failure retries, so a poll-counter would cancel early if
+  // B's first on-chain payments hiccup (Gateway batches can still be settling right after
+  // scenario 1's burst). Count successful payments via a thin wrapper instead.
+  let paid = 0;
+  const countingSettlement: SettlementAdapter = {
+    buyerAddress: settlement.buyerAddress,
+    ensureFunded: (minAtomic) => settlement.ensureFunded(minAtomic),
+    payForCompute: async (url) => {
+      try {
+        const res = await settlement.payForCompute(url);
+        paid++;
+        return res;
+      } catch (err) {
+        // Surface the real Gateway error instead of letting streamRent fold it into a health
+        // failure: on testnet this is usually a Gateway connectivity / settlement issue, and a
+        // silent "unhealthy, 0 charges" is impossible to diagnose without it.
+        console.error("  payForCompute failed:", err instanceof Error ? err.message : err);
+        throw err;
+      }
+    },
+    reconcile: (ref) => settlement.reconcile(ref),
+  };
+  const result2 = await runRent(rent2.id, { registry: reg, settlement: countingSettlement, ...broker }, { maxUnits: 100, maxMigrations: 0, shouldStop: () => paid >= 2 });
   const finalized2 = await reg.getRent(rent2.id);
   console.log("  stoppedBy:", result2.stoppedBy, "units:", result2.units, "status:", finalized2?.status, "totalCost (atomic):", finalized2?.totalCost);
   if (result2.stoppedBy === "cancel" && result2.units === 2 && finalized2?.status === "cancelled" && finalized2?.totalCost === 200) {
@@ -116,6 +153,6 @@ try {
   console.error("If the buyer has no testnet USDC, fund it at https://faucet.circle.com and retry.");
   process.exitCode = 1;
 } finally {
-  if (!aClosed) a.server.close();
-  b.server.close();
+  if (!aClosed) a.drop();
+  b.drop();
 }
