@@ -20,7 +20,7 @@ test("skips rejected proposals and records why", () => {
     p.action === "hold" ? { ok: false, reason: "retry budget exhausted" } : { ok: true };
   const out = selectProposal(decision, validate);
   expect(out.chosen?.action).toBe("migrate");
-  expect(out.rejected).toEqual([{ proposal: proposals[0], reason: "retry budget exhausted" }]);
+  expect(out.rejected).toEqual([{ proposal: proposals[0]!, reason: "retry budget exhausted" }]);
 });
 
 test("returns null chosen when the validator rejects everything", () => {

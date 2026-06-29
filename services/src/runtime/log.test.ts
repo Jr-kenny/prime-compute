@@ -11,7 +11,7 @@ const decision: Decision = { proposals, soulVersion: "1.0.0", policyVersion: "2.
 const context: DecisionContext = { objective: "respond-to-degradation" };
 
 test("stamps versions, objective, chosen action and rejection reason", () => {
-  const selection: Selection = { chosen: proposals[1], rejected: [{ proposal: proposals[0], reason: "retry budget exhausted" }] };
+  const selection: Selection = { chosen: proposals[1]!, rejected: [{ proposal: proposals[0]!, reason: "retry budget exhausted" }] };
   const log = buildDecisionLog(decision, context, selection);
   expect(log.decisionId).toBe("dec-1");
   expect(log.soulVersion).toBe("1.0.0");

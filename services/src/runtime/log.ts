@@ -17,7 +17,7 @@ export function buildDecisionLog(
     chosenAction: selection.chosen
       ? { action: selection.chosen.action, target: selection.chosen.target }
       : null,
-    rejectedReason: selection.rejected.length > 0 ? selection.rejected[selection.rejected.length - 1].reason : null,
+    rejectedReason: selection.rejected.at(-1)?.reason ?? null,
     usedFallback: decision.usedFallback,
     createdAt: new Date().toISOString(),
   };
