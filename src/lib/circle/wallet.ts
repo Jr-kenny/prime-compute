@@ -7,7 +7,7 @@ import {
 } from "@circle-fin/modular-wallets-core";
 import { createPublicClient } from "viem";
 import { toWebAuthnAccount } from "viem/account-abstraction";
-import { arcTestnet } from "./chain";
+import { walletChain, walletChainSegment } from "./chain";
 
 const clientKey = import.meta.env.VITE_CIRCLE_CLIENT_KEY as string;
 const clientUrl = import.meta.env.VITE_CIRCLE_CLIENT_URL as string;
@@ -25,8 +25,8 @@ async function build(mode: WebAuthnMode, username: string): Promise<WalletHandle
   const passkeyTransport = toPasskeyTransport(clientUrl, clientKey);
   const credential = await toWebAuthnCredential({ transport: passkeyTransport, mode, username });
 
-  const modularTransport = toModularTransport(`${clientUrl}/arcTestnet`, clientKey);
-  const client = createPublicClient({ chain: arcTestnet, transport: modularTransport });
+  const modularTransport = toModularTransport(`${clientUrl}/${walletChainSegment}`, clientKey);
+  const client = createPublicClient({ chain: walletChain, transport: modularTransport });
   const account = await toCircleSmartAccount({ client, owner: toWebAuthnAccount({ credential }) });
 
   return {

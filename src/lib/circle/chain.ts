@@ -1,10 +1,8 @@
-import { defineChain } from "viem";
+import { baseSepolia } from "viem/chains";
 
-// Arc testnet, the chain our Circle Modular Wallet identity lives on (same chain as the broker's
-// payments). The Circle modular transport routes RPC; this chain object supplies id + metadata.
-export const arcTestnet = defineChain({
-  id: Number(import.meta.env.VITE_ARC_CHAIN_ID),
-  name: "Arc Testnet",
-  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
-  rpcUrls: { default: { http: [import.meta.env.VITE_ARC_RPC_URL as string] } },
-});
+// The chain the Circle Modular Wallet identity lives on. Phase 0 only creates the wallet and
+// signs a challenge, so any Circle-supported chain works; this is the single place to change it.
+// (arcTestnet returned "Cannot find the entity config" for this app, so we use baseSepolia, the
+// canonical Circle example chain, while we sort out Arc enablement.)
+export const walletChain = baseSepolia;
+export const walletChainSegment = "baseSepolia";
