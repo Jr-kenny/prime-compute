@@ -188,4 +188,22 @@ could act on it. Concrete beats vague.
   handles the counterfactual ERC-6492 case, so app developers don't each re-derive it.
 - **Date:** 2026-06-29
 
+### "Cannot find the entity config in the system" really means "you didn't set a passkey domain"
+- **Area:** Modular Wallets / SDK / Console
+- **What happened:** Building passkey onboarding with the Modular Wallets Web SDK, the wallet-creation
+  call (`toCircleSmartAccount` flow) failed with `An unknown RPC error occurred. Details: Cannot find
+  the entity config in the system.` Nothing in that message points at the cause. We first suspected
+  the chain (we were on `arcTestnet`), switched to `baseSepolia`, and got the identical error, which
+  ruled the chain out. The actual cause was that only the Client Key's Allowed Domain had been set in
+  the console; the separate **Passkey Domain Name** had not. Once the passkey domain was set to
+  `localhost`, the exact same code worked first try on both chains.
+- **Impact:** The error text sends you chasing the wrong things (chain support, client URL, client key
+  validity) when the real fix is a one-field console setting. It cost a multi-step debugging loop and a
+  chain swap to isolate, and "entity config" is not vocabulary the setup docs use, so it isn't
+  greppable back to the missing step.
+- **Suggestion:** Make the error name the missing configuration, e.g. "No passkey domain configured for
+  this client key (set the Passkey Domain Name in the console to match the Allowed Domain)." Even
+  better, surface it at SDK init / `toPasskeyTransport` rather than deep in the smart-account RPC call.
+- **Date:** 2026-06-29
+
 <!-- Add new entries above this line as we hit them during implementation. -->
