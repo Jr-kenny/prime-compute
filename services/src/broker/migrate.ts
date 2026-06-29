@@ -1,20 +1,24 @@
 import type { Registry } from "../registry/registry";
 import type { SettlementAdapter } from "../settlement/adapter";
-import type { Provider, Rent } from "../domain";
+import type { Provider, Rent, RentSpec } from "../domain";
 import { matchProviders, type RankStrategy } from "./matching";
 import { revalidateProvider } from "./guardrails";
 import { streamRent, type StreamOptions, type StoppedBy } from "./stream";
 import { HealthMonitor } from "./health";
+import { RetryLeash, type RetryBudget } from "../runtime/budget";
+import { decideMigrateOrHold, type DegradationDeps } from "./degradation";
 
 export type MigrationDeps = {
   registry: Registry;
   settlement: SettlementAdapter;
   rank?: RankStrategy;
   healthOpts?: { maxConsecutiveFailures?: number; maxLatencyMs?: number };
+  degradation?: DegradationDeps; // when set, the broker asks the soul migrate/hold on degrade
 };
 
 export type MigrationOptions = StreamOptions & {
-  maxMigrations?: number; // how many times the broker may re-point the stream
+  maxMigrations?: number;   // how many times the broker may re-point the stream
+  holdBudget?: RetryBudget; // bounds soul-chosen holds; required for the degradation path
 };
 
 export type MigrationStoppedBy = StoppedBy | "no-alternative";
@@ -27,12 +31,12 @@ export type MigrationResult = {
   migrations: number;
 };
 
-// Stream a rent with autonomous migration on degradation. Each leg runs the proven
-// streamRent; when a leg stops `unhealthy` and migrations remain, the broker re-runs
-// the matching engine, takes the best candidate it has not tried that still passes
-// the guardrail, records the decision, re-points the rent, and continues with the
-// remaining budget and continuous charge seq. A fresh HealthMonitor per leg means a
-// new provider never inherits a dead one's failure streak.
+const atomicPerCharge = (p: Provider): bigint => BigInt(Math.round(p.pricePerCharge * 1_000_000));
+
+// Stream a rent, responding to provider degradation. When `degradation` deps are present the
+// broker asks the soul to choose migrate/hold (validated by the runtime); otherwise it keeps
+// the deterministic Plan 6 behavior (migrate to the best untried alternative). A fresh
+// HealthMonitor per leg means a new (or re-held) provider never inherits a stale streak.
 export async function streamWithMigration(
   rent: Rent,
   firstProvider: Provider,
@@ -42,17 +46,19 @@ export async function streamWithMigration(
   const { registry, settlement } = deps;
   const maxUnits = opts.maxUnits ?? Number.POSITIVE_INFINITY;
   const maxMigrations = opts.maxMigrations ?? 0;
+  const leash = opts.holdBudget ? new RetryLeash(opts.holdBudget) : null;
 
   const used = new Set<string>([firstProvider.id]);
   let provider = firstProvider;
   let totalUnits = 0;
   let migrations = 0;
 
+  const result = (stoppedBy: MigrationStoppedBy, reason: string): MigrationResult =>
+    ({ units: totalUnits, stoppedBy, reason, providersUsed: [...used], migrations });
+
   while (true) {
     const remaining = maxUnits === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : maxUnits - totalUnits;
-    if (remaining <= 0) {
-      return { units: totalUnits, stoppedBy: "maxUnits", reason: `reached maxUnits=${maxUnits}`, providersUsed: [...used], migrations };
-    }
+    if (remaining <= 0) return result("maxUnits", `reached maxUnits=${maxUnits}`);
 
     const leg = await streamRent(
       rent,
@@ -62,19 +68,40 @@ export async function streamWithMigration(
     );
     totalUnits += leg.units;
 
-    if (leg.stoppedBy !== "unhealthy") {
-      return { units: totalUnits, stoppedBy: leg.stoppedBy, reason: leg.reason, providersUsed: [...used], migrations };
+    if (leg.stoppedBy !== "unhealthy") return result(leg.stoppedBy, leg.reason);
+
+    // The provider degraded. Decide what to do.
+    if (deps.degradation && leash) {
+      const candidates = await untriedValidProviders(registry, rent.spec, used, deps.rank);
+      const choice = await decideMigrateOrHold(deps.degradation, {
+        current: provider,
+        reason: leg.reason,
+        candidates,
+        spec: rent.spec,
+        leash,
+        nextChargeAtomic: atomicPerCharge(provider),
+      });
+
+      if (choice.action === "hold") {
+        await registry.recordDecision({ rentId: rent.id, candidates: [{ providerId: provider.id, rank: 0 }], chosenProviderId: provider.id, rationale: `hold ${provider.id}: ${choice.rationale}` });
+        continue; // another bounded leg on the same provider
+      }
+      if (choice.action === "migrate") {
+        if (migrations >= maxMigrations) return result("unhealthy", `migration cap reached after ${provider.id} degraded`);
+        await registry.recordDecision({ rentId: rent.id, candidates: [{ providerId: choice.target.id, rank: 0 }], chosenProviderId: choice.target.id, rationale: `migrate ${provider.id} -> ${choice.target.id}: ${choice.rationale}` });
+        await registry.updateRent(rent.id, { providerId: choice.target.id });
+        used.add(choice.target.id);
+        provider = choice.target;
+        migrations++;
+        continue;
+      }
+      // choice.action === "fallback": drop into the deterministic block below.
     }
 
-    // Provider degraded. Try to re-point the stream if we are allowed to.
-    if (migrations >= maxMigrations) {
-      return { units: totalUnits, stoppedBy: "unhealthy", reason: leg.reason, providersUsed: [...used], migrations };
-    }
-
-    const next = await pickAlternative(registry, rent, used, deps.rank);
-    if (!next) {
-      return { units: totalUnits, stoppedBy: "no-alternative", reason: `no healthy alternative after ${provider.id} degraded`, providersUsed: [...used], migrations };
-    }
+    // Deterministic path (no decision deps, or the soul path bounced to fallback).
+    if (migrations >= maxMigrations) return result("unhealthy", leg.reason);
+    const next = (await untriedValidProviders(registry, rent.spec, used, deps.rank))[0] ?? null;
+    if (!next) return result("no-alternative", `no healthy alternative after ${provider.id} degraded`);
 
     await registry.recordDecision({
       rentId: rent.id,
@@ -83,27 +110,25 @@ export async function streamWithMigration(
       rationale: `migrated from ${provider.id} after degradation (${leg.reason}) to ${next.id}`,
     });
     await registry.updateRent(rent.id, { providerId: next.id });
-
     used.add(next.id);
     provider = next;
     migrations++;
   }
 }
 
-// Re-run the matching engine and return the best ranked candidate that has not been
-// tried and still passes the deterministic guardrail. Returns null if none.
-async function pickAlternative(
+// Best-first untried providers that still pass the deterministic guardrail.
+export async function untriedValidProviders(
   registry: Registry,
-  rent: Rent,
+  spec: RentSpec,
   used: Set<string>,
   rank?: RankStrategy,
-): Promise<Provider | null> {
-  const match = await matchProviders(registry, rent.spec, rank);
+): Promise<Provider[]> {
+  const match = await matchProviders(registry, spec, rank);
+  const out: Provider[] = [];
   for (const c of match.candidates) {
     if (used.has(c.providerId)) continue;
     const p = await registry.getProvider(c.providerId);
-    if (!p) continue;
-    if (revalidateProvider(p, rent.spec).ok) return p;
+    if (p && revalidateProvider(p, spec).ok) out.push(p);
   }
-  return null;
+  return out;
 }

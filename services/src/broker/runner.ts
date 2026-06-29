@@ -3,18 +3,20 @@ import type { SettlementAdapter } from "../settlement/adapter";
 import type { RentStatus } from "../domain";
 import { matchProviders, type RankStrategy } from "./matching";
 import { revalidateProvider } from "./guardrails";
-import { type StreamOptions } from "./stream";
-import { streamWithMigration, type MigrationStoppedBy } from "./migrate";
+import { streamWithMigration, type MigrationStoppedBy, type MigrationOptions } from "./migrate";
+import type { DegradationDeps } from "./degradation";
 
 export type RunDeps = {
   registry: Registry;
   settlement: SettlementAdapter;
   rank?: RankStrategy;
+  degradation?: DegradationDeps;
+  healthOpts?: { maxConsecutiveFailures?: number; maxLatencyMs?: number };
 };
 
-export type RunOptions = StreamOptions & {
-  maxMigrations?: number; // 0 = no autonomous re-pointing (single provider)
-};
+// runRent passes these straight through to streamWithMigration (maxUnits, shouldStop,
+// maxMigrations, holdBudget).
+export type RunOptions = MigrationOptions;
 
 export type RunResult = {
   stoppedBy: MigrationStoppedBy | "no-provider" | "guard-failed";
@@ -70,7 +72,7 @@ export async function runRent(rentId: string, deps: RunDeps, opts: RunOptions = 
   const stream = await streamWithMigration(
     rent,
     match.chosen,
-    { registry, settlement, rank: deps.rank },
+    { registry, settlement, rank: deps.rank, degradation: deps.degradation, healthOpts: deps.healthOpts },
     opts,
   );
 
