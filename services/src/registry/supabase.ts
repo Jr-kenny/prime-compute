@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Provider, Rent, RentDecision, Charge } from "../domain";
 import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
+import { defaultTrust, type Tier, type TrustProfile } from "../trust/trust";
 
 type Row = Record<string, unknown>;
 
@@ -17,7 +18,10 @@ function toProvider(raw: unknown): Provider {
     region: r.region as string,
     specs: (r.specs as Record<string, unknown>) ?? {},
     online: r.online as boolean,
-    stakeAmount: Number(r.stake_amount),
+    trust: {
+      tier: (r.trust_tier as Tier | null) ?? "Community",
+      signals: (r.trust_signals as TrustProfile["signals"] | null) ?? defaultTrust().signals,
+    },
     pricePerCharge: Number(r.price_per_charge),
     computeScore: Number(r.compute_score),
     avgLatencyMs: Number(r.avg_latency_ms),
@@ -30,7 +34,11 @@ function toRent(raw: unknown): Rent {
     id: r.id as string,
     name: r.name as string,
     userId: r.user_id as string,
-    spec: { resourceType: r.resource_type as Rent["spec"]["resourceType"], region: (r.region as string) ?? null },
+    spec: {
+      resourceType: r.resource_type as Rent["spec"]["resourceType"],
+      region: (r.region as string) ?? null,
+      requiredTrustTier: (r.required_trust_tier as Tier | null) ?? "Community",
+    },
     estimatedUsage: r.estimated_usage === null ? null : Number(r.estimated_usage),
     autonomyArmed: r.autonomy_armed as boolean,
     status: r.status as Rent["status"],
@@ -75,7 +83,8 @@ export class SupabaseRegistry implements Registry {
       this.db.from("providers").insert({
         alias: p.alias, owner_wallet: p.ownerWallet, endpoint_url: p.endpointUrl,
         resource_type: p.resourceType, region: p.region, specs: p.specs,
-        online: p.online, stake_amount: p.stakeAmount, price_per_charge: p.pricePerCharge,
+        online: p.online, trust_tier: p.trust.tier, trust_signals: p.trust.signals,
+        price_per_charge: p.pricePerCharge,
         compute_score: p.computeScore ?? 80, avg_latency_ms: p.avgLatencyMs,
       }).select().single(),
       "registerProvider",
@@ -118,6 +127,7 @@ export class SupabaseRegistry implements Registry {
       this.db.from("rents").insert({
         name: r.name, user_id: r.userId,
         resource_type: r.spec.resourceType, region: r.spec.region,
+        required_trust_tier: r.spec.requiredTrustTier ?? "Community",
         estimated_usage: r.estimatedUsage ?? null, autonomy_armed: r.autonomyArmed ?? false,
       }).select().single(),
       "createRent",

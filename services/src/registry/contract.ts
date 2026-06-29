@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import type { Registry, NewProvider } from "./registry";
+import { defaultTrust } from "../trust/trust";
 
 const sampleProvider: NewProvider = {
   alias: "node-astral-1",
@@ -9,7 +10,7 @@ const sampleProvider: NewProvider = {
   region: "US-East",
   specs: { gpu: "H100", vramGb: 80 },
   online: true,
-  stakeAmount: 100,
+  trust: defaultTrust(),
   pricePerCharge: 0.000006,
   avgLatencyMs: 5,
 };
@@ -34,6 +35,13 @@ export function registryContract(
       expect(p.alias).toBe("node-astral-1");
       expect(typeof p.computeScore).toBe("number");
     });
+
+    test("a provider's trust tier round-trips", async () => {
+      const p = await reg.registerProvider({ ...sampleProvider, alias: "bonded-1", trust: defaultTrust("Bonded") });
+      const fetched = await reg.getProvider(p.id);
+      expect(fetched?.trust.tier).toBe("Bonded");
+      expect(fetched?.trust.signals.health).toBe("healthy");
+    }, T);
 
     test("listProviders filters by resourceType and onlineOnly", async () => {
       await reg.registerProvider(sampleProvider);
