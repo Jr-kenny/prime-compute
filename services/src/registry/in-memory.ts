@@ -1,10 +1,12 @@
 import type { Provider, Rent, RentDecision, Charge } from "../domain";
 import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
+import type { DecisionLog } from "../runtime/types";
 
 export class InMemoryRegistry implements Registry {
   private providers = new Map<string, Provider>();
   private rents = new Map<string, Rent>();
   private decisions: RentDecision[] = [];
+  private decisionLogs: { rentId: string; log: DecisionLog }[] = [];
   private charges: Charge[] = [];
 
   async registerProvider(p: NewProvider): Promise<Provider> {
@@ -72,6 +74,15 @@ export class InMemoryRegistry implements Registry {
     const decision: RentDecision = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...d };
     this.decisions.push(decision);
     return decision;
+  }
+
+  async recordDecisionLog(rentId: string, log: DecisionLog): Promise<DecisionLog> {
+    this.decisionLogs.push({ rentId, log });
+    return log;
+  }
+
+  async listDecisionLogs(rentId: string): Promise<DecisionLog[]> {
+    return this.decisionLogs.filter((d) => d.rentId === rentId).map((d) => d.log);
   }
 
   async recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge> {

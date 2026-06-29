@@ -1,7 +1,8 @@
 import { decide, type DecideClient } from "../runtime/decide";
 import { selectProposal, type Validation } from "../runtime/select";
 import { RetryLeash } from "../runtime/budget";
-import type { Soul, Policy, DecisionContext, ActionSpec, Proposal } from "../runtime/types";
+import { buildDecisionLog } from "../runtime/log";
+import type { Soul, Policy, DecisionContext, ActionSpec, Proposal, DecisionLog } from "../runtime/types";
 import { revalidateProvider } from "./guardrails";
 import type { Provider, RentSpec } from "../domain";
 
@@ -17,9 +18,9 @@ export type DegradationArgs = {
 };
 
 export type DegradationChoice =
-  | { action: "hold"; rationale: string }
-  | { action: "migrate"; target: Provider; rationale: string }
-  | { action: "fallback"; rationale: string };
+  | { action: "hold"; rationale: string; log: DecisionLog }
+  | { action: "migrate"; target: Provider; rationale: string; log: DecisionLog }
+  | { action: "fallback"; rationale: string; log: DecisionLog };
 
 const ACTIONS: ActionSpec[] = [
   { name: "migrate", description: "stop paying the degraded provider and re-point the stream to a healthy alternative (give its id as target)" },
@@ -60,13 +61,15 @@ export async function decideMigrateOrHold(deps: DegradationDeps, args: Degradati
     return { ok: false, reason: `unknown action ${p.action}` };
   };
 
-  const { chosen } = selectProposal(decision, validate);
-  if (!chosen) return { action: "fallback", rationale: "no proposal passed validation" };
+  const selection = selectProposal(decision, validate);
+  const log = buildDecisionLog(decision, context, selection);
+  const { chosen } = selection;
+  if (!chosen) return { action: "fallback", rationale: "no proposal passed validation", log };
 
   const stamp = `[soul ${decision.soulVersion}/policy ${decision.policyVersion}${decision.usedFallback ? "; deterministic fallback" : ""}]`;
   if (chosen.action === "hold") {
-    return { action: "hold", rationale: `${chosen.userExplanation} ${stamp}` };
+    return { action: "hold", rationale: `${chosen.userExplanation} ${stamp}`, log };
   }
   const target = (chosen.target ? byId.get(chosen.target) : args.candidates[0])!; // validated non-null above
-  return { action: "migrate", target, rationale: `${chosen.userExplanation} ${stamp}` };
+  return { action: "migrate", target, rationale: `${chosen.userExplanation} ${stamp}`, log };
 }

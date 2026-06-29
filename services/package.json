@@ -6,7 +6,7 @@
     "test": "bun test",
     "probe:llm": "bun run probes/llm-toolcall.ts",
     "probe:x402": "bun run probes/x402-roundtrip.ts",
-    "rank:llm": "bun run probes/llm-rank.ts",
+    "rank:soul": "bun run probes/rank-soul.ts",
     "soul:divergence": "bun run probes/soul-divergence.ts",
     "seed": "bun run scripts/seed-providers.ts",
     "provider": "bun run scripts/run-provider.ts",

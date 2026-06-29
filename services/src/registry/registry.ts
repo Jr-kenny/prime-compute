@@ -6,6 +6,7 @@ import type {
   RentSpec,
   ResourceType,
 } from "../domain";
+import type { DecisionLog } from "../runtime/types";
 
 export type NewProvider = Omit<Provider, "id" | "computeScore"> & {
   computeScore?: number;
@@ -40,6 +41,8 @@ export interface Registry {
   updateRent(id: string, patch: RentPatch): Promise<Rent>;
 
   recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision>;
+  recordDecisionLog(rentId: string, log: DecisionLog): Promise<DecisionLog>;
+  listDecisionLogs(rentId: string): Promise<DecisionLog[]>;
   recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge>;
   markChargeSettled(chargeId: string): Promise<void>;
   listCharges(rentId: string): Promise<Charge[]>;
