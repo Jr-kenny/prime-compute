@@ -7,6 +7,7 @@ import { InMemoryRegistry } from "../src/registry/in-memory";
 import { GatewaySettlementAdapter } from "../src/settlement/gateway";
 import { runRent } from "../src/broker/runner";
 import { reconcileRent } from "../src/broker/reconcile";
+import { liveBrokerDeps } from "../src/broker/deps";
 
 const brokerKey = process.env.BROKER_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
 const providerKey = process.env.PROVIDER_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
@@ -39,8 +40,12 @@ try {
   const settlement = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 1000n });
   console.log("broker buyer:", settlement.buyerAddress);
 
+  // The deployed broker ranks providers by reasoning from the shipped soul (the deterministic
+  // scorer is the fallback if the model is unavailable). Migration stays deterministic here; it
+  // becomes soul-driven only once a holdBudget is configured.
+  const broker = await liveBrokerDeps();
   console.log("running the rent for 3 units...");
-  const result = await runRent(rent.id, { registry: reg, settlement }, { maxUnits: 3 });
+  const result = await runRent(rent.id, { registry: reg, settlement, ...broker }, { maxUnits: 3 });
   console.log("  stoppedBy:", result.stoppedBy, "units:", result.units);
 
   const finalized = await reg.getRent(rent.id);
