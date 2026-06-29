@@ -1,4 +1,5 @@
 import { test, expect } from "bun:test";
+import { defaultTrust } from "../trust/trust";
 import { streamRent } from "./stream";
 import { InMemoryRegistry } from "../registry/in-memory";
 import { FakeSettlementAdapter } from "../settlement/fake";
@@ -7,7 +8,7 @@ import type { Provider, Rent } from "../domain";
 
 const provider: Provider = {
   id: "p1", alias: "n", ownerWallet: "0x0", endpointUrl: "http://prov", resourceType: "GPU",
-  region: "US-East", specs: {}, online: true, stakeAmount: 100, pricePerCharge: 0.0001,
+  region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001,
   computeScore: 90, avgLatencyMs: 5,
 };
 

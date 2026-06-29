@@ -1,4 +1,5 @@
 import { test, expect } from "bun:test";
+import { defaultTrust } from "../trust/trust";
 import { streamWithMigration } from "./migrate";
 import { InMemoryRegistry } from "../registry/in-memory";
 import type { NewProvider } from "../registry/registry";
@@ -62,8 +63,8 @@ function urlAdapter(downMarkers: string[], pricePerChargeAtomic = 100n, capAtomi
 
 async function seedTwo(reg: InMemoryRegistry) {
   // A ranks first (higher score) so it is chosen first; its endpoint is the dead one.
-  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 99 });
-  const b = await reg.registerProvider({ ...base, alias: "B", endpointUrl: "http://bbb", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 80 });
+  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 99 });
+  const b = await reg.registerProvider({ ...base, alias: "B", endpointUrl: "http://bbb", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 80 });
   return { a, b };
 }
 
@@ -105,7 +106,7 @@ test("a healthy first provider streams to maxUnits with zero migrations", async 
 test("with no valid alternative, stops as no-alternative", async () => {
   const reg = new InMemoryRegistry();
   // Only A exists, and A is down.
-  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 99 });
+  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 99 });
   const rent = await makeRent(reg);
   const settlement = urlAdapter(["aaa"]);
   const result = await streamWithMigration(rent, a as Provider, { registry: reg, settlement }, { maxUnits: 3, maxMigrations: 2 });
@@ -142,9 +143,9 @@ test("soul-driven: the model's migrate target is honored over the deterministic 
   const reg = new InMemoryRegistry();
   // A degrades; B and C are both valid. Deterministic best would be B (higher score); the
   // soul names C, so we must end on C.
-  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 99 });
-  const b = await reg.registerProvider({ ...base, alias: "B", endpointUrl: "http://bbb", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 90 });
-  const c = await reg.registerProvider({ ...base, alias: "C", endpointUrl: "http://ccc", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 80 });
+  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 99 });
+  const b = await reg.registerProvider({ ...base, alias: "B", endpointUrl: "http://bbb", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 90 });
+  const c = await reg.registerProvider({ ...base, alias: "C", endpointUrl: "http://ccc", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 80 });
   const rent = await makeRent(reg);
   const settlement = urlAdapter(["aaa"]); // A is dead
 
@@ -161,8 +162,8 @@ test("soul-driven: the model's migrate target is honored over the deterministic 
 
 test("soul-driven: hold gives a transiently-degraded provider another chance and it recovers", async () => {
   const reg = new InMemoryRegistry();
-  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 99 });
-  const b = await reg.registerProvider({ ...base, alias: "B", endpointUrl: "http://bbb", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 80 });
+  const a = await reg.registerProvider({ ...base, alias: "A", endpointUrl: "http://aaa", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 99 });
+  const b = await reg.registerProvider({ ...base, alias: "B", endpointUrl: "http://bbb", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 80 });
   const rent = await makeRent(reg);
   // A fails 3 times (trips unhealthy with the default monitor), then recovers.
   const settlement = recoveringAdapter("aaa", 3);

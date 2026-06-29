@@ -1,4 +1,5 @@
 import { privateKeyToAccount } from "viem/accounts";
+import { defaultTrust } from "../src/trust/trust";
 import type { AddressInfo } from "node:net";
 import { createProviderApp } from "../src/provider/server";
 import { SimulatedExecutor } from "../src/provider/executor";
@@ -31,7 +32,7 @@ try {
   await reg.registerProvider({
     alias: "node-broker", ownerWallet: sellerAddress, endpointUrl: `http://localhost:${port}`,
     resourceType: "GPU", region: "US-East", specs: { gpu: "H100" }, online: true,
-    stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 95, avgLatencyMs: 5,
+    trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 95, avgLatencyMs: 5,
   });
   const rent = await reg.createRent({ name: "broker-demo", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 

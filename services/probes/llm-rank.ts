@@ -1,12 +1,13 @@
 import { makeRankClient } from "../src/broker/llm-rank";
+import { defaultTrust } from "../src/trust/trust";
 import type { Provider } from "../src/domain";
 
 // Gated: needs LLM_BASE_URL / LLM_API_KEY. Proves the real model emits a usable
 // ranking through the tool call; if it cannot, the broker uses scoring.ts instead.
 const sample: Provider[] = [
-  { id: "alpha", alias: "alpha", ownerWallet: "0x0", endpointUrl: "http://a", resourceType: "GPU", region: "US-East", specs: {}, online: true, stakeAmount: 100, pricePerCharge: 0.000006, computeScore: 70, avgLatencyMs: 9 },
-  { id: "bravo", alias: "bravo", ownerWallet: "0x0", endpointUrl: "http://b", resourceType: "GPU", region: "EU-West", specs: {}, online: true, stakeAmount: 100, pricePerCharge: 0.000004, computeScore: 92, avgLatencyMs: 4 },
-  { id: "charlie", alias: "charlie", ownerWallet: "0x0", endpointUrl: "http://c", resourceType: "GPU", region: "US-East", specs: {}, online: true, stakeAmount: 100, pricePerCharge: 0.000009, computeScore: 60, avgLatencyMs: 14 },
+  { id: "alpha", alias: "alpha", ownerWallet: "0x0", endpointUrl: "http://a", resourceType: "GPU", region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.000006, computeScore: 70, avgLatencyMs: 9 },
+  { id: "bravo", alias: "bravo", ownerWallet: "0x0", endpointUrl: "http://b", resourceType: "GPU", region: "EU-West", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.000004, computeScore: 92, avgLatencyMs: 4 },
+  { id: "charlie", alias: "charlie", ownerWallet: "0x0", endpointUrl: "http://c", resourceType: "GPU", region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.000009, computeScore: 60, avgLatencyMs: 14 },
 ];
 
 try {

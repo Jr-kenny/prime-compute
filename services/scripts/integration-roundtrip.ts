@@ -1,4 +1,5 @@
 import { privateKeyToAccount } from "viem/accounts";
+import { defaultTrust } from "../src/trust/trust";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createProviderApp } from "../src/provider/server";
@@ -45,12 +46,12 @@ try {
   const provA = await reg.registerProvider({
     alias: "prov-A", ownerWallet: sellerAddress, endpointUrl: `http://localhost:${a.port}`,
     resourceType: "GPU", region: "US-East", specs: { gpu: "H100" }, online: true,
-    stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 99, avgLatencyMs: 4,
+    trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 99, avgLatencyMs: 4,
   });
   const provB = await reg.registerProvider({
     alias: "prov-B", ownerWallet: sellerAddress, endpointUrl: `http://localhost:${b.port}`,
     resourceType: "GPU", region: "US-East", specs: { gpu: "H100" }, online: true,
-    stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 80, avgLatencyMs: 6,
+    trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 80, avgLatencyMs: 6,
   });
   const rent = await reg.createRent({ name: "degrade-demo", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 

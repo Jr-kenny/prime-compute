@@ -1,18 +1,20 @@
 import type { Provider, RentSpec } from "./domain";
+import { meetsTier, DEFAULT_TIER } from "./trust/trust";
 
-export function hardFilter(providers: Provider[], job: RentSpec): Provider[] {
+export function hardFilter(providers: Provider[], spec: RentSpec): Provider[] {
+  const need = spec.requiredTrustTier ?? DEFAULT_TIER;
   return providers.filter(
     (p) =>
       p.online &&
-      p.stakeAmount > 0 &&
-      p.resourceType === job.resourceType &&
-      (job.region === null || p.region === job.region),
+      meetsTier(p.trust.tier, need) &&
+      p.resourceType === spec.resourceType &&
+      (spec.region === null || p.region === spec.region),
   );
 }
 
 // Lower price is better; higher score is better; lower latency is better.
 // Normalize each dimension across the candidate set, then weight.
-export function scoreProviders(providers: Provider[], _job: RentSpec): Provider[] {
+export function scoreProviders(providers: Provider[], _spec: RentSpec): Provider[] {
   if (providers.length === 0) return [];
   const prices = providers.map((p) => p.pricePerCharge);
   const minP = Math.min(...prices);

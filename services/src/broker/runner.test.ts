@@ -1,4 +1,5 @@
 import { test, expect } from "bun:test";
+import { defaultTrust } from "../trust/trust";
 import { runRent } from "./runner";
 import { InMemoryRegistry } from "../registry/in-memory";
 import { FakeSettlementAdapter } from "../settlement/fake";
@@ -11,7 +12,7 @@ const base: Pick<NewProvider, "ownerWallet" | "endpointUrl" | "specs" | "avgLate
 
 async function seeded() {
   const reg = new InMemoryRegistry();
-  await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 95 });
+  await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 95 });
   const rent = await reg.createRent({ name: "train", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
   return { reg, rent };
 }
@@ -48,7 +49,7 @@ test("no matching provider fails the rent without spending", async () => {
 
 test("autonomy: finalizes failed when the only provider degrades with no alternative", async () => {
   const reg = new InMemoryRegistry();
-  await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 95 });
+  await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 95 });
   const rent = await reg.createRent({ name: "x", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 
   // An adapter that always throws a non-cap error: the provider never serves.
@@ -69,7 +70,7 @@ test("autonomy: a held-then-recovered provider finishes completed on the same pr
   const { decideMigrateOrHold } = await import("./degradation"); // ensure module wires
   void decideMigrateOrHold;
   const reg = new InMemoryRegistry();
-  await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 95 });
+  await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 95 });
   const rent = await reg.createRent({ name: "x", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 
   // A fails twice then recovers; the soul holds; default monitor trips at 3, so use a monitor

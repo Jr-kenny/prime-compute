@@ -1,3 +1,5 @@
+import type { Tier, TrustProfile } from "./trust/trust";
+
 export type ResourceType = "GPU" | "CPU" | "Storage" | "Full Server";
 export type RentStatus =
   | "queued"
@@ -16,7 +18,7 @@ export type Provider = {
   region: string;
   specs: Record<string, unknown>;
   online: boolean;
-  stakeAmount: number;
+  trust: TrustProfile;
   pricePerCharge: number;
   computeScore: number;
   avgLatencyMs: number;
@@ -25,6 +27,7 @@ export type Provider = {
 export type RentSpec = {
   resourceType: ResourceType;
   region: string | null;
+  requiredTrustTier?: Tier; // default Community (open); the gate applies the default
 };
 
 export type Rent = {
