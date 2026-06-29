@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Provider, Rent, RentDecision, Charge } from "../domain";
 import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
 import { defaultTrust, type Tier, type TrustProfile } from "../trust/trust";
+import type { DecisionLog, Proposal } from "../runtime/types";
 
 type Row = Record<string, unknown>;
 
@@ -61,6 +62,23 @@ function toCharge(raw: unknown): Charge {
     authorizationRef: (r.authorization_ref as string) ?? null,
     settled: r.settled as boolean,
     settlementRef: (r.settlement_ref as string) ?? null,
+    createdAt: r.created_at as string,
+  };
+}
+
+function toDecisionLog(raw: unknown): DecisionLog {
+  const r = raw as Row;
+  const action = (r.chosen_action as string | null) ?? null;
+  const target = (r.chosen_provider_id as string | null) ?? undefined;
+  return {
+    decisionId: r.decision_id as string,
+    soulVersion: (r.soul_version as string) ?? "",
+    policyVersion: (r.policy_version as string) ?? "",
+    objective: (r.objective as string) ?? "",
+    proposals: (r.proposals as Proposal[] | null) ?? [],
+    chosenAction: action ? { action, target } : null,
+    rejectedReason: (r.rejected_reason as string | null) ?? null,
+    usedFallback: (r.used_fallback as boolean | null) ?? false,
     createdAt: r.created_at as string,
   };
 }
@@ -170,6 +188,47 @@ export class SupabaseRegistry implements Registry {
       chosenProviderId: (r.chosen_provider_id as string) ?? null,
       rationale: r.rationale as string, createdAt: r.created_at as string,
     };
+  }
+
+  async recordDecisionLog(rentId: string, log: DecisionLog): Promise<DecisionLog> {
+    // Derive the legacy provider-choice columns from the structured log so a single table
+    // serves both audits: candidates = the ranked targets, chosen = the chosen action's target.
+    const candidates = log.proposals
+      .map((p, i) => ({ providerId: p.target, rank: i }))
+      .filter((c): c is { providerId: string; rank: number } => typeof c.providerId === "string");
+    const chosen = log.proposals.find(
+      (p) => p.action === log.chosenAction?.action && p.target === log.chosenAction?.target,
+    );
+    const rationale = chosen?.userExplanation ?? log.rejectedReason ?? "";
+    await this.one(
+      this.db.from("rent_decisions").insert({
+        rent_id: rentId,
+        candidates,
+        chosen_provider_id: log.chosenAction?.target ?? null,
+        rationale,
+        decision_id: log.decisionId,
+        soul_version: log.soulVersion,
+        policy_version: log.policyVersion,
+        objective: log.objective,
+        proposals: log.proposals,
+        chosen_action: log.chosenAction?.action ?? null,
+        rejected_reason: log.rejectedReason,
+        used_fallback: log.usedFallback,
+      }).select().single(),
+      "recordDecisionLog",
+    );
+    return log;
+  }
+
+  async listDecisionLogs(rentId: string): Promise<DecisionLog[]> {
+    const { data, error } = await this.db
+      .from("rent_decisions")
+      .select()
+      .eq("rent_id", rentId)
+      .not("decision_id", "is", null)
+      .order("created_at");
+    if (error) throw new Error(`listDecisionLogs: ${error.message}`);
+    return (data ?? []).map((r) => toDecisionLog(r));
   }
 
   async recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge> {
