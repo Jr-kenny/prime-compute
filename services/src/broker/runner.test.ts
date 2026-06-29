@@ -64,3 +64,36 @@ test("autonomy: finalizes failed when the only provider degrades with no alterna
   expect((await reg.getRent(rent.id))?.status).toBe("failed");
   expect(await reg.rentCost(rent.id)).toBe(0);
 });
+
+test("autonomy: a held-then-recovered provider finishes completed on the same provider", async () => {
+  const { decideMigrateOrHold } = await import("./degradation"); // ensure module wires
+  void decideMigrateOrHold;
+  const reg = new InMemoryRegistry();
+  await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, stakeAmount: 100, pricePerCharge: 0.0001, computeScore: 95 });
+  const rent = await reg.createRent({ name: "x", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
+
+  // A fails twice then recovers; the soul holds; default monitor trips at 3, so use a monitor
+  // that trips at 2 to exercise the hold path quickly.
+  let downHits = 0;
+  const settlement: SettlementAdapter = {
+    buyerAddress: "0xB",
+    async ensureFunded() { return { deposited: false }; },
+    async payForCompute(): Promise<PaidCompute> {
+      if (downHits < 2) { downHits++; throw new Error("transient"); }
+      return { amountAtomic: 100n, settlementRef: `r-${downHits++}`, data: {}, status: 200 };
+    },
+    async reconcile(ref): Promise<SettlementStatus> { return { ref, status: "completed", settled: true }; },
+  };
+
+  const client = { propose: async () => [{ action: "hold", score: 1, rationale: ["transient"], userExplanation: "holding" }] };
+  const soul = { schema: "soul/v1", version: "1.0.0", name: "Broker", body: "s" };
+  const policy = { schema: "policy/v1", version: "1.0.0", body: "p" };
+
+  const result = await runRent(rent.id, {
+    registry: reg, settlement, degradation: { soul, policy, client },
+    healthOpts: { maxConsecutiveFailures: 2 },
+  }, { maxUnits: 2, maxMigrations: 1, holdBudget: { maxRetries: 3, maxDurationMs: 60_000, maxExtraSpend: 10_000n } });
+
+  expect(result.stoppedBy).toBe("maxUnits");
+  expect((await reg.getRent(rent.id))?.status).toBe("completed");
+});
