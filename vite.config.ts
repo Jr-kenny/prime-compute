@@ -47,7 +47,10 @@ export default defineConfig(async ({ command, mode }) => {
         }
       : {}),
     resolve: {
-      alias: { "@": `${process.cwd()}/src` },
+      alias: {
+        "@": `${process.cwd()}/src`,
+        "@services": `${process.cwd()}/services/src`,
+      },
       dedupe: [
         "react",
         "react-dom",
