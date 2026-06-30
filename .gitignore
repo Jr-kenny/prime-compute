@@ -48,3 +48,6 @@ services/node_modules
 
 # Local git worktrees for isolated implementation work
 .worktrees/
+
+# Playwright MCP scratch output
+.playwright-mcp/

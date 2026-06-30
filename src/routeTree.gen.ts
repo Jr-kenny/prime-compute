@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ProviderRouteImport } from './routes/provider'
@@ -21,11 +20,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as MarketplaceIndexRouteImport } from './routes/marketplace.index'
 import { Route as MarketplaceIdRouteImport } from './routes/marketplace.$id'
 
-const WalletRoute = WalletRouteImport.update({
-  id: '/wallet',
-  path: '/wallet',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -86,7 +80,6 @@ export interface FileRoutesByFullPath {
   '/provider': typeof ProviderRoute
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/wallet': typeof WalletRoute
   '/marketplace/$id': typeof MarketplaceIdRoute
   '/marketplace/': typeof MarketplaceIndexRoute
 }
@@ -98,7 +91,6 @@ export interface FileRoutesByTo {
   '/provider': typeof ProviderRoute
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/wallet': typeof WalletRoute
   '/marketplace/$id': typeof MarketplaceIdRoute
   '/marketplace': typeof MarketplaceIndexRoute
 }
@@ -112,7 +104,6 @@ export interface FileRoutesById {
   '/provider': typeof ProviderRoute
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/wallet': typeof WalletRoute
   '/marketplace/$id': typeof MarketplaceIdRoute
   '/marketplace/': typeof MarketplaceIndexRoute
 }
@@ -127,7 +118,6 @@ export interface FileRouteTypes {
     | '/provider'
     | '/register'
     | '/sitemap.xml'
-    | '/wallet'
     | '/marketplace/$id'
     | '/marketplace/'
   fileRoutesByTo: FileRoutesByTo
@@ -139,7 +129,6 @@ export interface FileRouteTypes {
     | '/provider'
     | '/register'
     | '/sitemap.xml'
-    | '/wallet'
     | '/marketplace/$id'
     | '/marketplace'
   id:
@@ -152,7 +141,6 @@ export interface FileRouteTypes {
     | '/provider'
     | '/register'
     | '/sitemap.xml'
-    | '/wallet'
     | '/marketplace/$id'
     | '/marketplace/'
   fileRoutesById: FileRoutesById
@@ -166,18 +154,10 @@ export interface RootRouteChildren {
   ProviderRoute: typeof ProviderRoute
   RegisterRoute: typeof RegisterRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  WalletRoute: typeof WalletRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/wallet': {
-      id: '/wallet'
-      path: '/wallet'
-      fullPath: '/wallet'
-      preLoaderRoute: typeof WalletRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -274,7 +254,6 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderRoute: ProviderRoute,
   RegisterRoute: RegisterRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  WalletRoute: WalletRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

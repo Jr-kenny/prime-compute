@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { StreamingTicker, ElapsedTimer } from "@/components/site/StreamingTicker";
 import { WalletBalance } from "@/components/site/WalletBalance";
+import { WalletSheet } from "@/components/site/WalletSheet";
 import { useSession } from "@/lib/auth/session";
 import { listMyRents, listProviders, pauseRent, resumeRent, cancelRent } from "@/lib/broker/server-fns";
 import { canPause, canResume, canCancel } from "@services/rent-transitions";
@@ -33,6 +34,7 @@ function Dashboard() {
   const { session } = useSession();
   const accessToken = session?.access_token;
   const [selectedRentId, setSelectedRentId] = useState<string | null>(null);
+  const [walletOpen, setWalletOpen] = useState(false);
 
   const { data: rents = [] } = useQuery({
     queryKey: ["rents", "mine", accessToken],
@@ -70,7 +72,7 @@ function Dashboard() {
             <span>
               streaming <span className="text-glow font-mono">${streamingRate.toFixed(7)}/sec</span>
             </span>
-            <WalletBalance />
+            <WalletBalance onClick={() => setWalletOpen(true)} />
           </div>
 
           <Tabs defaultValue="active" className="mt-8">
@@ -174,6 +176,8 @@ function Dashboard() {
         provider={selectedRent?.providerId ? providersById[selectedRent.providerId] : undefined}
         onClose={() => setSelectedRentId(null)}
       />
+
+      <WalletSheet open={walletOpen} onClose={() => setWalletOpen(false)} accessToken={accessToken} />
     </>
   );
 }

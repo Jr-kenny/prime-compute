@@ -29,7 +29,6 @@ function shortWallet(address: string | null): string {
 export const navLinks = [
   { to: "/marketplace", label: "Marketplace", icon: Store },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/wallet", label: "Wallet", icon: Wallet },
   { to: "/provider", label: "Provider", icon: Server },
   { to: "/docs", label: "Docs", icon: BookOpen },
 ] as const;
@@ -184,7 +183,7 @@ export function BottomTabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-5 border-t border-border/60 bg-background/90 backdrop-blur-xl"
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 border-t border-border/60 bg-background/90 backdrop-blur-xl"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {navLinks.map((l) => {
