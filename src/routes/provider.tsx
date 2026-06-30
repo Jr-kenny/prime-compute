@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authGuard } from "../lib/auth/guard";
 import { useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/site/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ComputeScoreRing } from "@/components/site/ComputeScoreRing";
 import { StreamingTicker } from "@/components/site/StreamingTicker";
-import { providers, earnings30d, historicalJobs } from "@/lib/mock-data";
+import { useSession } from "@/lib/auth/session";
+import { listMyProviders, listProviderRents } from "@/lib/broker/server-fns";
+import type { Provider, Rent } from "@services/domain";
 
 export const Route = createFileRoute("/provider")({
   beforeLoad: authGuard,
@@ -23,7 +25,29 @@ export const Route = createFileRoute("/provider")({
 });
 
 function ProviderDash() {
-  const myServers = providers.slice(0, 2);
+  const { walletAddress } = useSession();
+
+  const { data: myServers = [] } = useQuery({
+    queryKey: ["providers", "mine", walletAddress],
+    queryFn: () => listMyProviders({ data: { ownerWallet: walletAddress! } }),
+    enabled: !!walletAddress,
+  });
+
+  const serverIds = myServers.map((s) => s.id);
+  const { data: rentsByProvider = {} } = useQuery({
+    queryKey: ["rents", "forProviders", serverIds],
+    queryFn: async () => {
+      const lists = await Promise.all(
+        serverIds.map((id) => listProviderRents({ data: { providerId: id } })),
+      );
+      return Object.fromEntries(serverIds.map((id, i) => [id, lists[i]]));
+    },
+    enabled: serverIds.length > 0,
+  });
+
+  const allRents = Object.values(rentsByProvider).flat();
+  const totalEarned = allRents.reduce((s, r) => s + r.totalCost, 0);
+
   return (
     <AppShell>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10">
@@ -39,44 +63,21 @@ function ProviderDash() {
           </TabsList>
 
           <TabsContent value="servers" className="mt-6 grid gap-4 lg:grid-cols-2">
-            {myServers.map((s, i) => <ServerCard key={s.id} server={s} hasJob={i === 0} />)}
+            {myServers.map((s) => (
+              <ServerCard key={s.id} server={s} rents={rentsByProvider[s.id] ?? []} />
+            ))}
+            {myServers.length === 0 && (
+              <div className="col-span-full glass-card p-10 text-center text-muted-foreground">
+                No servers registered to this wallet yet.
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="earnings" className="mt-6 grid gap-6 lg:grid-cols-3">
-            <div className="glass-card p-6">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Lifetime</div>
-              <div className="mt-2 text-3xl font-bold text-gradient-blue">$24,182.40</div>
-              <div className="mt-4 text-xs uppercase tracking-wider text-muted-foreground">This month</div>
-              <div className="mt-1 text-xl font-semibold">$1,847.20</div>
-            </div>
-            <div className="glass-card p-6 lg:col-span-2">
-              <h3 className="font-semibold mb-4">Daily earnings · 30d</h3>
-              <div className="h-56">
-                <ResponsiveContainer>
-                  <BarChart data={earnings30d}>
-                    <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                    <XAxis dataKey="day" stroke="var(--color-muted-foreground)" fontSize={10} />
-                    <YAxis stroke="var(--color-muted-foreground)" fontSize={10} />
-                    <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8 }} />
-                    <Bar dataKey="earnings" fill="var(--color-glow)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            <div className="glass-card p-6 lg:col-span-3 overflow-x-auto">
-              <h3 className="font-semibold mb-4">Payouts</h3>
-              <table className="w-full text-sm">
-                <thead><tr className="text-xs uppercase tracking-wider text-muted-foreground text-left"><th className="py-2">Date</th><th>Amount</th><th>Tx</th></tr></thead>
-                <tbody className="divide-y divide-border">
-                  {[420, 380, 510, 290].map((amt, i) => (
-                    <tr key={i}>
-                      <td className="py-2 text-muted-foreground">{new Date(Date.now() - i * 86400000 * 7).toLocaleDateString()}</td>
-                      <td>${amt.toFixed(2)}</td>
-                      <td className="font-mono text-xs text-muted-foreground">0x{Math.random().toString(16).slice(2, 10)}…</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="glass-card p-6 lg:col-span-3">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Total earned</div>
+              <div className="mt-2 text-3xl font-bold text-gradient-blue">${totalEarned.toFixed(4)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">across {allRents.length} job{allRents.length === 1 ? "" : "s"}</div>
             </div>
           </TabsContent>
 
@@ -84,14 +85,17 @@ function ProviderDash() {
             <table className="w-full text-sm">
               <thead><tr className="text-xs uppercase tracking-wider text-muted-foreground text-left"><th className="py-2">Job</th><th>Duration</th><th>Earned</th><th>Status</th></tr></thead>
               <tbody className="divide-y divide-border">
-                {historicalJobs.slice(0, 12).map((j) => (
-                  <tr key={j.id}>
-                    <td className="py-2">{j.name}</td>
-                    <td>{Math.round(j.durationMs / 60000)}m</td>
-                    <td>${j.totalCost.toFixed(4)}</td>
-                    <td className="text-muted-foreground">{j.status}</td>
+                {allRents.map((r) => (
+                  <tr key={r.id}>
+                    <td className="py-2">{r.name}</td>
+                    <td>{r.startedAt && r.endedAt ? `${Math.round((new Date(r.endedAt).getTime() - new Date(r.startedAt).getTime()) / 60000)}m` : "—"}</td>
+                    <td>${r.totalCost.toFixed(4)}</td>
+                    <td className="text-muted-foreground">{r.status}</td>
                   </tr>
                 ))}
+                {allRents.length === 0 && (
+                  <tr><td colSpan={4} className="py-6 text-center text-muted-foreground">No jobs yet.</td></tr>
+                )}
               </tbody>
             </table>
           </TabsContent>
@@ -104,7 +108,7 @@ function ProviderDash() {
             </div>
             <div className="glass-card p-6 space-y-4">
               <h3 className="font-semibold">Payout wallet</h3>
-              <Input readOnly value="0x91Ae…4F22" className="font-mono bg-card border-border" />
+              <Input readOnly value={walletAddress ?? "—"} className="font-mono bg-card border-border" />
               <Label>Minimum payout</Label>
               <Input defaultValue="50" className="bg-card border-border" />
             </div>
@@ -115,14 +119,20 @@ function ProviderDash() {
   );
 }
 
-function ServerCard({ server, hasJob }: { server: (typeof providers)[number]; hasJob: boolean }) {
+function ServerCard({ server, rents }: { server: Provider; rents: Rent[] }) {
   const [online, setOnline] = useState(server.online);
+  const runningRent = rents.find((r) => r.status === "running");
+  const cpuCores = server.specs.cpuCores as number | undefined;
+  const ramGb = server.specs.ramGb as number | undefined;
+  const storageGb = server.specs.storageGb as number | undefined;
+  const gpu = server.specs.gpu as string | undefined;
+
   return (
     <div className="glass-card glow-hover p-5">
       <div className="flex items-start justify-between">
         <div>
           <div className="text-sm font-medium">{server.alias}</div>
-          <div className="text-xs text-muted-foreground">{server.region} · {server.gpu ?? `${server.cpuCores} cores`}</div>
+          <div className="text-xs text-muted-foreground">{server.region} · {gpu ?? (cpuCores ? `${cpuCores} cores` : "—")}</div>
         </div>
         <div className="flex items-center gap-3">
           <ComputeScoreRing score={server.computeScore} size={40} />
@@ -130,28 +140,31 @@ function ServerCard({ server, hasJob }: { server: (typeof providers)[number]; ha
         </div>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-        <div><div className="text-foreground">{server.cpuCores}</div>cores</div>
-        <div><div className="text-foreground">{server.ramGb}GB</div>ram</div>
-        <div><div className="text-foreground">{server.storageGb}GB</div>ssd</div>
+        <div><div className="text-foreground">{cpuCores ?? "—"}</div>cores</div>
+        <div><div className="text-foreground">{ramGb ? `${ramGb}GB` : "—"}</div>ram</div>
+        <div><div className="text-foreground">{storageGb ? `${storageGb}GB` : "—"}</div>ssd</div>
       </div>
-      {hasJob && online ? (
+      {runningRent && online ? (
         <div className="mt-4 rounded-lg border border-border bg-surface/60 p-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">consumer @0x4F…91Ae</span>
+            <span className="text-muted-foreground">{runningRent.name}</span>
             <span className="inline-flex items-center gap-1 text-success"><span className="h-1.5 w-1.5 rounded-full bg-success pulse-ring" />running</span>
           </div>
           <div className="mt-2 flex items-end justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Earning</div>
-              <StreamingTicker ratePerSecond={server.pricePerSecond} startedAt={Date.now() - 1000 * 540} className="text-lg font-semibold text-gradient-blue" />
+              <StreamingTicker
+                ratePerSecond={server.pricePerCharge}
+                startedAt={runningRent.startedAt ? new Date(runningRent.startedAt).getTime() : Date.now()}
+                className="text-lg font-semibold text-gradient-blue"
+              />
             </div>
-            <div className="text-xs text-muted-foreground">${server.pricePerSecond.toFixed(7)}/s</div>
+            <div className="text-xs text-muted-foreground">${server.pricePerCharge.toFixed(7)}/s</div>
           </div>
         </div>
       ) : (
         <div className="mt-4 text-xs text-muted-foreground">{online ? "Waiting for matched jobs…" : "Server offline. Toggle to start accepting jobs."}</div>
       )}
-      <div className="mt-4 text-xs text-muted-foreground">Earnings today · <span className="text-foreground">$64.12</span></div>
     </div>
   );
 }
