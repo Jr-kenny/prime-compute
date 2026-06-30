@@ -25,12 +25,13 @@ export const Route = createFileRoute("/provider")({
 });
 
 function ProviderDash() {
-  const { walletAddress } = useSession();
+  const { session, walletAddress } = useSession();
+  const accessToken = session?.access_token;
 
   const { data: myServers = [] } = useQuery({
-    queryKey: ["providers", "mine", walletAddress],
-    queryFn: () => listMyProviders({ data: { ownerWallet: walletAddress! } }),
-    enabled: !!walletAddress,
+    queryKey: ["providers", "mine", accessToken],
+    queryFn: () => listMyProviders({ data: { accessToken: accessToken! } }),
+    enabled: !!accessToken,
   });
 
   const serverIds = myServers.map((s) => s.id);
