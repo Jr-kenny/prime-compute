@@ -380,7 +380,7 @@ export function LumenFab({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="fixed bottom-20 right-4 z-30 md:bottom-6 md:right-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_30px_-6px_color-mix(in_oklab,var(--color-glow)_70%,transparent)] transition hover:scale-105 active:scale-95"
+      className="fixed bottom-20 right-4 z-30 md:bottom-6 md:right-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:scale-105 active:scale-95"
       aria-label="Open Lumen AI assistant"
     >
       <Sparkles className="h-5 w-5" />
