@@ -44,3 +44,15 @@ test("with no fallback and a dead client, returns empty proposals flagged as fal
   expect(d.usedFallback).toBe(true);
   expect(d.proposals).toEqual([]);
 });
+
+test("falls back when the client hangs past the timeout, within the budget", async () => {
+  // A client that never resolves — simulates a hung model endpoint.
+  const client: DecideClient = { propose: () => new Promise<Proposal[]>(() => {}) };
+  const fallback = () => [{ action: "hold", score: 1, rationale: ["timed out"], userExplanation: "f" }];
+  const started = Date.now();
+  const d = await decide({ soul, policy, context, actions, client, fallback, timeoutMs: 50 });
+  const elapsed = Date.now() - started;
+  expect(d.usedFallback).toBe(true);
+  expect(d.proposals[0]?.action).toBe("hold");
+  expect(elapsed).toBeLessThan(1000); // returned promptly, not hung
+});

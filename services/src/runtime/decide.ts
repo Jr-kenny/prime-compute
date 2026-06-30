@@ -9,6 +9,10 @@ export type DecideClient = {
   propose(prompt: AssembledPrompt, actions: ActionSpec[]): Promise<Proposal[]>;
 };
 
+// A model call that exceeds this is treated as down and falls back. A hung endpoint must
+// never leave a caller (a UI chat turn, a ranking, a degradation decision) waiting forever.
+export const DEFAULT_DECIDE_TIMEOUT_MS = 25_000;
+
 export type DecideInput = {
   soul: Soul;
   policy: Policy;
@@ -18,18 +22,35 @@ export type DecideInput = {
   // The consumer's deterministic plan for when the model is unavailable. Optional; if
   // omitted, a model failure yields empty proposals flagged usedFallback.
   fallback?: () => Proposal[] | Promise<Proposal[]>;
+  // Upper bound on the model call before it's treated as down. Defaults to
+  // DEFAULT_DECIDE_TIMEOUT_MS.
+  timeoutMs?: number;
 };
 
+// Reject if `p` doesn't settle within `ms`. The race only guarantees the caller stops
+// waiting; the real client also wires an AbortSignal so the underlying request is actually
+// cancelled rather than left running.
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`decide timed out after ${ms}ms`)), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 // Assemble policy + soul + context, ask the model for ranked proposals, stamp provenance.
-// Never executes. Degrades to the consumer's deterministic fallback when the model is down.
+// Never executes. Degrades to the consumer's deterministic fallback when the model is down,
+// returns nothing, or hangs past the timeout.
 export async function decide(input: DecideInput): Promise<Decision> {
-  const { soul, policy, context, actions, client, fallback } = input;
+  const { soul, policy, context, actions, client, fallback, timeoutMs = DEFAULT_DECIDE_TIMEOUT_MS } = input;
   const prompt = assemblePrompt(soul, policy, context, actions);
 
   let proposals: Proposal[] = [];
   let usedFallback = false;
   try {
-    proposals = await client.propose(prompt, actions);
+    proposals = await withTimeout(client.propose(prompt, actions), timeoutMs);
     if (proposals.length === 0) throw new Error("model returned no proposals");
   } catch {
     usedFallback = true;
@@ -54,6 +75,9 @@ export function makeDecideClient(): DecideClient {
         model: provider(modelId),
         system: prompt.system,
         prompt: prompt.user,
+        // Cancel the request itself on timeout so a hung endpoint doesn't leak a pending
+        // fetch. decide()'s own race is the guarantee; this is the cleanup.
+        abortSignal: AbortSignal.timeout(DEFAULT_DECIDE_TIMEOUT_MS),
         tools: {
           propose_actions: tool({
             description: "Return the available actions ranked best-first for this situation.",
