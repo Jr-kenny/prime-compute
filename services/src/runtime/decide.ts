@@ -11,7 +11,10 @@ export type DecideClient = {
 
 // A model call that exceeds this is treated as down and falls back. A hung endpoint must
 // never leave a caller (a UI chat turn, a ranking, a degradation decision) waiting forever.
-export const DEFAULT_DECIDE_TIMEOUT_MS = 25_000;
+// Sized generously: the NVIDIA NIM llama-3.3-70b endpoint measured ~35s for a real
+// tool-call, so a tight budget would abort calls that would have succeeded. 60s leaves
+// headroom for variance while still bounding a genuine hang.
+export const DEFAULT_DECIDE_TIMEOUT_MS = 60_000;
 
 export type DecideInput = {
   soul: Soul;
@@ -78,6 +81,10 @@ export function makeDecideClient(): DecideClient {
         // Cancel the request itself on timeout so a hung endpoint doesn't leak a pending
         // fetch. decide()'s own race is the guarantee; this is the cleanup.
         abortSignal: AbortSignal.timeout(DEFAULT_DECIDE_TIMEOUT_MS),
+        // This endpoint is slow (~35s/call). The SDK's default retries (2) would stack
+        // multiple slow attempts and blow the timeout budget. One clean attempt is the
+        // right trade-off: decide() already has a deterministic fallback if it fails.
+        maxRetries: 0,
         tools: {
           propose_actions: tool({
             description: "Return the available actions ranked best-first for this situation.",
