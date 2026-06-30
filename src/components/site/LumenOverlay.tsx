@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import {
   X,
   Send,
@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LumenMascot } from "./LumenMascot";
+import { brokerChat, createRent } from "@/lib/broker/server-fns";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import type { Provider } from "@services/domain";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -39,7 +42,7 @@ interface ConfirmMsg extends BaseMsg {
   title: string;
   details: { label: string; value: string }[];
   cta: string;
-  onConfirm: () => void;
+  provider: Provider;
 }
 
 type Msg = TextMsg | ConfirmMsg;
@@ -53,63 +56,6 @@ const quickActions = [
   { icon: Lightbulb, label: "What can Lumen do?" },
   { icon: Package, label: "Check my active orders" },
 ] as const;
-
-/* -------------------------------------------------------------------------- */
-/* Scripted responses                                                         */
-/* -------------------------------------------------------------------------- */
-
-/** Match a user message to a canned Lumen reply. Returns a reply or null. */
-function getReply(input: string): {
-  text?: string;
-  confirm?: Omit<ConfirmMsg, "id" | "role" | "onConfirm" | "kind">;
-} {
-  const q = input.toLowerCase().trim();
-
-  if (
-    q.includes("gpu") ||
-    q.includes("find") ||
-    q.includes("provider") ||
-    q.includes("defi") ||
-    q.includes("data agent")
-  ) {
-    return {
-      text: "I found 3 providers matching your needs. node-astral-1 has the best Compute Score (98) and lowest rate at $0.0000045/sec. Want me to set up a rent?",
-      confirm: {
-        title: "Rent from node-astral-1?",
-        details: [
-          { label: "Provider", value: "node-astral-1" },
-          { label: "Hardware", value: "NVIDIA H100 · 80GB VRAM" },
-          { label: "Rate", value: "$0.0000045/sec" },
-          { label: "Compute Score", value: "98 / 100" },
-          { label: "Region", value: "US-East" },
-        ],
-        cta: "Confirm & open payment stream",
-      },
-    };
-  }
-
-  if (q.includes("order") || q.includes("active") || q.includes("rent") || q.includes("status")) {
-    return {
-      text: "You have 2 active rents running:\n\n• llama-fine-tune on node-astral-1 — streaming $0.0000045/sec, 9m elapsed\n• stable-diffusion on node-cygnus-8 — streaming $0.0000067/sec, 3m elapsed\n\nBoth healthy. Wallet balance: $1,284.93.",
-    };
-  }
-
-  if (q.includes("what") && (q.includes("do") || q.includes("can"))) {
-    return {
-      text: 'I\'m Lumen, your AI broker. I can:\n\n• Find and rank providers matching your rent specs\n• Open streaming payment channels\n• Monitor rent health and migrate if a provider degrades\n• Check your active rents and wallet balance\n• Pause or cancel running rents instantly\n\nTry "find me a GPU" or "check my orders".',
-    };
-  }
-
-  if (q.includes("cheaper") || q.includes("optimize") || q.includes("rebalance")) {
-    return {
-      text: "Scanning the registry for a cheaper equivalent… node-lyra-7 just came online — same H100 hardware, same $0.0000045/sec rate, but closer to your region (US-East). Want me to migrate your running rent there? Zero downtime, the payment stream follows the rent.",
-    };
-  }
-
-  return {
-    text: "I can help find providers, rent compute, check your orders, or optimize your spend. Try a quick action below, or tell me what you need.",
-  };
-}
 
 /* -------------------------------------------------------------------------- */
 /* Main overlay component                                                     */
@@ -134,6 +80,9 @@ export function LumenOverlay({
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const appendLumen = (text: string) =>
+    setMessages((m) => [...m, { id: cryptoId(), role: "lumen", kind: "text", text }]);
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
@@ -141,7 +90,7 @@ export function LumenOverlay({
     }
   }, [messages, thinking]);
 
-  function send(text: string) {
+  async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
 
@@ -150,36 +99,47 @@ export function LumenOverlay({
     setInput("");
     setThinking(true);
 
-    // Simulate broker "thinking" then replying
-    setTimeout(() => {
-      const reply = getReply(trimmed);
-      setThinking(false);
-      if (reply.confirm) {
-        const confirmMsg: ConfirmMsg = {
-          id: cryptoId(),
-          role: "lumen",
-          kind: "confirm",
-          ...reply.confirm,
-          onConfirm: () => {
-            setMessages((m) => [
-              ...m,
-              {
-                id: cryptoId(),
-                role: "lumen",
-                kind: "text",
-                text: "✓ Done. Payment stream opened to node-astral-1. Your rent is now running. You can track it on the Dashboard.",
-              },
-            ]);
-          },
-        };
-        setMessages((m) => [...m, confirmMsg]);
-      } else if (reply.text) {
+    try {
+      const { data: sess } = await supabaseBrowser.auth.getSession();
+      const result = await brokerChat({
+        data: { accessToken: sess.session?.access_token, message: trimmed },
+      });
+
+      if (result.action === "recommend_provider" && result.provider) {
+        const p = result.provider;
+        const gpu = p.specs.gpu as string | undefined;
+        const vramGb = p.specs.vramGb as number | undefined;
+        const hardware = gpu ? `${gpu}${vramGb ? ` · ${vramGb}GB VRAM` : ""}` : p.resourceType;
         setMessages((m) => [
           ...m,
-          { id: cryptoId(), role: "lumen", kind: "text", text: reply.text! },
+          { id: cryptoId(), role: "lumen", kind: "text", text: result.reply },
+          {
+            id: cryptoId(),
+            role: "lumen",
+            kind: "confirm",
+            title: `Rent from ${p.alias}?`,
+            details: [
+              { label: "Provider", value: p.alias },
+              { label: "Hardware", value: hardware },
+              { label: "Rate", value: `$${p.pricePerCharge.toFixed(7)}/s` },
+              { label: "Compute Score", value: `${p.computeScore} / 100` },
+              { label: "Region", value: p.region },
+            ],
+            cta: "Confirm & queue rent",
+            provider: p,
+          },
         ]);
+      } else {
+        setMessages((m) => [...m, { id: cryptoId(), role: "lumen", kind: "text", text: result.reply }]);
       }
-    }, 900);
+    } catch {
+      setMessages((m) => [
+        ...m,
+        { id: cryptoId(), role: "lumen", kind: "text", text: "Something went wrong reaching the broker. Try again in a moment." },
+      ]);
+    } finally {
+      setThinking(false);
+    }
   }
 
   return (
@@ -223,10 +183,6 @@ export function LumenOverlay({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-[10px] text-white/40 uppercase tracking-wider">Balance</div>
-                <div className="text-xs font-mono text-[#7fffaf]">$1,284.93</div>
-              </div>
               <button
                 onClick={() => onOpenChange(false)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/60 hover:text-white hover:bg-white/5"
@@ -240,7 +196,7 @@ export function LumenOverlay({
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
             {messages.map((m) => (
-              <MessageBubble key={m.id} msg={m} />
+              <MessageBubble key={m.id} msg={m} onQueued={appendLumen} />
             ))}
             {thinking && (
               <div className="flex items-center gap-2 text-xs text-white/50">
@@ -311,9 +267,9 @@ export function LumenOverlay({
 /* Message bubble                                                             */
 /* -------------------------------------------------------------------------- */
 
-function MessageBubble({ msg }: { msg: Msg }) {
+function MessageBubble({ msg, onQueued }: { msg: Msg; onQueued: (text: string) => void }) {
   if (msg.kind === "confirm") {
-    return <ConfirmCard msg={msg} />;
+    return <ConfirmCard msg={msg} onQueued={onQueued} />;
   }
 
   const isUser = msg.role === "user";
@@ -333,8 +289,35 @@ function MessageBubble({ msg }: { msg: Msg }) {
   );
 }
 
-function ConfirmCard({ msg }: { msg: ConfirmMsg }) {
+function ConfirmCard({ msg, onQueued }: { msg: ConfirmMsg; onQueued: (text: string) => void }) {
+  const router = useRouter();
   const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function confirm() {
+    const { data: sess } = await supabaseBrowser.auth.getSession();
+    if (!sess.session) {
+      router.navigate({ to: "/onboarding", search: { redirect: router.state.location.pathname } });
+      return;
+    }
+    setBusy(true);
+    try {
+      const p = msg.provider;
+      await createRent({
+        data: {
+          accessToken: sess.session.access_token,
+          name: `lumen-${p.alias}`,
+          spec: { resourceType: p.resourceType, region: p.region },
+          estimatedUsage: null,
+        },
+      });
+      setConfirmed(true);
+      onQueued("Rent queued. The broker will match it when it processes the queue — track it on the Dashboard.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%] w-full rounded-2xl rounded-bl-sm border border-primary/30 bg-card overflow-hidden">
@@ -353,14 +336,12 @@ function ConfirmCard({ msg }: { msg: ConfirmMsg }) {
         <div className="px-4 pb-3">
           {confirmed ? (
             <div className="flex items-center justify-center gap-2 rounded-lg bg-success/15 py-2.5 text-sm text-success">
-              <Check className="h-4 w-4" /> Payment stream opened
+              <Check className="h-4 w-4" /> Rent queued
             </div>
           ) : (
             <Button
-              onClick={() => {
-                setConfirmed(true);
-                msg.onConfirm();
-              }}
+              onClick={confirm}
+              disabled={busy}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {msg.cta} <ArrowRight className="h-4 w-4" />
