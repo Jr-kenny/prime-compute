@@ -1,5 +1,5 @@
 import type { Provider, Rent, RentDecision, Charge } from "../domain";
-import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
+import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter, RentFilter } from "./registry";
 import type { DecisionLog } from "../runtime/types";
 
 export class InMemoryRegistry implements Registry {
@@ -19,6 +19,7 @@ export class InMemoryRegistry implements Registry {
     let out = [...this.providers.values()];
     if (filter?.resourceType) out = out.filter((p) => p.resourceType === filter.resourceType);
     if (filter?.onlineOnly) out = out.filter((p) => p.online);
+    if (filter?.ownerWallet) out = out.filter((p) => p.ownerWallet === filter.ownerWallet);
     return out;
   }
 
@@ -60,6 +61,14 @@ export class InMemoryRegistry implements Registry {
 
   async getRent(id: string): Promise<Rent | null> {
     return this.rents.get(id) ?? null;
+  }
+
+  async listRents(filter?: RentFilter): Promise<Rent[]> {
+    let out = [...this.rents.values()];
+    if (filter?.userId) out = out.filter((r) => r.userId === filter.userId);
+    if (filter?.providerId) out = out.filter((r) => r.providerId === filter.providerId);
+    if (filter?.status) out = out.filter((r) => r.status === filter.status);
+    return out;
   }
 
   async updateRent(id: string, patch: RentPatch): Promise<Rent> {

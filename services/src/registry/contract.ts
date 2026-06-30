@@ -145,5 +145,25 @@ export function registryContract(
       expect(d.id).toBeTruthy();
       expect(d.chosenProviderId).toBe(b.id);
     });
+
+    test("listRents filters by userId, providerId, and status", async () => {
+      const provider = await reg.registerProvider({ ...sampleProvider, alias: "filter-target" });
+      const a = await reg.createRent({ name: "a", userId: "user-a", spec: { resourceType: "GPU", region: null } });
+      const b = await reg.createRent({ name: "b", userId: "user-b", spec: { resourceType: "GPU", region: null } });
+      await reg.updateRent(a.id, { status: "running", providerId: provider.id });
+
+      expect((await reg.listRents({ userId: "user-a" })).map((r) => r.id)).toEqual([a.id]);
+      expect((await reg.listRents({ providerId: provider.id })).map((r) => r.id)).toEqual([a.id]);
+      expect((await reg.listRents({ status: "running" })).map((r) => r.id)).toEqual([a.id]);
+      expect((await reg.listRents()).map((r) => r.id).sort()).toEqual([a.id, b.id].sort());
+    }, T);
+
+    test("listProviders filters by ownerWallet", async () => {
+      await reg.registerProvider({ ...sampleProvider, alias: "mine-1", ownerWallet: "0xowner" });
+      await reg.registerProvider({ ...sampleProvider, alias: "theirs-1", ownerWallet: "0xother" });
+
+      const mine = await reg.listProviders({ ownerWallet: "0xowner" });
+      expect(mine.map((p) => p.alias)).toEqual(["mine-1"]);
+    }, T);
   });
 }

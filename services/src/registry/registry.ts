@@ -5,6 +5,7 @@ import type {
   Charge,
   RentSpec,
   ResourceType,
+  RentStatus,
 } from "../domain";
 import type { DecisionLog } from "../runtime/types";
 
@@ -27,6 +28,13 @@ export type RentPatch = Partial<
 export type ProviderFilter = {
   resourceType?: ResourceType;
   onlineOnly?: boolean;
+  ownerWallet?: string;
+};
+
+export type RentFilter = {
+  userId?: string;
+  providerId?: string;
+  status?: RentStatus;
 };
 
 export interface Registry {
@@ -38,6 +46,7 @@ export interface Registry {
 
   createRent(r: NewRent): Promise<Rent>;
   getRent(id: string): Promise<Rent | null>;
+  listRents(filter?: RentFilter): Promise<Rent[]>;
   updateRent(id: string, patch: RentPatch): Promise<Rent>;
 
   recordDecision(d: Omit<RentDecision, "id" | "createdAt">): Promise<RentDecision>;
