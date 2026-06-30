@@ -78,7 +78,7 @@ imported anywhere in `src/`. Confirmed dead. Out of scope, not touched here.)
 
 ---
 
-## 3. Landing page hero (`src/components/site/HeroGradient.tsx`)
+## 3. Landing page hero background (`src/components/site/HeroGradient.tsx`)
 
 Currently a full-bleed bright blue linear-gradient wash (`#050a18` → `#2d5cb0`) plus a 50%-opacity
 radial blob. Replaced with the new neutral near-black background and one subtle, static,
@@ -87,7 +87,27 @@ barely-there ambient glow instead of a bright colored wash.
 
 ---
 
-## 4. Sidebar (`src/components/site/Sidebar.tsx`)
+## 4. Landing page hero demo (`src/components/site/HeroCanvas.tsx`)
+
+`HeroCanvas` already wraps its content in a browser-chrome frame (traffic-light dots, URL bar),
+that structure stays. What's inside it changes: today it's an abstract animated SVG diagram
+(consumer/broker/provider nodes joined by pulsing lines), which gets replaced with a choreographed
+product demo, confirmed via an animated mockup in the visual companion.
+
+Real component markup, scaled down inside the frame, showing the app's actual sidebar (post-
+refactor, so the new workspace-switcher header and nav from section 5 below) next to a content
+area. A simulated cursor moves to a sidebar nav item, "clicks" it, and the content area crossfades
+to the corresponding view (Dashboard → Marketplace, looping). Built with `framer-motion` (already
+a dependency, already used in `BrokerFlow.tsx`), not a recorded video, an actual screen-recorded
+walkthrough was considered and explicitly deferred as a separate production task (would mean
+either manually recording the running app or standing up a Playwright-driven capture/encode
+pipeline), out of scope for this PR. The sidebar shown inside the demo must mirror the real
+`Sidebar.tsx` structure exactly, not an invented layout (an earlier draft used a top-nav style and
+was corrected for this reason).
+
+---
+
+## 5. Sidebar (`src/components/site/Sidebar.tsx`)
 
 Restructured per the approved mockup:
 - **Workspace-switcher header** (replaces the plain brand-only header): logo, "Prime Compute",
@@ -109,7 +129,7 @@ fake state this whole product build has been removing. Not carried into the real
 
 ---
 
-## 5. Operational card + detail panel pattern
+## 6. Operational card + detail panel pattern
 
 New pattern, used in two places:
 
@@ -128,7 +148,7 @@ area and status row, click to open a panel showing the server's specs, its curre
 
 ---
 
-## 6. Marketplace stays a dedicated page
+## 7. Marketplace stays a dedicated page
 
 Per the approved A/B comparison: `ProviderCard` tiles get the same visual treatment (dotted-grid
 preview area, status row) for consistency, but clicking still navigates to the existing
@@ -138,7 +158,7 @@ behavior change here, purely a visual reskin of the existing tile and detail pag
 
 ---
 
-## 7. Scope across the rest of the app
+## 8. Scope across the rest of the app
 
 Every route inherits the token change automatically (it's a CSS custom property swap in one
 file). Pages with no structural changes beyond that and the neon-shadow/gradient cleanup already
@@ -166,10 +186,12 @@ open/close and the pause/resume/cancel buttons still work exactly as before.
    `text-gradient-blue`, delete dead `bg-grid`/`drift`/`twinkle` CSS.
 2. Remove the two ad-hoc neon `shadow-[0_0_24px...]` strings (Sidebar, LumenOverlay).
 3. `HeroGradient.tsx`: bright blue wash → neutral background + one static subtle corner glow.
-4. `Sidebar.tsx`: workspace-switcher header, refined active-nav pill, account-footer-with-overflow-menu.
-5. New shared tile pattern + two `Sheet`-based detail panels (dashboard active rents, provider's
+4. `HeroCanvas.tsx`: abstract SVG diagram → choreographed sidebar+content demo (framer-motion,
+   simulated cursor, real component markup, no recorded video).
+5. `Sidebar.tsx`: workspace-switcher header, refined active-nav pill, account-footer-with-overflow-menu.
+6. New shared tile pattern + two `Sheet`-based detail panels (dashboard active rents, provider's
    my servers), wired to the existing pause/resume/cancel and server-status logic with zero
    behavior change.
-6. `ProviderCard.tsx`: tile-style reskin, same click-through-to-page behavior.
-7. Token-level pass (automatic) + decorative cleanup on every remaining route.
-8. Lumen's visual chrome restyled; its logic untouched.
+7. `ProviderCard.tsx`: tile-style reskin, same click-through-to-page behavior.
+8. Token-level pass (automatic) + decorative cleanup on every remaining route.
+9. Lumen's visual chrome restyled; its logic untouched.
