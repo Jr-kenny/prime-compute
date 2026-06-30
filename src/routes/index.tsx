@@ -30,7 +30,7 @@ function Index() {
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 pt-20 pb-24 md:pt-28 md:pb-32">
           <div className="flex flex-col items-center text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#7fffaf]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
               Live on testnet
             </div>
             <h1 className="mt-6 text-5xl sm:text-6xl md:text-7xl tracking-tight text-white">
@@ -70,8 +70,8 @@ function Index() {
       </section>
 
       {/* LOGO STRIP */}
-      <section className="bg-[#050a18] border-y border-white/5">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-[#8aa3c7] text-sm">
+      <section className="bg-background border-y border-border">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-muted-foreground text-sm">
           {["Arcol", "G2X", "Bilt", "Vendora", "TripAdvisor", "Cognizant", "Mercado Libre"].map(
             (name) => (
               <span key={name} className="opacity-70 hover:opacity-100 transition">
@@ -165,10 +165,10 @@ function Index() {
       />
 
       {/* TRUST LAYER */}
-      <section className="bg-[#0a1430] border-t border-white/5">
+      <section className="bg-surface border-t border-border">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-20">
           <div className="text-center">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-[#5b8cff]">Real-time</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-glow">Real-time</div>
             <h2 className="mt-3 text-3xl md:text-4xl font-display italic text-white">
               0+ rents and counting
             </h2>
@@ -202,8 +202,8 @@ function Index() {
                 author: "Daniel Lobaton, CTO at G2X",
               },
             ].map((t) => (
-              <div key={t.author} className="rounded-xl border border-white/8 bg-[#0f1530] p-6">
-                <p className="text-[#e8e1ff] text-sm italic leading-relaxed">
+              <div key={t.author} className="rounded-xl border border-border bg-card p-6">
+                <p className="text-foreground/90 text-sm italic leading-relaxed">
                   &ldquo;{t.quote}&rdquo;
                 </p>
                 <div className="mt-4 text-[11px] text-white/50 font-mono">— {t.author}</div>
@@ -215,7 +215,7 @@ function Index() {
 
       {/* CTA */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 py-20">
-        <div className="relative overflow-hidden rounded-2xl border border-white/10 p-10 md:p-14 text-center bg-gradient-to-br from-primary/30 via-[#0a1430] to-background">
+        <div className="relative overflow-hidden rounded-2xl border border-border p-10 md:p-14 text-center bg-gradient-to-br from-primary/30 via-surface to-background">
           <h2 className="text-3xl md:text-4xl font-bold text-white">
             Got idle hardware? Turn it into yield.
           </h2>
@@ -267,10 +267,10 @@ function FeatureSection({
   altBg?: boolean;
 }) {
   return (
-    <section className={altBg ? "bg-[#0a1430]" : "bg-[#050a18]"}>
+    <section className={altBg ? "bg-surface" : "bg-background"}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-20 grid md:grid-cols-2 gap-12 items-center">
         <div className={reverse ? "md:order-2" : ""}>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[#5b8cff]">{eyebrow}</div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-glow">{eyebrow}</div>
           <h2 className="mt-3 text-3xl md:text-5xl tracking-tight text-white font-semibold">
             {heading}
           </h2>
@@ -282,7 +282,7 @@ function FeatureSection({
             {alternatives.map((a) => (
               <span
                 key={a}
-                className="rounded-md bg-[#0f1530] border border-white/8 px-3 py-1 text-[11px] text-[#cfe0ff]"
+                className="rounded-md bg-card border border-border px-3 py-1 text-[11px] text-muted-foreground"
               >
                 {a}
               </span>
@@ -304,22 +304,22 @@ function IllustrationCard({
   kind: "deploy" | "network" | "scale" | "monitor" | "evolve";
 }) {
   const gradients: Record<typeof kind, string> = {
-    deploy: "linear-gradient(135deg, #142a5a 0%, #0a1430 100%)",
-    network: "linear-gradient(135deg, #0a1a3a 0%, #06122a 100%)",
-    scale: "linear-gradient(135deg, #1e4080 0%, #0a1430 100%)",
-    monitor: "linear-gradient(135deg, #0f1530 0%, #050a18 100%)",
-    evolve: "linear-gradient(135deg, #142a5a 0%, #050a18 100%)",
+    deploy: "linear-gradient(135deg, var(--color-card) 0%, var(--color-surface) 100%)",
+    network: "linear-gradient(135deg, var(--color-surface) 0%, var(--color-background) 100%)",
+    scale: "linear-gradient(135deg, var(--color-card) 0%, var(--color-surface) 100%)",
+    monitor: "linear-gradient(135deg, var(--color-card) 0%, var(--color-background) 100%)",
+    evolve: "linear-gradient(135deg, var(--color-card) 0%, var(--color-background) 100%)",
   };
   const glyphs: Record<typeof kind, React.ReactNode> = {
-    deploy: <Boxes className="h-16 w-16 text-[#5b8cff]" />,
-    network: <Layers className="h-16 w-16 text-[#5b8cff]" />,
-    scale: <Sparkles className="h-16 w-16 text-[#5b8cff]" />,
-    monitor: <Award className="h-16 w-16 text-[#5b8cff]" />,
-    evolve: <Wallet className="h-16 w-16 text-[#5b8cff]" />,
+    deploy: <Boxes className="h-16 w-16 text-glow" />,
+    network: <Layers className="h-16 w-16 text-glow" />,
+    scale: <Sparkles className="h-16 w-16 text-glow" />,
+    monitor: <Award className="h-16 w-16 text-glow" />,
+    evolve: <Wallet className="h-16 w-16 text-glow" />,
   };
   return (
     <div
-      className="rounded-2xl border border-white/8 p-10 flex items-center justify-center min-h-[300px]"
+      className="rounded-2xl border border-border p-10 flex items-center justify-center min-h-[300px]"
       style={{ background: gradients[kind] }}
     >
       {glyphs[kind]}
