@@ -80,10 +80,13 @@ export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
           Connect Wallet
         </Button>
         <Button
+          asChild
           size="sm"
           className="w-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_24px_-6px_color-mix(in_oklab,var(--color-glow)_60%,transparent)]"
         >
-          Get Started
+          <Link to="/onboarding" search={{ redirect: pathname }}>
+            Get Started
+          </Link>
         </Button>
       </div>
     </aside>
@@ -95,6 +98,8 @@ export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
 /* -------------------------------------------------------------------------- */
 
 export function MobileTopBar() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
   return (
     <header className="md:hidden sticky top-0 z-40 h-14 flex items-center justify-between px-4 border-b border-border/60 bg-background/80 backdrop-blur-xl">
       <Brand compact />
@@ -103,8 +108,10 @@ export function MobileTopBar() {
           <Wallet className="h-4 w-4" />
           Connect
         </Button>
-        <Button size="sm" className="bg-primary text-primary-foreground">
-          Start
+        <Button asChild size="sm" className="bg-primary text-primary-foreground">
+          <Link to="/onboarding" search={{ redirect: pathname }}>
+            Start
+          </Link>
         </Button>
       </div>
     </header>

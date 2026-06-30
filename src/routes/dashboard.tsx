@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authGuard } from "../lib/auth/guard";
 import { useState } from "react";
 import {
   AreaChart,
@@ -20,6 +21,7 @@ import { StreamingTicker, ElapsedTimer } from "@/components/site/StreamingTicker
 import { activeJobs, historicalJobs, spending30d, type JobStatus } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/dashboard")({
+  beforeLoad: authGuard,
   head: () => ({
     meta: [
       { title: "Consumer Dashboard — Prime Compute" },

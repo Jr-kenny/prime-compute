@@ -61,7 +61,7 @@ function ProviderDetail() {
                 </div>
               </div>
             </div>
-            <Button size="lg" className="bg-primary text-primary-foreground" disabled={!p.online}>Deploy a job</Button>
+            <Button size="lg" className="bg-primary text-primary-foreground" disabled={!p.online}>Rent</Button>
           </div>
 
           <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">

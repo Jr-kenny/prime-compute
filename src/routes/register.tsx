@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Cpu, Zap, HardDrive, Server, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { authGuard } from "../lib/auth/guard";
 import confetti from "canvas-confetti";
 import { PageShell } from "@/components/site/PageShell";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/register")({
+  beforeLoad: authGuard,
   head: () => ({
     meta: [
       { title: "List Your Server — Prime Compute" },

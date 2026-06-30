@@ -8,7 +8,7 @@ import { LumenOverlay, LumenFab } from "./LumenOverlay";
  * App shell for the authenticated/product pages (marketplace, dashboard,
  * provider, docs). Renders a fixed left sidebar on desktop and a slim top bar
  * + bottom tab bar on mobile. The landing page and register page keep using
- * PageShell (top Navbar) so the marketing hero stays full-bleed.
+ * PageShell (no header) so the marketing hero stays full-bleed.
  *
  * Also mounts the Lumen AI assistant overlay, summonable from the sidebar
  * entry or the floating action button on every app page.

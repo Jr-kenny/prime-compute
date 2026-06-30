@@ -31,7 +31,7 @@ function MarketplaceIndex() {
   const [minScore, setMinScore] = useState(0);
   const [maxPrice, setMaxPrice] = useState(0.00003);
   const [availableOnly, setAvailableOnly] = useState(false);
-  const [deployFor, setDeployFor] = useState<Provider | null>(null);
+  const [rentFor, setRentFor] = useState<Provider | null>(null);
 
   const filtered = useMemo(() => {
     return providers.filter((p) => {
@@ -118,7 +118,7 @@ function MarketplaceIndex() {
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.map((p) => (
-                <ProviderCard key={p.id} p={p} onDeploy={(prov) => setDeployFor(prov)} />
+                <ProviderCard key={p.id} p={p} onRent={(prov) => setRentFor(prov)} />
               ))}
               {filtered.length === 0 && (
                 <div className="col-span-full glass-card p-10 text-center text-muted-foreground">
@@ -130,7 +130,7 @@ function MarketplaceIndex() {
         </div>
       </div>
 
-      <DeploySheet provider={deployFor} onClose={() => setDeployFor(null)} />
+      <RentSheet provider={rentFor} onClose={() => setRentFor(null)} />
     </>
   );
 }
@@ -212,7 +212,11 @@ function FiltersPanel({
   );
 }
 
-function DeploySheet({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
+import { supabaseBrowser } from "../lib/supabase/client";
+import { useRouter } from "@tanstack/react-router";
+
+function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [duration, setDuration] = useState(15);
   const [submitting, setSubmitting] = useState(false);
@@ -220,7 +224,14 @@ function DeploySheet({ provider, onClose }: { provider: Provider | null; onClose
 
   const budget = provider ? (duration * 60 * provider.pricePerSecond).toFixed(4) : "0";
 
-  function submit() {
+  async function submit() {
+    // Check session before showing the sheet
+    const { data } = await supabaseBrowser.auth.getSession();
+    if (!data.session) {
+      router.navigate({ to: "/onboarding", search: { redirect: router.state.location.pathname } });
+      return;
+    }
+
     setSubmitting(true);
     setTimeout(() => {
       setSubmitting(false);
@@ -242,7 +253,7 @@ function DeploySheet({ provider, onClose }: { provider: Provider | null; onClose
     >
       <SheetContent className="bg-surface border-border">
         <SheetHeader>
-          <SheetTitle>Deploy job{provider ? ` to ${provider.alias}` : ""}</SheetTitle>
+          <SheetTitle>Rent{provider ? ` from ${provider.alias}` : ""}</SheetTitle>
         </SheetHeader>
         {provider && !done && (
           <div className="mt-6 space-y-5">
@@ -288,7 +299,7 @@ function DeploySheet({ provider, onClose }: { provider: Provider | null; onClose
                 disabled={submitting || !name}
                 className="w-full bg-primary text-primary-foreground"
               >
-                {submitting ? "Routing through broker…" : "Submit job"}
+                {submitting ? "Routing through broker…" : "Submit rent"}
               </Button>
             </SheetFooter>
           </div>

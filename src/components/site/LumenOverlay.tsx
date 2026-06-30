@@ -73,9 +73,9 @@ function getReply(input: string): {
     q.includes("data agent")
   ) {
     return {
-      text: "I found 3 providers matching your needs. node-astral-1 has the best Compute Score (98) and lowest rate at $0.0000045/sec. Want me to set up a deploy?",
+      text: "I found 3 providers matching your needs. node-astral-1 has the best Compute Score (98) and lowest rate at $0.0000045/sec. Want me to set up a rent?",
       confirm: {
-        title: "Deploy to node-astral-1?",
+        title: "Rent from node-astral-1?",
         details: [
           { label: "Provider", value: "node-astral-1" },
           { label: "Hardware", value: "NVIDIA H100 · 80GB VRAM" },
@@ -107,7 +107,7 @@ function getReply(input: string): {
   }
 
   return {
-    text: "I can help find providers, deploy jobs, check your orders, or optimize your spend. Try a quick action below, or tell me what you need.",
+    text: "I can help find providers, rent compute, check your orders, or optimize your spend. Try a quick action below, or tell me what you need.",
   };
 }
 

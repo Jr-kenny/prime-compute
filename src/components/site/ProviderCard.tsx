@@ -4,7 +4,7 @@ import { ComputeScoreRing } from "./ComputeScoreRing";
 import { Button } from "@/components/ui/button";
 import type { Provider } from "@/lib/mock-data";
 
-export function ProviderCard({ p, onDeploy }: { p: Provider; onDeploy?: (p: Provider) => void }) {
+export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider) => void }) {
   return (
     <div className="glass-card glow-hover p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between">
@@ -60,9 +60,9 @@ export function ProviderCard({ p, onDeploy }: { p: Provider; onDeploy?: (p: Prov
           size="sm"
           className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
           disabled={!p.online}
-          onClick={() => onDeploy?.(p)}
+          onClick={() => onRent?.(p)}
         >
-          Deploy Job
+          Rent
         </Button>
       </div>
     </div>

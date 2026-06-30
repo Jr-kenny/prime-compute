@@ -82,12 +82,12 @@ function Index() {
         </div>
       </section>
 
-      {/* BUILD / DEPLOY */}
+      {/* BUILD / RENT */}
       <FeatureSection
-        eyebrow="Deploy"
+        eyebrow="Rent"
         heading={
           <>
-            Deploy anything
+            Rent anything
             <br />
             <em className="not-italic font-display italic">without the complexity.</em>
           </>

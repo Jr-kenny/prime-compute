@@ -1,11 +1,24 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { registerWallet, loginWallet, type WalletHandle } from "../lib/circle/wallet";
 import { requestNonce, verifySession } from "../lib/auth/server-fns";
 import { supabaseBrowser } from "../lib/supabase/client";
 import { useSession } from "../lib/auth/session";
 
-export const Route = createFileRoute("/onboarding")({ component: Onboarding });
+// Onboarding is a waypoint, not a destination: whoever sent the user here (a gated route's
+// authGuard, a "Get Started" CTA) passes along where they were headed via `redirect`, and once
+// authenticated we send them straight there instead of always dropping them on one fixed page.
+export const Route = createFileRoute("/onboarding")({
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+  }),
+  beforeLoad: async ({ search }) => {
+    if (!search.redirect) return;
+    const { data } = await supabaseBrowser.auth.getSession();
+    if (data.session) throw redirect({ href: search.redirect });
+  },
+  component: Onboarding,
+});
 
 type Step = "anonymous" | "passkey" | "wallet" | "verifying" | "ready" | "error";
 
@@ -17,10 +30,19 @@ const LADDER: { key: Step; label: string }[] = [
 ];
 
 function Onboarding() {
+  const { redirect: redirectTo } = Route.useSearch();
+  const router = useRouter();
   const { session, loading, walletAddress, signOut } = useSession();
   const [step, setStep] = useState<Step>("anonymous");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Covers completing the passkey ceremony while sitting on this page: `session` flips to
+  // truthy reactively (no navigation happens), so beforeLoad's redirect never gets a chance to
+  // run again. This effect is what actually sends the user back where they were headed.
+  useEffect(() => {
+    if (session && redirectTo) router.navigate({ href: redirectTo, replace: true });
+  }, [session, redirectTo, router]);
 
   async function run(make: (username: string) => Promise<WalletHandle>) {
     setError(null);
@@ -47,6 +69,8 @@ function Onboarding() {
 
   if (loading) return <Centered>Loading…</Centered>;
 
+  if (session && redirectTo) return <Centered>Redirecting…</Centered>;
+
   if (session) {
     return (
       <Centered>
@@ -56,9 +80,15 @@ function Onboarding() {
           <p className="mt-4 break-all rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground">
             {walletAddress ?? "(wallet address unavailable)"}
           </p>
+          <Link
+            to="/marketplace"
+            className="mt-6 inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Browse the marketplace
+          </Link>
           <button
             onClick={() => signOut()}
-            className="mt-6 inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="mt-3 inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
             Sign out
           </button>
