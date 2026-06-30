@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Provider, Rent, RentDecision, Charge } from "../domain";
-import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter } from "./registry";
+import type { Registry, NewProvider, NewRent, RentPatch, ProviderFilter, RentFilter } from "./registry";
 import { defaultTrust, type Tier, type TrustProfile } from "../trust/trust";
 import type { DecisionLog, Proposal } from "../runtime/types";
 
@@ -85,8 +85,13 @@ function toDecisionLog(raw: unknown): DecisionLog {
 
 export class SupabaseRegistry implements Registry {
   private db: SupabaseClient;
-  constructor(url: string, serviceRoleKey: string) {
-    this.db = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
+
+  constructor(client: SupabaseClient);
+  constructor(url: string, serviceRoleKey: string);
+  constructor(clientOrUrl: SupabaseClient | string, serviceRoleKey?: string) {
+    this.db = typeof clientOrUrl === "string"
+      ? createClient(clientOrUrl, serviceRoleKey!, { auth: { persistSession: false } })
+      : clientOrUrl;
   }
 
   private async one<T>(q: PromiseLike<{ data: T | null; error: { message: string } | null }>, ctx: string): Promise<T> {
@@ -114,6 +119,7 @@ export class SupabaseRegistry implements Registry {
     let q = this.db.from("providers").select();
     if (filter?.resourceType) q = q.eq("resource_type", filter.resourceType);
     if (filter?.onlineOnly) q = q.eq("online", true);
+    if (filter?.ownerWallet) q = q.eq("owner_wallet", filter.ownerWallet);
     const { data, error } = await q;
     if (error) throw new Error(`listProviders: ${error.message}`);
     return (data ?? []).map((r) => toProvider(r));
@@ -157,6 +163,16 @@ export class SupabaseRegistry implements Registry {
     const { data, error } = await this.db.from("rents").select().eq("id", id).maybeSingle();
     if (error) throw new Error(`getRent: ${error.message}`);
     return data ? toRent(data) : null;
+  }
+
+  async listRents(filter?: RentFilter): Promise<Rent[]> {
+    let q = this.db.from("rents").select();
+    if (filter?.userId) q = q.eq("user_id", filter.userId);
+    if (filter?.providerId) q = q.eq("provider_id", filter.providerId);
+    if (filter?.status) q = q.eq("status", filter.status);
+    const { data, error } = await q;
+    if (error) throw new Error(`listRents: ${error.message}`);
+    return (data ?? []).map((r) => toRent(r));
   }
 
   async updateRent(id: string, patch: RentPatch): Promise<Rent> {
