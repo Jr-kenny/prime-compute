@@ -55,7 +55,8 @@ export async function decide(input: DecideInput): Promise<Decision> {
   try {
     proposals = await withTimeout(client.propose(prompt, actions), timeoutMs);
     if (proposals.length === 0) throw new Error("model returned no proposals");
-  } catch {
+  } catch (e) {
+    console.error("[decide fallback reason]", e);
     usedFallback = true;
     proposals = fallback ? await fallback() : [];
   }

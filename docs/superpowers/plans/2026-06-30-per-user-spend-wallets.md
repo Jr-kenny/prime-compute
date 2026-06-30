@@ -14,16 +14,16 @@ This plan is spec 1, layer 1 of `docs/superpowers/specs/2026-06-30-live-nano-pay
 
 ## File structure
 
-- `services/src/wallet/crypto.ts` — Web Crypto AES-256-GCM encrypt/decrypt of the private key. One job: turn a key string into ciphertext and back.
-- `services/src/wallet/store.ts` — `SpendWalletStore` interface + `InMemorySpendWalletStore`. Owns get-or-create and signer loading. No chain, no crypto details leaking out.
-- `services/src/wallet/supabase-store.ts` — `SupabaseSpendWalletStore`, the persistent implementation.
-- `services/src/wallet/onchain.ts` — Arc USDC balance read and transfer via viem. The only place that touches the chain.
-- `services/src/wallet/config.ts` — reads the wallet env (`ARC_RPC_URL`, `ARC_CHAIN_ID`, `USDC_ADDRESS`, `SPEND_WALLET_ENC_KEY`) once.
-- `services/supabase/migrations/0006_spend_wallets.sql` — the table.
-- `src/lib/wallet/store.ts` — server-only singleton wiring `SupabaseSpendWalletStore` to the app's Supabase admin client (mirrors `src/lib/broker/registry.ts`).
-- `src/lib/wallet/server-fns.ts` — `getSpendWalletBalance`, `withdrawFromSpendWallet`.
-- `src/routes/wallet.tsx` — the Wallet surface (balance, address + QR, deposit, withdraw, spend history).
-- `src/components/site/WalletBalance.tsx` — the small balance chip reused on the dashboard and in Lumen.
+- `services/src/wallet/crypto.ts` - Web Crypto AES-256-GCM encrypt/decrypt of the private key. One job: turn a key string into ciphertext and back.
+- `services/src/wallet/store.ts` - `SpendWalletStore` interface + `InMemorySpendWalletStore`. Owns get-or-create and signer loading. No chain, no crypto details leaking out.
+- `services/src/wallet/supabase-store.ts` - `SupabaseSpendWalletStore`, the persistent implementation.
+- `services/src/wallet/onchain.ts` - Arc USDC balance read and transfer via viem. The only place that touches the chain.
+- `services/src/wallet/config.ts` - reads the wallet env (`ARC_RPC_URL`, `ARC_CHAIN_ID`, `USDC_ADDRESS`, `SPEND_WALLET_ENC_KEY`) once.
+- `services/supabase/migrations/0006_spend_wallets.sql` - the table.
+- `src/lib/wallet/store.ts` - server-only singleton wiring `SupabaseSpendWalletStore` to the app's Supabase admin client (mirrors `src/lib/broker/registry.ts`).
+- `src/lib/wallet/server-fns.ts` - `getSpendWalletBalance`, `withdrawFromSpendWallet`.
+- `src/routes/wallet.tsx` - the Wallet surface (balance, address + QR, deposit, withdraw, spend history).
+- `src/components/site/WalletBalance.tsx` - the small balance chip reused on the dashboard and in Lumen.
 
 ---
 
@@ -773,7 +773,7 @@ import { getSpendWalletBalance, withdrawFromSpendWallet } from "@/lib/wallet/ser
 
 export const Route = createFileRoute("/wallet")({
   beforeLoad: authGuard,
-  head: () => ({ meta: [{ title: "Wallet — Prime Compute" }] }),
+  head: () => ({ meta: [{ title: "Wallet - Prime Compute" }] }),
   component: WalletPage,
 });
 
