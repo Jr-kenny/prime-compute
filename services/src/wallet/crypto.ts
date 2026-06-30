@@ -5,6 +5,11 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
+// The TS DOM lib types Web Crypto inputs as BufferSource over ArrayBuffer, while the
+// newer Uint8Array is generic over ArrayBufferLike. A Uint8Array is a BufferSource at
+// runtime, so this assertion just bridges that lib mismatch.
+const bufferSource = (u: Uint8Array): BufferSource => u as BufferSource;
+
 function b64encode(bytes: Uint8Array): string {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
@@ -21,7 +26,7 @@ function b64decode(s: string): Uint8Array {
 async function importKey(base64Key: string): Promise<CryptoKey> {
   const raw = b64decode(base64Key);
   if (raw.length !== 32) throw new Error("SPEND_WALLET_ENC_KEY must be 32 bytes (base64)");
-  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", bufferSource(raw), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
 // Returns base64(iv[12] || ciphertext+tag).
@@ -29,7 +34,7 @@ export async function encryptSecret(plaintext: string, base64Key: string): Promi
   const key = await importKey(base64Key);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(plaintext)),
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: bufferSource(iv) }, key, bufferSource(enc.encode(plaintext))),
   );
   const out = new Uint8Array(iv.length + ct.length);
   out.set(iv, 0);
@@ -42,7 +47,7 @@ export async function decryptSecret(blob: string, base64Key: string): Promise<st
   const bytes = b64decode(blob);
   const iv = bytes.slice(0, 12);
   const ct = bytes.slice(12);
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct); // throws on tamper/wrong key
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bufferSource(iv) }, key, bufferSource(ct)); // throws on tamper/wrong key
   return dec.decode(pt);
 }
 
