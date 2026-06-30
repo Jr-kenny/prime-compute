@@ -89,6 +89,12 @@ The frontend's `.env` additionally needs `VITE_SUPABASE_URL` /
 (Circle Modular Wallets), `VITE_ARC_RPC_URL` / `VITE_ARC_CHAIN_ID`, and a server-side
 `AUTH_NONCE_SECRET` for the passkey auth bridge.
 
+Each user gets their own Arc spend wallet (the EOA that streams their nano-payments),
+so both the root `.env` and `services/.env` need the non-`VITE` Arc vars (`ARC_RPC_URL`,
+`ARC_CHAIN_ID`, `USDC_ADDRESS`) plus `SPEND_WALLET_ENC_KEY`, the base64 32-byte AES-256-GCM
+key the private keys are encrypted with. Use the same `SPEND_WALLET_ENC_KEY` in both files,
+otherwise a wallet created by the web app can't be decrypted by the metering worker.
+
 ```bash
 bun run dev         # frontend dev server (vite dev)
 bun run build        # production build
