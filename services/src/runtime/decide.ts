@@ -28,17 +28,32 @@ export type DecideInput = {
   // Upper bound on the model call before it's treated as down. Defaults to
   // DEFAULT_DECIDE_TIMEOUT_MS.
   timeoutMs?: number;
+  // The timer behind the timeout. Defaults to real setTimeout/clearTimeout. Tests inject a
+  // controllable timer so the timeout path is exercised deterministically, without leaning on
+  // wall-clock timing (which flakes under parallel-test load).
+  timer?: Timer;
+};
+
+// The scheduling seam used by withTimeout. `set` returns an opaque handle that `clear` cancels.
+export type Timer = {
+  set: (cb: () => void, ms: number) => unknown;
+  clear: (handle: unknown) => void;
+};
+
+const realTimer: Timer = {
+  set: (cb, ms) => setTimeout(cb, ms),
+  clear: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
 };
 
 // Reject if `p` doesn't settle within `ms`. The race only guarantees the caller stops
 // waiting; the real client also wires an AbortSignal so the underlying request is actually
 // cancelled rather than left running.
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(p: Promise<T>, ms: number, timer: Timer = realTimer): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`decide timed out after ${ms}ms`)), ms);
+    const handle = timer.set(() => reject(new Error(`decide timed out after ${ms}ms`)), ms);
     p.then(
-      (v) => { clearTimeout(timer); resolve(v); },
-      (e) => { clearTimeout(timer); reject(e); },
+      (v) => { timer.clear(handle); resolve(v); },
+      (e) => { timer.clear(handle); reject(e); },
     );
   });
 }
@@ -47,13 +62,13 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 // Never executes. Degrades to the consumer's deterministic fallback when the model is down,
 // returns nothing, or hangs past the timeout.
 export async function decide(input: DecideInput): Promise<Decision> {
-  const { soul, policy, context, actions, client, fallback, timeoutMs = DEFAULT_DECIDE_TIMEOUT_MS } = input;
+  const { soul, policy, context, actions, client, fallback, timeoutMs = DEFAULT_DECIDE_TIMEOUT_MS, timer } = input;
   const prompt = assemblePrompt(soul, policy, context, actions);
 
   let proposals: Proposal[] = [];
   let usedFallback = false;
   try {
-    proposals = await withTimeout(client.propose(prompt, actions), timeoutMs);
+    proposals = await withTimeout(client.propose(prompt, actions), timeoutMs, timer);
     if (proposals.length === 0) throw new Error("model returned no proposals");
   } catch (e) {
     console.error("[decide fallback reason]", e);
