@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LumenMascot } from "./LumenMascot";
+import { WalletBalance } from "./WalletBalance";
 import { brokerChat, createRent } from "@/lib/broker/server-fns";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Provider } from "@services/domain";
@@ -183,6 +184,7 @@ export function LumenOverlay({
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <WalletBalance className="text-white/80" />
               <button
                 onClick={() => onOpenChange(false)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/60 hover:text-white hover:bg-white/5"

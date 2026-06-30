@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { StreamingTicker, ElapsedTimer } from "@/components/site/StreamingTicker";
+import { WalletBalance } from "@/components/site/WalletBalance";
 import { useSession } from "@/lib/auth/session";
 import { listMyRents, listProviders, pauseRent, resumeRent, cancelRent } from "@/lib/broker/server-fns";
 import { canPause, canResume, canCancel } from "@services/rent-transitions";
@@ -69,6 +70,7 @@ function Dashboard() {
             <span>
               streaming <span className="text-glow font-mono">${streamingRate.toFixed(7)}/sec</span>
             </span>
+            <WalletBalance />
           </div>
 
           <Tabs defaultValue="active" className="mt-8">
