@@ -49,7 +49,7 @@ function startProvider(alias: string): { server: Server; port: number; drop: () 
 }
 
 const reg = new InMemoryRegistry();
-const settlement = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 5_000n });
+const settlement = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 5_000n, rpcUrl: process.env.ARC_RPC_URL });
 console.log("broker buyer:", settlement.buyerAddress);
 
 // The deployed broker ranks providers by reasoning from the shipped soul (deterministic

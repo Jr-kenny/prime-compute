@@ -82,6 +82,9 @@ gitignored (they hold wallet keys and service-role credentials). Copy
 - A funded broker wallet and a funded provider wallet on Arc testnet
   (`BROKER_WALLET_PRIVATE_KEY` / `PROVIDER_WALLET_PRIVATE_KEY`), faucet at
   `https://faucet.circle.com`.
+- An Arc RPC in `ARC_RPC_URL`. For the Agora hackathon, set it to your Canteen
+  tokenized Arc endpoint so all Arc traffic runs through the host's RPC. See
+  [`docs/CANTEEN_ARC_SETUP.md`](docs/CANTEEN_ARC_SETUP.md).
 - Your Supabase project's URL and service role key.
 
 The frontend's `.env` additionally needs `VITE_SUPABASE_URL` /

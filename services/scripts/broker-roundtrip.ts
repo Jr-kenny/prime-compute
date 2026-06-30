@@ -37,7 +37,7 @@ try {
   });
   const rent = await reg.createRent({ name: "broker-demo", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 
-  const settlement = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 1000n });
+  const settlement = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 1000n, rpcUrl: process.env.ARC_RPC_URL });
   console.log("broker buyer:", settlement.buyerAddress);
 
   // The deployed broker ranks providers by reasoning from the shipped soul (the deterministic

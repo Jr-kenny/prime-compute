@@ -6,6 +6,10 @@ export type GatewayAdapterOptions = {
   privateKey: `0x${string}`;
   capAtomic: bigint; // per-stream spend cap
   chain?: "arcTestnet"; // slice 1 target
+  // Custom Arc RPC for the on-chain parts (deposit, balance, withdraw). Point this at the
+  // Canteen tokenized Arc endpoint (the hackathon host's RPC) so settlement reads/writes go
+  // through it; falls back to the SDK's default Arc RPC when unset.
+  rpcUrl?: string;
 };
 
 // USDC has 6 decimals; the SDK takes deposit amounts as decimal strings.
@@ -18,7 +22,11 @@ export class GatewaySettlementAdapter implements SettlementAdapter {
   private lastAbortReason: string | null = null;
 
   constructor(private opts: GatewayAdapterOptions) {
-    this.client = new GatewayClient({ chain: opts.chain ?? "arcTestnet", privateKey: opts.privateKey });
+    this.client = new GatewayClient({
+      chain: opts.chain ?? "arcTestnet",
+      privateKey: opts.privateKey,
+      ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+    });
     this.buyerAddress = this.client.address;
 
     // The deterministic guard, wired at the signing seam. Returning { abort } makes

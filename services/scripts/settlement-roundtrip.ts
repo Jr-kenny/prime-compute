@@ -26,7 +26,7 @@ const url = `http://localhost:${port}/compute?session=settlement`;
 
 try {
   // Cap of 0.001 USDC (1000 atomic) is plenty for a few 100-atomic charges.
-  const adapter = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 1000n });
+  const adapter = new GatewaySettlementAdapter({ privateKey: brokerKey, capAtomic: 1000n, rpcUrl: process.env.ARC_RPC_URL });
   console.log("buyer:", adapter.buyerAddress);
 
   console.log("ensuring the Gateway balance covers at least 0.0005 USDC...");
