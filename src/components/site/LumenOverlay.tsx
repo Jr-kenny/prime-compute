@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  Sparkles,
   X,
   Send,
   Search,
@@ -15,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { LumenMascot } from "./LumenMascot";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -214,8 +214,8 @@ export function LumenOverlay({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-glow ring-1 ring-primary/30">
-                <Sparkles className="h-4 w-4" />
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 ring-1 ring-primary/30">
+                <LumenMascot className="h-6 w-6" />
               </span>
               <div>
                 <div className="text-sm font-semibold text-white">Lumen</div>
@@ -244,8 +244,8 @@ export function LumenOverlay({
             ))}
             {thinking && (
               <div className="flex items-center gap-2 text-xs text-white/50">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-glow">
-                  <Sparkles className="h-3 w-3" />
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/15">
+                  <LumenMascot className="h-4 w-4" />
                 </span>
                 <span className="flex gap-1">
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40 [animation-delay:-0.3s]" />
@@ -383,7 +383,7 @@ export function LumenFab({ onClick }: { onClick: () => void }) {
       className="fixed bottom-20 right-4 z-30 md:bottom-6 md:right-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:scale-105 active:scale-95"
       aria-label="Open Lumen AI assistant"
     >
-      <Sparkles className="h-5 w-5" />
+      <LumenMascot className="h-7 w-7" />
     </button>
   );
 }
@@ -398,7 +398,7 @@ export function LumenSidebarEntry({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/60 transition hover:text-sidebar-foreground hover:bg-white/5"
     >
-      <Sparkles className="h-4 w-4 shrink-0 text-glow" />
+      <LumenMascot className="h-4 w-4 shrink-0" />
       <span>Lumen</span>
     </button>
   );
