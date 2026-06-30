@@ -1,6 +1,7 @@
 {
   "name": "@prime-compute/services",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "test": "bun test",
