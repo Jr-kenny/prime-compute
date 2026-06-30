@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { authGuard } from "../lib/auth/guard";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pause, Square, Copy } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { StreamingTicker, ElapsedTimer } from "@/components/site/StreamingTicker";
 import { useSession } from "@/lib/auth/session";
-import { listMyRents, listProviders } from "@/lib/broker/server-fns";
+import { listMyRents, listProviders, pauseRent, resumeRent, cancelRent } from "@/lib/broker/server-fns";
+import { canPause, canResume, canCancel } from "@services/rent-transitions";
 import type { Provider, Rent, RentStatus } from "@services/domain";
 
 export const Route = createFileRoute("/dashboard")({
@@ -26,13 +27,13 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const { user } = useSession();
-  const userId = user?.id;
+  const { session } = useSession();
+  const accessToken = session?.access_token;
 
   const { data: rents = [] } = useQuery({
-    queryKey: ["rents", "mine", userId],
-    queryFn: () => listMyRents({ data: { userId: userId! } }),
-    enabled: !!userId,
+    queryKey: ["rents", "mine", accessToken],
+    queryFn: () => listMyRents({ data: { accessToken: accessToken! } }),
+    enabled: !!accessToken,
   });
   const { data: providers = [] } = useQuery({
     queryKey: ["providers"],
@@ -155,8 +156,26 @@ function Dashboard() {
 }
 
 function ActiveRentCard({ rent, provider }: { rent: Rent; provider: Provider | undefined }) {
-  const [paused, setPaused] = useState(false);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { session } = useSession();
+  const [mutating, setMutating] = useState(false);
   const startedAtMs = rent.startedAt ? new Date(rent.startedAt).getTime() : Date.now();
+
+  async function mutate(fn: typeof pauseRent) {
+    if (!session) {
+      router.navigate({ to: "/onboarding", search: { redirect: router.state.location.pathname } });
+      return;
+    }
+    setMutating(true);
+    try {
+      await fn({ data: { accessToken: session.access_token, rentId: rent.id } });
+      await queryClient.invalidateQueries({ queryKey: ["rents", "mine"] });
+    } finally {
+      setMutating(false);
+    }
+  }
+
   return (
     <div className="glass-card glow-hover p-5">
       <div className="flex items-start justify-between">
@@ -165,7 +184,7 @@ function ActiveRentCard({ rent, provider }: { rent: Rent; provider: Provider | u
           <div className="text-xs text-muted-foreground">on {provider?.alias ?? "unmatched"}</div>
         </div>
         <span className="inline-flex items-center gap-1.5 text-xs text-success">
-          <span className={`h-1.5 w-1.5 rounded-full bg-success ${paused ? "" : "pulse-ring"}`} />
+          <span className={`h-1.5 w-1.5 rounded-full bg-success ${rent.status === "running" ? "pulse-ring" : ""}`} />
           {rent.status}
         </span>
       </div>
@@ -177,31 +196,38 @@ function ActiveRentCard({ rent, provider }: { rent: Rent; provider: Provider | u
           <StreamingTicker
             ratePerSecond={provider?.pricePerCharge ?? 0}
             startedAt={startedAtMs}
-            paused={paused || rent.status !== "running"}
+            paused={rent.status !== "running"}
             className="text-2xl font-semibold text-gradient-blue"
           />
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Elapsed</div>
           <div className="text-sm text-foreground">
-            <ElapsedTimer startedAt={startedAtMs} paused={paused} />
+            <ElapsedTimer startedAt={startedAtMs} paused={rent.status !== "running"} />
           </div>
         </div>
       </div>
       <div className="mt-5 flex gap-2">
-        <Button
-          variant="ghost"
-          className="flex-1 border border-border"
-          onClick={() => setPaused((v) => !v)}
-        >
-          <Pause className="h-4 w-4" /> {paused ? "Resume" : "Pause"}
-        </Button>
-        <Button
-          variant="ghost"
-          className="flex-1 border border-destructive/30 text-destructive hover:bg-destructive/10"
-        >
-          <Square className="h-4 w-4" /> Stop
-        </Button>
+        {canPause(rent) && (
+          <Button variant="ghost" className="flex-1 border border-border" disabled={mutating} onClick={() => mutate(pauseRent)}>
+            <Pause className="h-4 w-4" /> Pause
+          </Button>
+        )}
+        {canResume(rent) && (
+          <Button variant="ghost" className="flex-1 border border-border" disabled={mutating} onClick={() => mutate(resumeRent)}>
+            <Pause className="h-4 w-4" /> Resume
+          </Button>
+        )}
+        {canCancel(rent) && (
+          <Button
+            variant="ghost"
+            className="flex-1 border border-destructive/30 text-destructive hover:bg-destructive/10"
+            disabled={mutating}
+            onClick={() => mutate(cancelRent)}
+          >
+            <Square className="h-4 w-4" /> Stop
+          </Button>
+        )}
       </div>
     </div>
   );
