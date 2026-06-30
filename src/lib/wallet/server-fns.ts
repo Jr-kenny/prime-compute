@@ -11,19 +11,21 @@ function formatUsdc(atomic: bigint): string {
   return `${neg ? "-" : ""}${whole}${frac ? "." + frac : ""}`;
 }
 
-// Returns the user's spend-wallet address and live USDC balance on Arc. Creates the
-// wallet on first call so a brand-new user immediately has an address to fund.
+// Returns the user's spend-wallet (EOA) address and live USDC balance on Arc. Creates the
+// wallet on first call so a brand-new user immediately has an address to fund. The address
+// is returned even when the on-chain balance read fails, so the UI can always show and copy
+// the EOA address (balance just shows as unavailable until the next poll succeeds).
 export const getSpendWalletBalance = createServerFn({ method: "GET" })
   .validator((d: { accessToken: string }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
     const { address } = await getSpendWalletStore().getOrCreate(user.id);
-    const usdcAtomic = await getOnchain().usdcBalance(address);
-    return {
-      address,
-      usdcAtomic: usdcAtomic.toString(),
-      usdcFormatted: formatUsdc(usdcAtomic),
-    };
+    try {
+      const usdcAtomic = await getOnchain().usdcBalance(address);
+      return { address, usdcAtomic: usdcAtomic.toString(), usdcFormatted: formatUsdc(usdcAtomic) };
+    } catch {
+      return { address, usdcAtomic: null, usdcFormatted: null };
+    }
   });
 
 // Signs an ERC-20 USDC transfer out of the user's spend wallet on Arc. The signer (and

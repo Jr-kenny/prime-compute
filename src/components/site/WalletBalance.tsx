@@ -23,7 +23,7 @@ export function WalletBalance({
   });
   if (!accessToken) return null;
 
-  const label = data ? `$${data.usdcFormatted} USDC` : "…";
+  const label = data?.usdcFormatted != null ? `$${data.usdcFormatted} USDC` : "…";
   const inner = (
     <>
       <Wallet className="h-4 w-4 text-glow" />

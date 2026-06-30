@@ -5,8 +5,32 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useSession } from "@/lib/auth/session";
 import { getSpendWalletBalance, withdrawFromSpendWallet } from "@/lib/wallet/server-fns";
 import { listMySpend } from "@/lib/wallet/history-fns";
+
+function AddressRow({ label, hint, address }: { label: string; hint?: string; address: string }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between">
+        <Label className="text-xs">{label}</Label>
+        {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        <Input readOnly value={address} className="font-mono bg-card border-border text-xs" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="border border-border shrink-0"
+          onClick={() => address && navigator.clipboard.writeText(address)}
+          aria-label={`Copy ${label}`}
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // The wallet details, opened as a side sheet from the dashboard balance chip. Shows the
 // live balance + address, deposit guidance, a multi-step withdraw flow, and spend history.
@@ -19,6 +43,7 @@ export function WalletSheet({
   onClose: () => void;
   accessToken: string | undefined;
 }) {
+  const { walletAddress } = useSession(); // the modular (passkey) wallet = identity
   const { data } = useQuery({
     queryKey: ["spend-wallet", accessToken],
     queryFn: () => getSpendWalletBalance({ data: { accessToken: accessToken! } }),
@@ -40,27 +65,32 @@ export function WalletSheet({
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          <div className="glass-card p-5">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</div>
-            <div className="mt-1 text-3xl font-bold font-mono">${data?.usdcFormatted ?? "…"} USDC</div>
-            <div className="mt-3 flex items-center gap-2">
-              <Input readOnly value={data?.address ?? ""} className="font-mono bg-card border-border text-xs" />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="border border-border shrink-0"
-                onClick={() => data && navigator.clipboard.writeText(data.address)}
-                aria-label="Copy address"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
+          <div className="glass-card p-5 space-y-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Spend wallet balance
+              </div>
+              <div className="mt-1 text-3xl font-bold font-mono">
+                ${data?.usdcFormatted ?? "…"} USDC
+              </div>
             </div>
+            <AddressRow
+              label="Spend wallet (EOA)"
+              hint="streams your rentals"
+              address={data?.address ?? "…"}
+            />
+            <AddressRow
+              label="Your wallet (passkey)"
+              hint="identity"
+              address={walletAddress ?? "…"}
+            />
           </div>
 
           <div className="glass-card p-5 space-y-1.5">
             <h3 className="font-semibold text-sm">Deposit</h3>
             <p className="text-xs text-muted-foreground">
-              Send USDC on Arc to the address above to fund streaming. Need testnet USDC?{" "}
+              Fund the spend wallet so it can stream rentals. Send USDC on Arc to the EOA
+              address above. Need testnet USDC?{" "}
               <a className="text-glow underline" href="https://faucet.circle.com" target="_blank" rel="noreferrer">
                 Circle faucet
               </a>
