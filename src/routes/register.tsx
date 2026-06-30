@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { Cpu, Zap, HardDrive, Server, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { authGuard } from "../lib/auth/guard";
@@ -7,10 +7,12 @@ import { PageShell } from "@/components/site/PageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/auth/session";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import { registerProvider } from "@/lib/broker/server-fns";
+import type { ResourceType } from "@services/domain";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: authGuard,
@@ -23,7 +25,7 @@ export const Route = createFileRoute("/register")({
   component: Register,
 });
 
-type ResType = "GPU" | "CPU" | "Storage" | "Full Server";
+type ResType = ResourceType;
 const resOptions: { id: ResType; icon: any; desc: string }[] = [
   { id: "GPU", icon: Zap, desc: "Single or multi-GPU rig" },
   { id: "CPU", icon: Cpu, desc: "High-core CPU server" },
@@ -32,16 +34,20 @@ const resOptions: { id: ResType; icon: any; desc: string }[] = [
 ];
 
 function Register() {
+  const router = useRouter();
+  const { walletAddress } = useSession();
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
-  const [walletOpen, setWalletOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [providerId, setProviderId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     alias: "", type: "GPU" as ResType,
     cpu: 32, ram: 128, storage: 2000,
     gpu: "NVIDIA H100", vram: 80,
-    region: "US-East", alwaysOn: true,
-    pricePerSecond: 0.0000098, minDuration: 60,
+    endpointUrl: "",
+    region: "US-East",
+    pricePerCharge: 0.0000098,
     certified: false,
   });
 
@@ -49,9 +55,40 @@ function Register() {
 
   function next() { setStep((s) => Math.min(steps.length - 1, s + 1)); }
   function prev() { setStep((s) => Math.max(0, s - 1)); }
-  function submit() {
-    setDone(true);
-    confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+
+  async function submit() {
+    const { data } = await supabaseBrowser.auth.getSession();
+    if (!data.session) {
+      router.navigate({ to: "/onboarding", search: { redirect: router.state.location.pathname } });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const specs: Record<string, unknown> =
+        form.type === "GPU" || form.type === "Full Server"
+          ? { gpu: form.gpu, vramGb: form.vram, cpuCores: form.cpu, ramGb: form.ram, storageGb: form.storage }
+          : { cpuCores: form.cpu, ramGb: form.ram, storageGb: form.storage };
+
+      const created = await registerProvider({
+        data: {
+          accessToken: data.session.access_token,
+          provider: {
+            alias: form.alias,
+            endpointUrl: form.endpointUrl,
+            resourceType: form.type,
+            region: form.region,
+            specs,
+            pricePerCharge: form.pricePerCharge,
+          },
+        },
+      });
+      setProviderId(created.id);
+      setDone(true);
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -76,14 +113,21 @@ function Register() {
               <div className="mx-auto h-14 w-14 rounded-full bg-success/15 ring-1 ring-success/40 flex items-center justify-center text-success">
                 <CheckCircle2 className="h-7 w-7" />
               </div>
-              <h2 className="mt-4 text-2xl font-bold">Server submitted</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Your server is pending hardware verification. We'll notify you when the broker starts routing rents.</p>
+              <h2 className="mt-4 text-2xl font-bold">Server registered</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {form.alias} is live in the registry{providerId ? ` (${providerId})` : ""}. The broker will start routing rents to it once it's been benchmarked.
+              </p>
             </div>
           ) : step === 0 ? (
             <div className="space-y-5">
               <div>
                 <Label>Server alias</Label>
                 <Input className="mt-2 bg-card border-border" value={form.alias} onChange={(e) => setForm({ ...form, alias: e.target.value })} placeholder="node-astral-7" />
+              </div>
+              <div>
+                <Label>Endpoint URL</Label>
+                <Input className="mt-2 bg-card border-border font-mono" value={form.endpointUrl} onChange={(e) => setForm({ ...form, endpointUrl: e.target.value })} placeholder="https://your-server:4001" />
+                <p className="mt-2 text-xs text-muted-foreground">Where the broker reaches your provider executor to route work.</p>
               </div>
               <div>
                 <Label>Resource type</Label>
@@ -133,25 +177,22 @@ function Register() {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center justify-between">
-                <Label>Always-on availability</Label>
-                <Switch checked={form.alwaysOn} onCheckedChange={(v) => setForm({ ...form, alwaysOn: v })} />
-              </div>
               <div>
                 <Label>Price per second (USDC)</Label>
-                <Input type="number" step="0.0000001" className="mt-2 bg-card border-border font-mono" value={form.pricePerSecond}
-                  onChange={(e) => setForm({ ...form, pricePerSecond: +e.target.value })} />
+                <Input type="number" step="0.0000001" className="mt-2 bg-card border-border font-mono" value={form.pricePerCharge}
+                  onChange={(e) => setForm({ ...form, pricePerCharge: +e.target.value })} />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  At this rate, a 1-hour rent costs <span className="text-foreground">${(form.pricePerSecond * 3600).toFixed(4)}</span>.
+                  At this rate, a 1-hour rent costs <span className="text-foreground">${(form.pricePerCharge * 3600).toFixed(4)}</span>.
                 </p>
               </div>
-              <Field label="Minimum job duration (seconds)" v={form.minDuration} onChange={(v) => setForm({ ...form, minDuration: +v })} />
             </div>
           ) : step === 2 ? (
             <div className="space-y-5">
-              <Button variant="ghost" className="border border-border w-full" onClick={() => setWalletOpen(true)}>
-                Connect wallet or authenticate
-              </Button>
+              <div>
+                <Label>Owner wallet</Label>
+                <Input readOnly value={walletAddress ?? "—"} className="mt-2 bg-card border-border font-mono" />
+                <p className="mt-2 text-xs text-muted-foreground">This server will be registered to the wallet you're signed in with.</p>
+              </div>
               <label className="flex items-start gap-3 cursor-pointer">
                 <Checkbox checked={form.certified} onCheckedChange={(v) => setForm({ ...form, certified: !!v })} className="mt-0.5" />
                 <span className="text-sm text-muted-foreground">
@@ -163,11 +204,11 @@ function Register() {
             <div className="space-y-3 text-sm">
               <Review label="Alias" value={form.alias || "—"} />
               <Review label="Type" value={form.type} />
+              <Review label="Endpoint" value={form.endpointUrl || "—"} />
               <Review label="Hardware" value={`${form.cpu} cores · ${form.ram} GB RAM · ${form.storage} GB SSD`} />
               {(form.type === "GPU" || form.type === "Full Server") && <Review label="GPU" value={`${form.gpu} · ${form.vram} GB VRAM`} />}
               <Review label="Region" value={form.region} />
-              <Review label="Price" value={`$${form.pricePerSecond.toFixed(7)} / sec`} />
-              <Review label="Always on" value={form.alwaysOn ? "yes" : "scheduled"} />
+              <Review label="Price" value={`$${form.pricePerCharge.toFixed(7)} / sec`} />
             </div>
           )}
 
@@ -177,19 +218,14 @@ function Register() {
               {step < steps.length - 1 ? (
                 <Button onClick={next} className="bg-primary text-primary-foreground">Continue<ArrowRight className="h-4 w-4" /></Button>
               ) : (
-                <Button onClick={submit} disabled={!form.certified} className="bg-primary text-primary-foreground">Submit server</Button>
+                <Button onClick={submit} disabled={!form.certified || submitting} className="bg-primary text-primary-foreground">
+                  {submitting ? "Registering…" : "Submit server"}
+                </Button>
               )}
             </div>
           )}
         </div>
       </div>
-
-      <Dialog open={walletOpen} onOpenChange={setWalletOpen}>
-        <DialogContent className="bg-surface border-border">
-          <DialogHeader><DialogTitle>Wallet connection coming soon</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Wallet linking is wired up in the next release. You can still complete onboarding for the testnet preview.</p>
-        </DialogContent>
-      </Dialog>
     </PageShell>
   );
 }
