@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Search, Filter as FilterIcon } from "lucide-react";
+import confetti from "canvas-confetti";
 import { ProviderCard } from "@/components/site/ProviderCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,16 +17,19 @@ import {
   SheetTrigger,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { providers, type Provider, type ResourceType } from "@/lib/mock-data";
-import confetti from "canvas-confetti";
+import type { Provider, ResourceType } from "@services/domain";
+import { listProviders } from "@/lib/broker/server-fns";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 export const Route = createFileRoute("/marketplace/")({
+  loader: () => listProviders(),
   component: MarketplaceIndex,
 });
 
 const allTypes: ResourceType[] = ["GPU", "CPU", "Storage"];
 
 function MarketplaceIndex() {
+  const providers = Route.useLoaderData();
   const [q, setQ] = useState("");
   const [types, setTypes] = useState<ResourceType[]>(["GPU", "CPU", "Storage"]);
   const [minScore, setMinScore] = useState(0);
@@ -39,11 +43,11 @@ function MarketplaceIndex() {
       if (!types.includes(p.resourceType as ResourceType) && p.resourceType !== "Full Server")
         return false;
       if (p.computeScore < minScore) return false;
-      if (p.pricePerSecond > maxPrice) return false;
+      if (p.pricePerCharge > maxPrice) return false;
       if (availableOnly && !p.online) return false;
       return true;
     });
-  }, [q, types, minScore, maxPrice, availableOnly]);
+  }, [providers, q, types, minScore, maxPrice, availableOnly]);
 
   const toggleType = (t: ResourceType) =>
     setTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -73,7 +77,6 @@ function MarketplaceIndex() {
         </header>
 
         <div className="grid lg:grid-cols-[260px_1fr] gap-8">
-          {/* Filters (desktop) */}
           <aside className="hidden lg:block">
             <FiltersPanel
               types={types}
@@ -88,7 +91,6 @@ function MarketplaceIndex() {
           </aside>
 
           <div>
-            {/* Mobile filter trigger */}
             <div className="lg:hidden mb-4">
               <Sheet>
                 <SheetTrigger asChild>
@@ -212,9 +214,6 @@ function FiltersPanel({
   );
 }
 
-import { supabaseBrowser } from "../lib/supabase/client";
-import { useRouter } from "@tanstack/react-router";
-
 function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -222,10 +221,13 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
-  const budget = provider ? (duration * 60 * provider.pricePerSecond).toFixed(4) : "0";
+  const budget = provider ? (duration * 60 * provider.pricePerCharge).toFixed(4) : "0";
+  const gpu = provider?.specs.gpu as string | undefined;
+  const vramGb = provider?.specs.vramGb as number | undefined;
+  const cpuCores = provider?.specs.cpuCores as number | undefined;
+  const ramGb = provider?.specs.ramGb as number | undefined;
 
   async function submit() {
-    // Check session before showing the sheet
     const { data } = await supabaseBrowser.auth.getSession();
     if (!data.session) {
       router.navigate({ to: "/onboarding", search: { redirect: router.state.location.pathname } });
@@ -267,10 +269,10 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
               />
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <Stat label="GPU" value={provider.gpu ?? "—"} />
-              <Stat label="VRAM" value={provider.vramGb ? `${provider.vramGb} GB` : "—"} />
-              <Stat label="CPU" value={`${provider.cpuCores} cores`} />
-              <Stat label="RAM" value={`${provider.ramGb} GB`} />
+              <Stat label="GPU" value={gpu ?? "—"} />
+              <Stat label="VRAM" value={vramGb ? `${vramGb} GB` : "—"} />
+              <Stat label="CPU" value={cpuCores ? `${cpuCores} cores` : "—"} />
+              <Stat label="RAM" value={ramGb ? `${ramGb} GB` : "—"} />
             </div>
             <div>
               <div className="flex items-center justify-between">
@@ -290,7 +292,7 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
               <div className="text-xs text-muted-foreground">Estimated max budget</div>
               <div className="mt-1 text-2xl font-semibold text-gradient-blue">${budget}</div>
               <div className="mt-1 text-[11px] text-muted-foreground">
-                at ${provider.pricePerSecond.toFixed(7)}/s · streaming, refundable on cancel
+                at ${provider.pricePerCharge.toFixed(7)}/s · streaming, refundable on cancel
               </div>
             </div>
             <SheetFooter>
