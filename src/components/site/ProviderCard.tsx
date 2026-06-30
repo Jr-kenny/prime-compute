@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Cpu, MemoryStick, HardDrive, MapPin, Zap } from "lucide-react";
+import { Cpu, MemoryStick, HardDrive, MapPin, Server, Zap } from "lucide-react";
 import { ComputeScoreRing } from "./ComputeScoreRing";
 import { Button } from "@/components/ui/button";
 import type { Provider } from "@services/domain";
@@ -16,12 +16,7 @@ export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider
     <div className="glass-card glow-hover p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2 w-2 rounded-full ${p.online ? "bg-success pulse-ring" : "bg-destructive"}`}
-            />
-            <span className="text-sm font-medium text-foreground">{p.alias}</span>
-          </div>
+          <span className="text-sm font-medium text-foreground">{p.alias}</span>
           <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
             {p.region}
@@ -30,6 +25,15 @@ export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider
           </div>
         </div>
         <ComputeScoreRing score={p.computeScore} />
+      </div>
+
+      <div className="rounded-lg border border-border bg-dot-grid h-20 flex items-center justify-center">
+        <Server className="h-6 w-6 text-muted-foreground" />
+      </div>
+
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className={`h-1.5 w-1.5 rounded-full ${p.online ? "bg-success pulse-ring" : "bg-destructive"}`} />
+        {p.online ? "online" : "offline"}
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">

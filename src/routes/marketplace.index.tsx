@@ -299,7 +299,7 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
             </div>
             <div className="glass-card p-4">
               <div className="text-xs text-muted-foreground">Estimated max budget</div>
-              <div className="mt-1 text-2xl font-semibold text-gradient-blue">${budget}</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">${budget}</div>
               <div className="mt-1 text-[11px] text-muted-foreground">
                 at ${provider.pricePerCharge.toFixed(7)}/s · streaming, refundable on cancel
               </div>
