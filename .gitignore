@@ -45,3 +45,6 @@ services/node_modules
 # Scaffolding tool metadata (not used by the app)
 .kimchi/
 .lovable/
+
+# Local git worktrees for isolated implementation work
+.worktrees/
