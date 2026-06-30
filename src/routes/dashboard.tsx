@@ -1,16 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authGuard } from "../lib/auth/guard";
 import { useState } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
-import { Pause, Square, Copy, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Pause, Square, Copy } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,7 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { StreamingTicker, ElapsedTimer } from "@/components/site/StreamingTicker";
-import { activeJobs, historicalJobs, spending30d, type JobStatus } from "@/lib/mock-data";
+import { useSession } from "@/lib/auth/session";
+import { listMyRents, listProviders } from "@/lib/broker/server-fns";
+import type { Provider, Rent, RentStatus } from "@services/domain";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: authGuard,
@@ -32,175 +26,147 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const runningJobs = activeJobs.filter((j) => j.status === "running");
-  const streamingRate = runningJobs.reduce((acc, j) => acc + j.ratePerSecond, 0);
+  const { user } = useSession();
+  const userId = user?.id;
+
+  const { data: rents = [] } = useQuery({
+    queryKey: ["rents", "mine", userId],
+    queryFn: () => listMyRents({ data: { userId: userId! } }),
+    enabled: !!userId,
+  });
+  const { data: providers = [] } = useQuery({
+    queryKey: ["providers"],
+    queryFn: () => listProviders(),
+  });
+  const providersById = Object.fromEntries(providers.map((p) => [p.id, p]));
+
+  const activeRents = rents.filter((r) => r.status === "running" || r.status === "queued" || r.status === "paused");
+  const historyRents = rents.filter((r) => r.status === "completed" || r.status === "cancelled" || r.status === "failed");
+  const runningRents = rents.filter((r) => r.status === "running");
+  const streamingRate = runningRents.reduce(
+    (acc, r) => acc + (r.providerId ? (providersById[r.providerId]?.pricePerCharge ?? 0) : 0),
+    0,
+  );
+  const totalSpent = rents.reduce((s, r) => s + r.totalCost, 0);
+
   return (
     <AppShell>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
         <div className="text-[11px] uppercase tracking-wider text-glow">Consumer</div>
         <h1 className="mt-1 text-3xl md:text-4xl font-bold">Dashboard</h1>
 
-        {/* Clean live stat strip (replaces the old fake status bar) */}
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-success pulse-ring" />
-            {runningJobs.length} jobs running
+            {runningRents.length} jobs running
           </span>
           <span>
             streaming <span className="text-glow font-mono">${streamingRate.toFixed(7)}/sec</span>
           </span>
-          <span>
-            wallet <span className="text-foreground font-mono">$1,284.93</span>
-          </span>
-          <span className="text-muted-foreground/70">8ms broker match</span>
         </div>
 
         <Tabs defaultValue="active" className="mt-8">
-        <TabsList className="bg-surface border border-border">
-          <TabsTrigger value="active">Active jobs</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="billing">Billing</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+          <TabsList className="bg-surface border border-border">
+            <TabsTrigger value="active">Active jobs</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="active" className="mt-6 grid gap-4 lg:grid-cols-2">
-          {activeJobs.map((j) => (
-            <ActiveJobCard key={j.id} job={j} />
-          ))}
-        </TabsContent>
+          <TabsContent value="active" className="mt-6 grid gap-4 lg:grid-cols-2">
+            {activeRents.map((r) => (
+              <ActiveJobCard key={r.id} rent={r} provider={r.providerId ? providersById[r.providerId] : undefined} />
+            ))}
+            {activeRents.length === 0 && (
+              <div className="col-span-full glass-card p-10 text-center text-muted-foreground">
+                No active jobs. Head to the marketplace to rent some compute.
+              </div>
+            )}
+          </TabsContent>
 
-        <TabsContent value="history" className="mt-6 glass-card p-6 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs uppercase tracking-wider text-muted-foreground text-left">
-                <th className="py-2">Job</th>
-                <th>Provider</th>
-                <th>Duration</th>
-                <th>Cost</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {historicalJobs.map((j) => (
-                <tr key={j.id}>
-                  <td className="py-2">{j.name}</td>
-                  <td className="text-muted-foreground">{j.providerAlias}</td>
-                  <td>{Math.round(j.durationMs / 60000)}m</td>
-                  <td>${j.totalCost.toFixed(4)}</td>
-                  <td>
-                    <StatusBadge status={j.status} />
-                  </td>
-                  <td className="text-muted-foreground text-xs">
-                    {new Date(j.startedAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TabsContent>
-
-        <TabsContent value="billing" className="mt-6 grid gap-6 lg:grid-cols-3">
-          <div className="glass-card p-6">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Balance</div>
-            <div className="mt-2 text-3xl font-bold text-gradient-blue">$1,284.93</div>
-            <div className="mt-1 text-xs text-muted-foreground">USDC streaming wallet</div>
-            <Button className="mt-5 w-full bg-primary text-primary-foreground">
-              <Plus className="h-4 w-4" /> Add funds
-            </Button>
-          </div>
-          <div className="glass-card p-6 lg:col-span-2">
-            <h3 className="font-semibold mb-4">Spend · 30 days</h3>
-            <div className="h-56">
-              <ResponsiveContainer>
-                <AreaChart data={spending30d}>
-                  <defs>
-                    <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--color-glow)" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="var(--color-glow)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                  <XAxis dataKey="day" stroke="var(--color-muted-foreground)" fontSize={10} />
-                  <YAxis stroke="var(--color-muted-foreground)" fontSize={10} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--color-card)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="spent"
-                    stroke="var(--color-glow)"
-                    fill="url(#sg)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="glass-card p-6 lg:col-span-3">
-            <h3 className="font-semibold mb-4">Recent transactions</h3>
+          <TabsContent value="history" className="mt-6 glass-card p-6 overflow-x-auto">
             <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs uppercase tracking-wider text-muted-foreground text-left">
+                  <th className="py-2">Job</th>
+                  <th>Provider</th>
+                  <th>Duration</th>
+                  <th>Cost</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-border">
-                {historicalJobs.slice(0, 6).map((j) => (
-                  <tr key={j.id}>
-                    <td className="py-2 text-muted-foreground text-xs font-mono">{j.id}</td>
-                    <td>{j.name}</td>
-                    <td className="text-right">- ${j.totalCost.toFixed(4)}</td>
+                {historyRents.map((r) => (
+                  <tr key={r.id}>
+                    <td className="py-2">{r.name}</td>
+                    <td className="text-muted-foreground">{r.providerId ? providersById[r.providerId]?.alias ?? "—" : "—"}</td>
+                    <td>{r.startedAt && r.endedAt ? `${Math.round((new Date(r.endedAt).getTime() - new Date(r.startedAt).getTime()) / 60000)}m` : "—"}</td>
+                    <td>${r.totalCost.toFixed(4)}</td>
+                    <td><StatusBadge status={r.status} /></td>
+                    <td className="text-muted-foreground text-xs">{new Date(r.createdAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
+                {historyRents.length === 0 && (
+                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">No completed jobs yet.</td></tr>
+                )}
               </tbody>
             </table>
-          </div>
-        </TabsContent>
+          </TabsContent>
 
-        <TabsContent value="settings" className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="glass-card p-6 space-y-4">
-            <h3 className="font-semibold">Notifications</h3>
-            {["Job completed", "Job failed", "Low balance", "Migration events"].map((l) => (
-              <div key={l} className="flex items-center justify-between">
-                <Label>{l}</Label>
-                <Switch defaultChecked />
-              </div>
-            ))}
-          </div>
-          <div className="glass-card p-6 space-y-4">
-            <h3 className="font-semibold">API key</h3>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value="pc_live_••••••••••••••sk29x"
-                className="font-mono bg-card border-border"
-              />
-              <Button variant="ghost" size="icon" className="border border-border">
-                <Copy className="h-4 w-4" />
-              </Button>
+          <TabsContent value="billing" className="mt-6 grid gap-6 lg:grid-cols-3">
+            <div className="glass-card p-6 lg:col-span-3">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Total spent</div>
+              <div className="mt-2 text-3xl font-bold text-gradient-blue">${totalSpent.toFixed(4)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">across {rents.length} rent{rents.length === 1 ? "" : "s"}</div>
             </div>
-            <Label>Default payment</Label>
-            <Input readOnly value="USDC · 0x4F…91Ae" className="font-mono bg-card border-border" />
-          </div>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="glass-card p-6 space-y-4">
+              <h3 className="font-semibold">Notifications</h3>
+              {["Job completed", "Job failed", "Low balance", "Migration events"].map((l) => (
+                <div key={l} className="flex items-center justify-between">
+                  <Label>{l}</Label>
+                  <Switch defaultChecked />
+                </div>
+              ))}
+            </div>
+            <div className="glass-card p-6 space-y-4">
+              <h3 className="font-semibold">API key</h3>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value="pc_live_••••••••••••••sk29x"
+                  className="font-mono bg-card border-border"
+                />
+                <Button variant="ghost" size="icon" className="border border-border">
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <Label>Default payment</Label>
+              <Input readOnly value="USDC · 0x4F…91Ae" className="font-mono bg-card border-border" />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppShell>
   );
 }
 
-function ActiveJobCard({ job }: { job: (typeof activeJobs)[number] }) {
+function ActiveJobCard({ rent, provider }: { rent: Rent; provider: Provider | undefined }) {
   const [paused, setPaused] = useState(false);
+  const startedAtMs = rent.startedAt ? new Date(rent.startedAt).getTime() : Date.now();
   return (
     <div className="glass-card glow-hover p-5">
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm font-medium">{job.name}</div>
-          <div className="text-xs text-muted-foreground">on {job.providerAlias}</div>
+          <div className="text-sm font-medium">{rent.name}</div>
+          <div className="text-xs text-muted-foreground">on {provider?.alias ?? "unmatched"}</div>
         </div>
         <span className="inline-flex items-center gap-1.5 text-xs text-success">
           <span className={`h-1.5 w-1.5 rounded-full bg-success ${paused ? "" : "pulse-ring"}`} />
-          {paused ? "paused" : "running"}
+          {rent.status}
         </span>
       </div>
       <div className="mt-4 flex items-end justify-between">
@@ -209,22 +175,18 @@ function ActiveJobCard({ job }: { job: (typeof activeJobs)[number] }) {
             Streaming spend
           </div>
           <StreamingTicker
-            ratePerSecond={job.ratePerSecond}
-            startedAt={job.startedAt}
-            paused={paused}
+            ratePerSecond={provider?.pricePerCharge ?? 0}
+            startedAt={startedAtMs}
+            paused={paused || rent.status !== "running"}
             className="text-2xl font-semibold text-gradient-blue"
           />
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Elapsed</div>
           <div className="text-sm text-foreground">
-            <ElapsedTimer startedAt={job.startedAt} paused={paused} />
+            <ElapsedTimer startedAt={startedAtMs} paused={paused} />
           </div>
         </div>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-        <UsageBar label="CPU" value={job.cpuUsage} />
-        <UsageBar label="RAM" value={job.ramUsage} />
       </div>
       <div className="mt-5 flex gap-2">
         <Button
@@ -245,30 +207,14 @@ function ActiveJobCard({ job }: { job: (typeof activeJobs)[number] }) {
   );
 }
 
-function UsageBar({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <div className="flex justify-between text-[10px] text-muted-foreground">
-        <span>{label}</span>
-        <span>{value}%</span>
-      </div>
-      <div className="mt-1 h-1.5 rounded-full bg-border overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-accent to-glow"
-          style={{ width: `${value}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: JobStatus }) {
-  const map: Record<JobStatus, string> = {
+function StatusBadge({ status }: { status: RentStatus }) {
+  const map: Record<RentStatus, string> = {
     completed: "bg-success/15 text-success border-success/30",
     cancelled: "bg-warning/15 text-warning border-warning/30",
     failed: "bg-destructive/15 text-destructive border-destructive/30",
     running: "bg-primary/15 text-glow border-primary/30",
     paused: "bg-muted/40 text-muted-foreground border-border",
+    queued: "bg-muted/40 text-muted-foreground border-border",
   };
   return (
     <span
@@ -278,5 +224,3 @@ function StatusBadge({ status }: { status: JobStatus }) {
     </span>
   );
 }
-
-
