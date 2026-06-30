@@ -2,7 +2,12 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Boxes, LayoutDashboard, Store, Server, BookOpen, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/auth/session";
 import { LumenSidebarEntry } from "./LumenOverlay";
+
+function shortWallet(address: string | null): string {
+  return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "Connected";
+}
 
 /** Primary navigation shared across the desktop sidebar and mobile tab bar. */
 export const navLinks = [
@@ -33,6 +38,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
 
 export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { session, walletAddress, signOut } = useSession();
 
   return (
     <aside className="hidden md:flex w-60 shrink-0 flex-col sticky top-0 h-screen border-r border-sidebar-border bg-sidebar">
@@ -71,23 +77,44 @@ export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
       </nav>
 
       <div className="p-3 border-t border-sidebar-border flex flex-col gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-sidebar-foreground/70 hover:text-white"
-        >
-          <Wallet className="h-4 w-4" />
-          Connect Wallet
-        </Button>
-        <Button
-          asChild
-          size="sm"
-          className="w-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_24px_-6px_color-mix(in_oklab,var(--color-glow)_60%,transparent)]"
-        >
-          <Link to="/onboarding" search={{ redirect: pathname }}>
-            Get Started
-          </Link>
-        </Button>
+        {session ? (
+          <>
+            <div className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-success pulse-ring" />
+              <span className="font-mono text-xs truncate">{shortWallet(walletAddress)}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-sidebar-foreground/70 hover:text-white"
+              onClick={() => signOut()}
+            >
+              <Wallet className="h-4 w-4" />
+              Sign out
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-sidebar-foreground/70 hover:text-white"
+              disabled
+            >
+              <Wallet className="h-4 w-4" />
+              Not signed in
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_24px_-6px_color-mix(in_oklab,var(--color-glow)_60%,transparent)]"
+            >
+              <Link to="/onboarding" search={{ redirect: pathname }}>
+                Get Started
+              </Link>
+            </Button>
+          </>
+        )}
       </div>
     </aside>
   );
@@ -99,20 +126,30 @@ export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
 
 export function MobileTopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { session, walletAddress, signOut } = useSession();
 
   return (
     <header className="md:hidden sticky top-0 z-40 h-14 flex items-center justify-between px-4 border-b border-border/60 bg-background/80 backdrop-blur-xl">
       <Brand compact />
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" className="text-white/70 hover:text-white px-2">
-          <Wallet className="h-4 w-4" />
-          Connect
-        </Button>
-        <Button asChild size="sm" className="bg-primary text-primary-foreground">
-          <Link to="/onboarding" search={{ redirect: pathname }}>
-            Start
-          </Link>
-        </Button>
+        {session ? (
+          <Button variant="ghost" size="sm" className="text-white/70 hover:text-white px-2 font-mono" onClick={() => signOut()}>
+            <span className="h-1.5 w-1.5 rounded-full bg-success pulse-ring" />
+            {shortWallet(walletAddress)}
+          </Button>
+        ) : (
+          <>
+            <Button variant="ghost" size="sm" className="text-white/70 hover:text-white px-2" disabled>
+              <Wallet className="h-4 w-4" />
+              Not signed in
+            </Button>
+            <Button asChild size="sm" className="bg-primary text-primary-foreground">
+              <Link to="/onboarding" search={{ redirect: pathname }}>
+                Start
+              </Link>
+            </Button>
+          </>
+        )}
       </div>
     </header>
   );
