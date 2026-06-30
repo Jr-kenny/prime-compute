@@ -88,21 +88,21 @@ function getReply(input: string): {
     };
   }
 
-  if (q.includes("order") || q.includes("active") || q.includes("job") || q.includes("status")) {
+  if (q.includes("order") || q.includes("active") || q.includes("rent") || q.includes("status")) {
     return {
-      text: "You have 2 active jobs running:\n\n• llama-fine-tune on node-astral-1 — streaming $0.0000045/sec, 9m elapsed\n• stable-diffusion on node-cygnus-8 — streaming $0.0000067/sec, 3m elapsed\n\nBoth healthy. Wallet balance: $1,284.93.",
+      text: "You have 2 active rents running:\n\n• llama-fine-tune on node-astral-1 — streaming $0.0000045/sec, 9m elapsed\n• stable-diffusion on node-cygnus-8 — streaming $0.0000067/sec, 3m elapsed\n\nBoth healthy. Wallet balance: $1,284.93.",
     };
   }
 
   if (q.includes("what") && (q.includes("do") || q.includes("can"))) {
     return {
-      text: 'I\'m Lumen, your AI broker. I can:\n\n• Find and rank providers matching your job specs\n• Open streaming payment channels\n• Monitor job health and migrate if a provider degrades\n• Check your active jobs and wallet balance\n• Pause or cancel running jobs instantly\n\nTry "find me a GPU" or "check my orders".',
+      text: 'I\'m Lumen, your AI broker. I can:\n\n• Find and rank providers matching your rent specs\n• Open streaming payment channels\n• Monitor rent health and migrate if a provider degrades\n• Check your active rents and wallet balance\n• Pause or cancel running rents instantly\n\nTry "find me a GPU" or "check my orders".',
     };
   }
 
   if (q.includes("cheaper") || q.includes("optimize") || q.includes("rebalance")) {
     return {
-      text: "Scanning the registry for a cheaper equivalent… node-lyra-7 just came online — same H100 hardware, same $0.0000045/sec rate, but closer to your region (US-East). Want me to migrate your running job there? Zero downtime, the payment stream follows the job.",
+      text: "Scanning the registry for a cheaper equivalent… node-lyra-7 just came online — same H100 hardware, same $0.0000045/sec rate, but closer to your region (US-East). Want me to migrate your running rent there? Zero downtime, the payment stream follows the rent.",
     };
   }
 
@@ -167,7 +167,7 @@ export function LumenOverlay({
                 id: cryptoId(),
                 role: "lumen",
                 kind: "text",
-                text: "✓ Done. Payment stream opened to node-astral-1. Your job is now running. You can track it on the Dashboard.",
+                text: "✓ Done. Payment stream opened to node-astral-1. Your rent is now running. You can track it on the Dashboard.",
               },
             ]);
           },

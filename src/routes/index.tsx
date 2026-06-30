@@ -12,7 +12,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "The AI-brokered marketplace for idle GPUs, CPUs, and servers. Streaming nanopayments that stop the instant your job does.",
+          "The AI-brokered marketplace for idle GPUs, CPUs, and servers. Streaming nanopayments that stop the instant your rent does.",
       },
       { property: "og:title", content: "Prime Compute" },
       { property: "og:description", content: "Rent compute. Pay per millisecond." },
@@ -40,7 +40,7 @@ function Index() {
             </h1>
             <p className="mt-5 max-w-2xl text-base md:text-lg text-white/80">
               The AI-brokered marketplace for idle GPUs, CPUs, and servers. Streaming nanopayments
-              that stop the instant your job does.
+              that stop the instant your rent does.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Button
@@ -108,7 +108,7 @@ function Index() {
             <em className="not-italic font-display italic">Zero setup.</em>
           </>
         }
-        body="AI broker ranks providers by Compute Score and price, opens streaming payment channels, and routes jobs to the best fit. All automatic."
+        body="AI broker ranks providers by Compute Score and price, opens streaming payment channels, and routes rents to the best fit. All automatic."
         alternatives={["Envoy", "Cilium", "Nginx", "Istio"]}
         illustration="network"
         reverse
@@ -170,7 +170,7 @@ function Index() {
           <div className="text-center">
             <div className="text-[11px] uppercase tracking-[0.18em] text-[#5b8cff]">Real-time</div>
             <h2 className="mt-3 text-3xl md:text-4xl font-display italic text-white">
-              0+ jobs and counting
+              0+ rents and counting
             </h2>
           </div>
           <div className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-6 text-center">
@@ -179,7 +179,7 @@ function Index() {
               { v: "$0.00001", lbl: "Minimum rate" },
               { v: "99.97%", lbl: "Uptime SLA" },
               { v: "8ms", lbl: "Broker match time" },
-              { v: "2.4M", lbl: "Jobs completed" },
+              { v: "2.4M", lbl: "Rents completed" },
             ].map((s) => (
               <div key={s.lbl}>
                 <div className="text-2xl md:text-3xl font-semibold text-white">{s.v}</div>
@@ -220,7 +220,7 @@ function Index() {
             Got idle hardware? Turn it into yield.
           </h2>
           <p className="mt-3 text-white/70 max-w-xl mx-auto">
-            List your server in under three minutes. Earn streaming USDC the moment a job lands.
+            List your server in under three minutes. Earn streaming USDC the moment a rent lands.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Button

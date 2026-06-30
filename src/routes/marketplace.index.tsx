@@ -260,7 +260,7 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
         {provider && !done && (
           <div className="mt-6 space-y-5">
             <div>
-              <Label>Job name</Label>
+              <Label>Rent name</Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -311,7 +311,7 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
             <div className="mx-auto h-12 w-12 rounded-full bg-success/15 ring-1 ring-success/40 flex items-center justify-center text-success">
               ✓
             </div>
-            <h3 className="mt-4 text-lg font-semibold">Job submitted</h3>
+            <h3 className="mt-4 text-lg font-semibold">Rent submitted</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               The broker is opening a payment stream now.
             </p>

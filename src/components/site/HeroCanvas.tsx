@@ -17,7 +17,7 @@ export function HeroCanvas() {
             Workspace
           </div>
           <nav className="flex flex-col gap-1">
-            {["Canvas", "Providers", "Jobs", "Wallet"].map((label, i) => (
+            {["Canvas", "Providers", "Rents", "Wallet"].map((label, i) => (
               <div
                 key={label}
                 className={`flex items-center gap-2 px-2.5 py-2 rounded-md text-xs ${
@@ -54,13 +54,13 @@ export function HeroCanvas() {
             viewBox="0 0 600 280"
             className="w-full h-full"
             role="img"
-            aria-label="Job routed from consumer through AI broker to two GPU providers"
+            aria-label="Rent routed from consumer through AI broker to two GPU providers"
           >
             <style>
               {`@media (prefers-reduced-motion: reduce) { animate { display: none; } }`}
             </style>
             <defs>
-              <linearGradient id="pc-grad-job" x1="0%" y1="0%" x2="100%" y2="0%">
+              <linearGradient id="pc-grad-rent" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#2563eb" stopOpacity="0" />
                 <stop offset="50%" stopColor="#5b8cff" stopOpacity="1" />
                 <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
@@ -104,7 +104,7 @@ export function HeroCanvas() {
               y1="140"
               x2="264"
               y2="140"
-              stroke="url(#pc-grad-job)"
+              stroke="url(#pc-grad-rent)"
               strokeWidth="2"
               strokeDasharray="40 600"
             >
@@ -177,7 +177,7 @@ export function HeroCanvas() {
                 fontSize="11"
                 fontFamily="ui-sans-serif"
               >
-                Job
+                Rent
               </text>
               <text
                 x="40"

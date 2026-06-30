@@ -18,7 +18,7 @@ export const Route = createFileRoute("/marketplace/$id")({
   head: ({ loaderData }) => ({
     meta: [
       { title: `${loaderData?.p.alias} — Prime Compute` },
-      { name: "description", content: `${loaderData?.p.alias} provider details: hardware, job history, and pricing.` },
+      { name: "description", content: `${loaderData?.p.alias} provider details: hardware, rent history, and pricing.` },
     ],
   }),
   component: ProviderDetail,
@@ -73,7 +73,7 @@ function ProviderDetail() {
         <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Rate" value={`$${p.pricePerCharge.toFixed(7)}/s`} />
           <Stat label="Uptime" value={`${uptimePct.toFixed(2)}%`} />
-          <Stat label="Jobs completed" value={p.trust.signals.successfulRentals.toLocaleString()} />
+          <Stat label="Rents completed" value={p.trust.signals.successfulRentals.toLocaleString()} />
           <Stat label="Avg latency" value={`${p.avgLatencyMs.toFixed(1)}ms`} />
         </div>
       </div>
@@ -81,7 +81,7 @@ function ProviderDetail() {
       <Tabs value={tab} onValueChange={setTab} className="mt-8">
         <TabsList className="bg-surface border border-border">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="history">Job history</TabsTrigger>
+          <TabsTrigger value="history">Rent history</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 glass-card p-6">

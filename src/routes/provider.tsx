@@ -18,7 +18,7 @@ export const Route = createFileRoute("/provider")({
   head: () => ({
     meta: [
       { title: "Provider Dashboard — Prime Compute" },
-      { name: "description", content: "Manage your servers, jobs, and earnings as a Prime Compute provider." },
+      { name: "description", content: "Manage your servers, rents, and earnings as a Prime Compute provider." },
     ],
   }),
   component: ProviderDash,
@@ -58,7 +58,7 @@ function ProviderDash() {
           <TabsList className="bg-surface border border-border">
             <TabsTrigger value="servers">My servers</TabsTrigger>
             <TabsTrigger value="earnings">Earnings</TabsTrigger>
-            <TabsTrigger value="jobs">Jobs</TabsTrigger>
+            <TabsTrigger value="rents">Rents</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -77,13 +77,13 @@ function ProviderDash() {
             <div className="glass-card p-6 lg:col-span-3">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">Total earned</div>
               <div className="mt-2 text-3xl font-bold text-gradient-blue">${totalEarned.toFixed(4)}</div>
-              <div className="mt-1 text-xs text-muted-foreground">across {allRents.length} job{allRents.length === 1 ? "" : "s"}</div>
+              <div className="mt-1 text-xs text-muted-foreground">across {allRents.length} rent{allRents.length === 1 ? "" : "s"}</div>
             </div>
           </TabsContent>
 
-          <TabsContent value="jobs" className="mt-6 glass-card p-6 overflow-x-auto">
+          <TabsContent value="rents" className="mt-6 glass-card p-6 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-xs uppercase tracking-wider text-muted-foreground text-left"><th className="py-2">Job</th><th>Duration</th><th>Earned</th><th>Status</th></tr></thead>
+              <thead><tr className="text-xs uppercase tracking-wider text-muted-foreground text-left"><th className="py-2">Rent</th><th>Duration</th><th>Earned</th><th>Status</th></tr></thead>
               <tbody className="divide-y divide-border">
                 {allRents.map((r) => (
                   <tr key={r.id}>
@@ -94,7 +94,7 @@ function ProviderDash() {
                   </tr>
                 ))}
                 {allRents.length === 0 && (
-                  <tr><td colSpan={4} className="py-6 text-center text-muted-foreground">No jobs yet.</td></tr>
+                  <tr><td colSpan={4} className="py-6 text-center text-muted-foreground">No rents yet.</td></tr>
                 )}
               </tbody>
             </table>
@@ -103,8 +103,8 @@ function ProviderDash() {
           <TabsContent value="settings" className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="glass-card p-6 space-y-4">
               <h3 className="font-semibold">Auto-accept</h3>
-              <div className="flex items-center justify-between"><Label>Accept matched jobs automatically</Label><Switch defaultChecked /></div>
-              <div className="flex items-center justify-between"><Label>Allow job migration in</Label><Switch defaultChecked /></div>
+              <div className="flex items-center justify-between"><Label>Accept matched rents automatically</Label><Switch defaultChecked /></div>
+              <div className="flex items-center justify-between"><Label>Allow rent migration in</Label><Switch defaultChecked /></div>
             </div>
             <div className="glass-card p-6 space-y-4">
               <h3 className="font-semibold">Payout wallet</h3>
@@ -163,7 +163,7 @@ function ServerCard({ server, rents }: { server: Provider; rents: Rent[] }) {
           </div>
         </div>
       ) : (
-        <div className="mt-4 text-xs text-muted-foreground">{online ? "Waiting for matched jobs…" : "Server offline. Toggle to start accepting jobs."}</div>
+        <div className="mt-4 text-xs text-muted-foreground">{online ? "Waiting for matched rents…" : "Server offline. Toggle to start accepting rents."}</div>
       )}
     </div>
   );

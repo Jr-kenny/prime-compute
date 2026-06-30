@@ -2,16 +2,16 @@ import { motion } from "framer-motion";
 import { Search, BarChart3, Route, Wallet, Shield, Activity } from "lucide-react";
 
 /**
- * Visual representation of how the AI Broker layer processes a job.
+ * Visual representation of how the AI Broker layer processes a rent.
  * No personality, no chatter — just the infrastructure pipeline.
  */
 const stages = [
   { icon: Search, name: "Discover", detail: "Scan registry for providers matching CPU/GPU/RAM/region/budget." },
   { icon: BarChart3, name: "Rank", detail: "Score candidates by Compute Score, latency, price, completion probability." },
-  { icon: Route, name: "Route", detail: "Open stream to best match. Split across providers if the job is too large." },
+  { icon: Route, name: "Route", detail: "Open stream to best match. Split across providers if the rent is too large." },
   { icon: Activity, name: "Monitor", detail: "Heartbeat, output checks, latency drift. Migrate on degradation." },
   { icon: Shield, name: "Verify", detail: "Cross-check delivered work against claimed specs. Flag mismatches." },
-  { icon: Wallet, name: "Settle", detail: "Stream nanopayments per ms. Close the channel the instant the job ends." },
+  { icon: Wallet, name: "Settle", detail: "Stream nanopayments per ms. Close the channel the instant the rent ends." },
 ];
 
 export function BrokerFlow() {
@@ -20,7 +20,7 @@ export function BrokerFlow() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="text-[11px] uppercase tracking-wider text-glow">AI Broker Layer</div>
-          <h3 className="mt-1 text-lg font-semibold">How a job flows through the broker</h3>
+          <h3 className="mt-1 text-lg font-semibold">How a rent flows through the broker</h3>
         </div>
         <span className="hidden sm:inline-flex items-center gap-1 text-xs text-muted-foreground">
           <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> live pipeline

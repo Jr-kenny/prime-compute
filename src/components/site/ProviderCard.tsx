@@ -60,7 +60,7 @@ export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider
         </div>
         <div className="flex gap-1">
           <Pill>{uptimePct.toFixed(2)}%</Pill>
-          <Pill>{p.trust.signals.successfulRentals.toLocaleString()} jobs</Pill>
+          <Pill>{p.trust.signals.successfulRentals.toLocaleString()} rents</Pill>
           <Pill>{p.avgLatencyMs.toFixed(1)}ms</Pill>
         </div>
       </div>

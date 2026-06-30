@@ -19,7 +19,7 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Consumer Dashboard — Prime Compute" },
-      { name: "description", content: "Monitor your active jobs, history, and streaming spend." },
+      { name: "description", content: "Monitor your active rents, history, and streaming spend." },
     ],
   }),
   component: Dashboard,
@@ -58,7 +58,7 @@ function Dashboard() {
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-success pulse-ring" />
-            {runningRents.length} jobs running
+            {runningRents.length} rents running
           </span>
           <span>
             streaming <span className="text-glow font-mono">${streamingRate.toFixed(7)}/sec</span>
@@ -67,7 +67,7 @@ function Dashboard() {
 
         <Tabs defaultValue="active" className="mt-8">
           <TabsList className="bg-surface border border-border">
-            <TabsTrigger value="active">Active jobs</TabsTrigger>
+            <TabsTrigger value="active">Active rents</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="billing">Billing</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -75,11 +75,11 @@ function Dashboard() {
 
           <TabsContent value="active" className="mt-6 grid gap-4 lg:grid-cols-2">
             {activeRents.map((r) => (
-              <ActiveJobCard key={r.id} rent={r} provider={r.providerId ? providersById[r.providerId] : undefined} />
+              <ActiveRentCard key={r.id} rent={r} provider={r.providerId ? providersById[r.providerId] : undefined} />
             ))}
             {activeRents.length === 0 && (
               <div className="col-span-full glass-card p-10 text-center text-muted-foreground">
-                No active jobs. Head to the marketplace to rent some compute.
+                No active rents. Head to the marketplace to rent some compute.
               </div>
             )}
           </TabsContent>
@@ -88,7 +88,7 @@ function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs uppercase tracking-wider text-muted-foreground text-left">
-                  <th className="py-2">Job</th>
+                  <th className="py-2">Rent</th>
                   <th>Provider</th>
                   <th>Duration</th>
                   <th>Cost</th>
@@ -108,7 +108,7 @@ function Dashboard() {
                   </tr>
                 ))}
                 {historyRents.length === 0 && (
-                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">No completed jobs yet.</td></tr>
+                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">No completed rents yet.</td></tr>
                 )}
               </tbody>
             </table>
@@ -125,7 +125,7 @@ function Dashboard() {
           <TabsContent value="settings" className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="glass-card p-6 space-y-4">
               <h3 className="font-semibold">Notifications</h3>
-              {["Job completed", "Job failed", "Low balance", "Migration events"].map((l) => (
+              {["Rent completed", "Rent failed", "Low balance", "Migration events"].map((l) => (
                 <div key={l} className="flex items-center justify-between">
                   <Label>{l}</Label>
                   <Switch defaultChecked />
@@ -154,7 +154,7 @@ function Dashboard() {
   );
 }
 
-function ActiveJobCard({ rent, provider }: { rent: Rent; provider: Provider | undefined }) {
+function ActiveRentCard({ rent, provider }: { rent: Rent; provider: Provider | undefined }) {
   const [paused, setPaused] = useState(false);
   const startedAtMs = rent.startedAt ? new Date(rent.startedAt).getTime() : Date.now();
   return (

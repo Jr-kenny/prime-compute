@@ -77,7 +77,7 @@ function Register() {
                 <CheckCircle2 className="h-7 w-7" />
               </div>
               <h2 className="mt-4 text-2xl font-bold">Server submitted</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Your server is pending hardware verification. We'll notify you when the broker starts routing jobs.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Your server is pending hardware verification. We'll notify you when the broker starts routing rents.</p>
             </div>
           ) : step === 0 ? (
             <div className="space-y-5">
@@ -142,7 +142,7 @@ function Register() {
                 <Input type="number" step="0.0000001" className="mt-2 bg-card border-border font-mono" value={form.pricePerSecond}
                   onChange={(e) => setForm({ ...form, pricePerSecond: +e.target.value })} />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  At this rate, a 1-hour job costs <span className="text-foreground">${(form.pricePerSecond * 3600).toFixed(4)}</span>.
+                  At this rate, a 1-hour rent costs <span className="text-foreground">${(form.pricePerSecond * 3600).toFixed(4)}</span>.
                 </p>
               </div>
               <Field label="Minimum job duration (seconds)" v={form.minDuration} onChange={(v) => setForm({ ...form, minDuration: +v })} />
