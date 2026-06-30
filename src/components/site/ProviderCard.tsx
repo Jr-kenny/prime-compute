@@ -2,9 +2,16 @@ import { Link } from "@tanstack/react-router";
 import { Cpu, MemoryStick, HardDrive, MapPin, Zap } from "lucide-react";
 import { ComputeScoreRing } from "./ComputeScoreRing";
 import { Button } from "@/components/ui/button";
-import type { Provider } from "@/lib/mock-data";
+import type { Provider } from "@services/domain";
 
 export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider) => void }) {
+  const gpu = p.specs.gpu as string | undefined;
+  const vramGb = p.specs.vramGb as number | undefined;
+  const cpuCores = p.specs.cpuCores as number | undefined;
+  const ramGb = p.specs.ramGb as number | undefined;
+  const storageGb = p.specs.storageGb as number | undefined;
+  const uptimePct = Math.min(100, Math.max(0, p.trust.signals.uptime * 100));
+
   return (
     <div className="glass-card glow-hover p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between">
@@ -26,28 +33,34 @@ export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        {p.gpu && (
+        {gpu && (
           <div className="col-span-2 flex items-center gap-1.5 text-foreground">
             <Zap className="h-3.5 w-3.5 text-glow" />
-            <span className="truncate">{p.gpu}</span>
-            <span className="text-muted-foreground">· {p.vramGb}GB VRAM</span>
+            <span className="truncate">{gpu}</span>
+            {vramGb !== undefined && <span className="text-muted-foreground">· {vramGb}GB VRAM</span>}
           </div>
         )}
-        <div className="flex items-center gap-1.5 text-muted-foreground"><Cpu className="h-3.5 w-3.5" />{p.cpuCores} cores</div>
-        <div className="flex items-center gap-1.5 text-muted-foreground"><MemoryStick className="h-3.5 w-3.5" />{p.ramGb} GB</div>
-        <div className="flex items-center gap-1.5 text-muted-foreground col-span-2"><HardDrive className="h-3.5 w-3.5" />{p.storageGb} GB SSD</div>
+        {cpuCores !== undefined && (
+          <div className="flex items-center gap-1.5 text-muted-foreground"><Cpu className="h-3.5 w-3.5" />{cpuCores} cores</div>
+        )}
+        {ramGb !== undefined && (
+          <div className="flex items-center gap-1.5 text-muted-foreground"><MemoryStick className="h-3.5 w-3.5" />{ramGb} GB</div>
+        )}
+        {storageGb !== undefined && (
+          <div className="flex items-center gap-1.5 text-muted-foreground col-span-2"><HardDrive className="h-3.5 w-3.5" />{storageGb} GB SSD</div>
+        )}
       </div>
 
       <div className="flex items-end justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Rate</div>
           <div className="text-base font-semibold text-foreground">
-            ${p.pricePerSecond.toFixed(7)}<span className="text-xs text-muted-foreground"> /sec</span>
+            ${p.pricePerCharge.toFixed(7)}<span className="text-xs text-muted-foreground"> /sec</span>
           </div>
         </div>
         <div className="flex gap-1">
-          <Pill>{p.uptime.toFixed(2)}%</Pill>
-          <Pill>{p.jobsCompleted.toLocaleString()} jobs</Pill>
+          <Pill>{uptimePct.toFixed(2)}%</Pill>
+          <Pill>{p.trust.signals.successfulRentals.toLocaleString()} jobs</Pill>
           <Pill>{p.avgLatencyMs.toFixed(1)}ms</Pill>
         </div>
       </div>
