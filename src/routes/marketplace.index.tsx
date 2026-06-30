@@ -18,7 +18,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import type { Provider, ResourceType } from "@services/domain";
-import { listProviders } from "@/lib/broker/server-fns";
+import { listProviders, createRent } from "@/lib/broker/server-fns";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 export const Route = createFileRoute("/marketplace/")({
@@ -229,17 +229,26 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
 
   async function submit() {
     const { data } = await supabaseBrowser.auth.getSession();
-    if (!data.session) {
+    if (!data.session || !provider) {
       router.navigate({ to: "/onboarding", search: { redirect: router.state.location.pathname } });
       return;
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await createRent({
+        data: {
+          accessToken: data.session.access_token,
+          name,
+          spec: { resourceType: provider.resourceType, region: provider.region },
+          estimatedUsage: duration * 60,
+        },
+      });
       setDone(true);
       confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } });
-    }, 1100);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -311,9 +320,9 @@ function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: 
             <div className="mx-auto h-12 w-12 rounded-full bg-success/15 ring-1 ring-success/40 flex items-center justify-center text-success">
               ✓
             </div>
-            <h3 className="mt-4 text-lg font-semibold">Rent submitted</h3>
+            <h3 className="mt-4 text-lg font-semibold">Rent queued</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              The broker is opening a payment stream now.
+              It'll be matched to a provider when the broker processes the queue.
             </p>
             <Button
               onClick={() => {
