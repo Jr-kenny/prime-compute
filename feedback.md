@@ -206,4 +206,56 @@ could act on it. Concrete beats vague.
   better, surface it at SDK init / `toPasskeyTransport` rather than deep in the smart-account RPC call.
 - **Date:** 2026-06-29
 
+### A passkey Modular Wallet can't be the x402/Gateway nano-payment payer, so each user needs a second wallet
+- **Area:** Modular Wallets / x402 / Gateway
+- **What happened:** We wanted each user to stream their own USDC nano-payments from the same wallet
+  they log in with (their passkey Modular Wallet). It can't: the buyer `GatewayClient` only takes a
+  raw `privateKey`, and `@circle-fin/modular-wallets-core` exposes no Gateway / EIP-3009 surface at
+  all. A Modular Wallet signs via WebAuthn/P-256 in the browser and can't produce the ECDSA EIP-3009
+  `TransferWithAuthorization` that Gateway settlement needs server-side. We confirmed against Circle's
+  own samples that this is the intended shape: arc-nanopayments uses a raw `BUYER_PRIVATE_KEY` EOA,
+  arc-commerce uses server-side developer-controlled wallets. So we had to generate and custody a
+  separate per-user EOA spend wallet just to stream payments, and keep the Modular Wallet as identity
+  only, then move funds between the two.
+- **Impact:** "Users pay from their own wallet" turns into "give every user a second, custodial EOA,
+  encrypt its key, and build a fund-transfer step between their identity wallet and their spend
+  wallet." That's real custody and key-management surface no one wants in a hackathon build, and it
+  contradicts the seedless/passkey value prop of Modular Wallets.
+- **Suggestion:** Provide a first-class path to pay x402/Gateway nano-payments *from* a Modular
+  Wallet (e.g. a Gateway/x402 adapter that accepts the smart account + bundler, or a documented
+  user-operation recipe that performs the deposit + batched authorization), so the login wallet and
+  the paying wallet can be the same one.
+- **Date:** 2026-06-30
+
+### No clear "which chains do Modular Wallets support" list; you confirm it by grepping a d.ts enum
+- **Area:** Modular Wallets / Docs
+- **What happened:** Before moving our Modular Wallet onboarding to Arc, we wanted to confirm Modular
+  Wallets actually support Arc testnet (since an earlier Arc attempt had errored). There's no obvious
+  supported-chains list in the docs for Modular Wallets. We ended up confirming it by grepping the
+  installed SDK types and finding `ContractAddress.ArcTestnet_USDC = 0x3600…` in `index.d.ts`.
+- **Impact:** "Is chain X supported for Modular Wallets?" is a basic, blocking question for any team
+  picking a chain, and the answer currently lives in a buried enum rather than a docs table. It's
+  easy to wrongly conclude a chain is unsupported (especially when a misconfigured passkey domain
+  throws an unrelated "entity config" error on that chain, see the entry above).
+- **Suggestion:** Publish a plain supported-chains/segments table for Modular Wallets (chain name,
+  the transport URL segment, USDC address), and have the SDK expose it programmatically.
+- **Date:** 2026-06-30
+
+### No documented recipe for sending an on-chain transfer (e.g. USDC) from a Modular Wallet
+- **Area:** Modular Wallets / SDK / Docs
+- **What happened:** To move USDC from a user's Modular Wallet to their spend wallet we had to wire
+  the smart account to a viem `createBundlerClient` and `sendUserOperation` ourselves. The SDK ships
+  the pieces (`toCircleSmartAccount`, the modular transport, `getUserOperationGasPrice`) but there's
+  no end-to-end "send a token transfer from a Modular Wallet" example, and the gas-price helper
+  returns string tiers (`low/medium/high`) that don't drop straight into viem's `estimateFeesPerGas`
+  (which wants bigints). Whether gas is sponsored by a paymaster on a given testnet (Arc) vs. needs
+  the account funded is also not stated, so the simplest send is guesswork until you test on-chain.
+- **Impact:** A basic "let the user send USDC from their wallet" feature becomes ERC-4337 plumbing
+  plus trial-and-error on gas/paymaster behavior, which is a lot of surface for what reads like a
+  one-liner.
+- **Suggestion:** Ship a documented, copy-pasteable recipe for "send a token transfer from a Modular
+  Wallet" including the bundler client wiring, the gas-price → fees conversion, and a clear statement
+  of paymaster/gas-sponsorship behavior per network (especially Arc testnet).
+- **Date:** 2026-06-30
+
 <!-- Add new entries above this line as we hit them during implementation. -->
