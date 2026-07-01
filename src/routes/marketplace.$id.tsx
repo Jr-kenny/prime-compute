@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { ComputeScoreRing } from "@/components/site/ComputeScoreRing";
 import { Button } from "@/components/ui/button";
+import { RentSheet } from "@/components/site/RentSheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import type { RentStatus } from "@services/domain";
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/marketplace/$id")({
 function ProviderDetail() {
   const { p, rents } = Route.useLoaderData();
   const [tab, setTab] = useState("overview");
+  const [renting, setRenting] = useState(false);
   const gpu = p.specs.gpu as string | undefined;
   const vramGb = p.specs.vramGb as number | undefined;
   const cpuCores = p.specs.cpuCores as number | undefined;
@@ -67,7 +69,7 @@ function ProviderDetail() {
               </div>
             </div>
           </div>
-          <Button size="lg" className="bg-primary text-primary-foreground" disabled={!p.online}>Rent</Button>
+          <Button size="lg" className="bg-primary text-primary-foreground" disabled={!p.online} onClick={() => setRenting(true)}>Rent</Button>
         </div>
 
         <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -125,6 +127,8 @@ function ProviderDetail() {
           </table>
         </TabsContent>
       </Tabs>
+
+      <RentSheet provider={renting ? p : null} onClose={() => setRenting(false)} />
     </div>
   );
 }
