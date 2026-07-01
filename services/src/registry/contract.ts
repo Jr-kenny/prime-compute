@@ -114,6 +114,18 @@ export function registryContract(
       expect(updated.providerId).toBe(provider.id);
     });
 
+    test("persists lastChargedAt and leaseAccessToken through updateRent", async () => {
+      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      expect(rent.lastChargedAt).toBeNull();
+      expect(rent.leaseAccessToken).toBeNull();
+      const ts = new Date().toISOString();
+      const updated = await reg.updateRent(rent.id, { lastChargedAt: ts, leaseAccessToken: "tok-123", status: "running" });
+      expect(updated.lastChargedAt).toBe(ts);
+      expect(updated.leaseAccessToken).toBe("tok-123");
+      const reread = await reg.getRent(rent.id);
+      expect(reread?.leaseAccessToken).toBe("tok-123");
+    }, T);
+
     test("recordCharge + rentCost sums consumed charges exactly", async () => {
       const provider = await reg.registerProvider(sampleProvider);
       const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });

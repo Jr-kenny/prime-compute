@@ -48,6 +48,8 @@ function toRent(raw: unknown): Rent {
     createdAt: r.created_at as string,
     startedAt: (r.started_at as string) ?? null,
     endedAt: (r.ended_at as string) ?? null,
+    lastChargedAt: (r.last_charged_at as string) ?? null,
+    leaseAccessToken: (r.lease_access_token as string) ?? null,
   };
 }
 
@@ -182,6 +184,8 @@ export class SupabaseRegistry implements Registry {
     if (patch.totalCost !== undefined) dbPatch.total_cost = patch.totalCost;
     if (patch.startedAt !== undefined) dbPatch.started_at = patch.startedAt;
     if (patch.endedAt !== undefined) dbPatch.ended_at = patch.endedAt;
+    if (patch.lastChargedAt !== undefined) dbPatch.last_charged_at = patch.lastChargedAt;
+    if (patch.leaseAccessToken !== undefined) dbPatch.lease_access_token = patch.leaseAccessToken;
     const row = await this.one(
       this.db.from("rents").update(dbPatch).eq("id", id).select().single(),
       "updateRent",
