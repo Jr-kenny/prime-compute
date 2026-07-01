@@ -19,8 +19,13 @@ const LEASE_CAP_ATOMIC = BigInt(process.env.WORKER_LEASE_CAP_ATOMIC ?? "1000000"
 
 const registry = new SupabaseRegistry(cfg.supabase.url, cfg.supabase.serviceRoleKey);
 const admin = createClient(cfg.supabase.url, cfg.supabase.serviceRoleKey, { auth: { persistSession: false } });
-const store = new SupabaseSpendWalletStore(admin, encKey);
-const settlementFor = makeSettlementFactory(store, { capAtomic: LEASE_CAP_ATOMIC, rpcUrl: process.env.ARC_RPC_URL });
+// A lease pays from its owner's wallet: agent leases from agent_wallets, user leases from spend_wallets.
+const userStore = new SupabaseSpendWalletStore(admin, encKey);
+const agentStore = new SupabaseSpendWalletStore(admin, encKey, { table: "agent_wallets", idColumn: "agent_id" });
+const settlementFor = makeSettlementFactory(
+  (rent) => (rent.agentId ? agentStore.loadSigner(rent.agentId) : userStore.loadSigner(rent.userId!)),
+  { capAtomic: LEASE_CAP_ATOMIC, rpcUrl: process.env.ARC_RPC_URL },
+);
 
 // The soul-driven ranker, with the deterministic scorer as the built-in fallback inside decide().
 // If LLM_* is unset, fall back to no ranker (matchProviders uses its deterministic default).
