@@ -30,6 +30,17 @@ export const listMyRents = createServerFn({ method: "GET" })
     return getRegistry().listRents({ userId: user.id });
   });
 
+// One lease by id, but only if the caller owns it. Returns null (not a throw) for a missing or
+// foreign rent so the poller can render a neutral "couldn't load" instead of erroring.
+export const getMyRent = createServerFn({ method: "GET", strict: { output: false } })
+  .validator((d: { accessToken: string; rentId: string }) => d)
+  .handler(async ({ data }) => {
+    const user = await requireUser(data.accessToken);
+    const rent = await getRegistry().getRent(data.rentId);
+    if (!rent || rent.userId !== user.id) return null;
+    return rent;
+  });
+
 export const listMyProviders = createServerFn({ method: "GET", strict: { output: false } })
   .validator((d: { accessToken: string }) => d)
   .handler(async ({ data }) => {
