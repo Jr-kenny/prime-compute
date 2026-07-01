@@ -120,7 +120,8 @@ export function registryContract(
       expect(rent.leaseAccessToken).toBeNull();
       const ts = new Date().toISOString();
       const updated = await reg.updateRent(rent.id, { lastChargedAt: ts, leaseAccessToken: "tok-123", status: "running" });
-      expect(updated.lastChargedAt).toBe(ts);
+      // Compare by instant, not string: timestamptz round-trips as +00:00, in-memory keeps the Z form.
+      expect(new Date(updated.lastChargedAt!).getTime()).toBe(new Date(ts).getTime());
       expect(updated.leaseAccessToken).toBe("tok-123");
       const reread = await reg.getRent(rent.id);
       expect(reread?.leaseAccessToken).toBe("tok-123");
