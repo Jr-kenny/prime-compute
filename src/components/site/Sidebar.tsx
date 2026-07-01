@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Store,
   Server,
+  PlusCircle,
   BookOpen,
   Wallet,
   ChevronsUpDown,
@@ -30,6 +31,7 @@ export const navLinks = [
   { to: "/marketplace", label: "Marketplace", icon: Store },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/provider", label: "Provider", icon: Server },
+  { to: "/register", label: "List a server", icon: PlusCircle },
   { to: "/docs", label: "Docs", icon: BookOpen },
 ] as const;
 

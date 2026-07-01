@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { authGuard } from "../lib/auth/guard";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Server } from "lucide-react";
+import { Server, PlusCircle } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
+import { Button } from "@/components/ui/button";
 import { OperationalTile } from "@/components/site/OperationalTile";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
@@ -60,8 +61,17 @@ function ProviderDash() {
     <>
       <AppShell>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10">
-          <div className="text-[11px] uppercase tracking-wider text-glow">Provider</div>
-          <h1 className="mt-1 text-3xl md:text-4xl font-bold">Server operations</h1>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-glow">Provider</div>
+              <h1 className="mt-1 text-3xl md:text-4xl font-bold">Server operations</h1>
+            </div>
+            <Button asChild className="bg-primary text-primary-foreground">
+              <Link to="/register">
+                <PlusCircle className="h-4 w-4" /> List a server
+              </Link>
+            </Button>
+          </div>
 
           <Tabs defaultValue="servers" className="mt-8">
             <TabsList className="bg-surface border border-border">
@@ -86,7 +96,12 @@ function ProviderDash() {
               ))}
               {myServers.length === 0 && (
                 <div className="col-span-full glass-card p-10 text-center text-muted-foreground">
-                  No servers registered to this wallet yet.
+                  <p>No servers registered to this wallet yet.</p>
+                  <Button asChild className="mt-4 bg-primary text-primary-foreground">
+                    <Link to="/register">
+                      <PlusCircle className="h-4 w-4" /> List your first server
+                    </Link>
+                  </Button>
                 </div>
               )}
             </TabsContent>
