@@ -7,7 +7,8 @@ export type RentStatus =
   | "paused"
   | "completed"
   | "cancelled"
-  | "failed";
+  | "failed"
+  | "suspended";
 
 export type Provider = {
   id: string;
@@ -43,6 +44,8 @@ export type Rent = {
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;
+  lastChargedAt: string | null; // when the meter last charged this lease (resumability)
+  leaseAccessToken: string | null; // shown to the user as the connect credential
 };
 
 export type RentDecision = {

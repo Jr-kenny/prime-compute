@@ -16,8 +16,20 @@ function rentWithStatus(status: RentStatus): Rent {
     createdAt: new Date().toISOString(),
     startedAt: null,
     endedAt: null,
+    lastChargedAt: null,
+    leaseAccessToken: null,
   };
 }
+
+function rent(status: Rent["status"]): Rent {
+  return rentWithStatus(status);
+}
+
+test("a suspended lease can be resumed", () => {
+  expect(canResume(rent("suspended"))).toBe(true);
+  expect(canResume(rent("paused"))).toBe(true);
+  expect(canResume(rent("running"))).toBe(false);
+});
 
 test("canPause is true only for running", () => {
   expect(canPause(rentWithStatus("running"))).toBe(true);
