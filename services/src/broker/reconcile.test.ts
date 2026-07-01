@@ -5,7 +5,7 @@ import { FakeSettlementAdapter } from "../settlement/fake";
 
 test("reconcileRent marks settled charges and counts them", async () => {
   const reg = new InMemoryRegistry();
-  const rent = await reg.createRent({ name: "r", userId: "u1", spec: { resourceType: "GPU", region: null } });
+  const rent = await reg.createRent({ name: "r", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
   // Two charges recorded optimistically (settled: false), with refs the fake knows.
   const a = await reg.recordCharge({ rentId: rent.id, providerId: "p", seq: 0, amount: 100, authorizationRef: null, settled: false, settlementRef: "fake-settlement-0" });
   const b = await reg.recordCharge({ rentId: rent.id, providerId: "p", seq: 1, amount: 100, authorizationRef: null, settled: false, settlementRef: "fake-settlement-1" });
@@ -24,7 +24,7 @@ test("reconcileRent marks settled charges and counts them", async () => {
 
 test("reconcileRent leaves unsettled charges alone", async () => {
   const reg = new InMemoryRegistry();
-  const rent = await reg.createRent({ name: "r", userId: "u1", spec: { resourceType: "GPU", region: null } });
+  const rent = await reg.createRent({ name: "r", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
   await reg.recordCharge({ rentId: rent.id, providerId: "p", seq: 0, amount: 100, authorizationRef: null, settled: false, settlementRef: "never-issued" });
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1000n });
   const settledCount = await reconcileRent(reg, settlement, rent.id);

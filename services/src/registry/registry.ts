@@ -6,6 +6,7 @@ import type {
   RentSpec,
   ResourceType,
   RentStatus,
+  Principal,
 } from "../domain";
 import type { DecisionLog } from "../runtime/types";
 
@@ -15,7 +16,7 @@ export type NewProvider = Omit<Provider, "id" | "computeScore"> & {
 
 export type NewRent = {
   name: string;
-  userId: string;
+  owner: Principal;
   spec: RentSpec;
   estimatedUsage?: number | null;
   autonomyArmed?: boolean;
@@ -33,6 +34,7 @@ export type ProviderFilter = {
 
 export type RentFilter = {
   userId?: string;
+  agentId?: string;
   providerId?: string;
   status?: RentStatus;
 };

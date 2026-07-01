@@ -77,7 +77,7 @@ export const createRent = createServerFn({ method: "POST" })
     const user = await requireUser(data.accessToken);
     return getRegistry().createRent({
       name: data.name,
-      userId: user.id,
+      owner: { kind: "user", id: user.id, walletAddress: user.walletAddress },
       spec: data.spec,
       estimatedUsage: data.estimatedUsage ?? null,
     });

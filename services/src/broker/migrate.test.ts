@@ -69,7 +69,7 @@ async function seedTwo(reg: InMemoryRegistry) {
 }
 
 async function makeRent(reg: InMemoryRegistry): Promise<Rent> {
-  return reg.createRent({ name: "r", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
+  return reg.createRent({ name: "r", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 }
 
 test("migrates from a degraded provider to the next-best, continuing the stream", async () => {

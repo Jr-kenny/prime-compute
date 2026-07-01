@@ -44,7 +44,8 @@ export class InMemoryRegistry implements Registry {
     const rent: Rent = {
       id: crypto.randomUUID(),
       name: r.name,
-      userId: r.userId,
+      userId: r.owner.kind === "user" ? r.owner.id : null,
+      agentId: r.owner.kind === "agent" ? r.owner.id : null,
       spec: r.spec,
       estimatedUsage: r.estimatedUsage ?? null,
       autonomyArmed: r.autonomyArmed ?? false,
@@ -68,6 +69,7 @@ export class InMemoryRegistry implements Registry {
   async listRents(filter?: RentFilter): Promise<Rent[]> {
     let out = [...this.rents.values()];
     if (filter?.userId) out = out.filter((r) => r.userId === filter.userId);
+    if (filter?.agentId) out = out.filter((r) => r.agentId === filter.agentId);
     if (filter?.providerId) out = out.filter((r) => r.providerId === filter.providerId);
     if (filter?.status) out = out.filter((r) => r.status === filter.status);
     return out;

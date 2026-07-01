@@ -12,7 +12,7 @@ test("a queued lease provisions then charges across passes, completing at its es
     region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001,
     computeScore: 90, avgLatencyMs: 5,
   });
-  await reg.createRent({ name: "demo", userId: "u1", spec: { resourceType: "GPU", region: null }, estimatedUsage: 2 });
+  await reg.createRent({ name: "demo", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null }, estimatedUsage: 2 });
 
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 10_000n });
   let clock = 1_000_000;

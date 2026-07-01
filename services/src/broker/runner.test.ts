@@ -13,7 +13,7 @@ const base: Pick<NewProvider, "ownerWallet" | "endpointUrl" | "specs" | "avgLate
 async function seeded() {
   const reg = new InMemoryRegistry();
   await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 95 });
-  const rent = await reg.createRent({ name: "train", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
+  const rent = await reg.createRent({ name: "train", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
   return { reg, rent };
 }
 
@@ -39,7 +39,7 @@ test("cancel finalizes the rent as cancelled", async () => {
 
 test("no matching provider fails the rent without spending", async () => {
   const reg = new InMemoryRegistry();
-  const rent = await reg.createRent({ name: "x", userId: "u1", spec: { resourceType: "Storage", region: null } });
+  const rent = await reg.createRent({ name: "x", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "Storage", region: null } });
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 100_000n });
   const result = await runRent(rent.id, { registry: reg, settlement }, { maxUnits: 3 });
   expect(result.stoppedBy).toBe("no-provider");
@@ -50,7 +50,7 @@ test("no matching provider fails the rent without spending", async () => {
 test("autonomy: finalizes failed when the only provider degrades with no alternative", async () => {
   const reg = new InMemoryRegistry();
   await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 95 });
-  const rent = await reg.createRent({ name: "x", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
+  const rent = await reg.createRent({ name: "x", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 
   // An adapter that always throws a non-cap error: the provider never serves.
   const failing: SettlementAdapter = {
@@ -71,7 +71,7 @@ test("autonomy: a held-then-recovered provider finishes completed on the same pr
   void decideMigrateOrHold;
   const reg = new InMemoryRegistry();
   await reg.registerProvider({ ...base, alias: "A", resourceType: "GPU", region: "US-East", online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 95 });
-  const rent = await reg.createRent({ name: "x", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
+  const rent = await reg.createRent({ name: "x", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
 
   // A fails twice then recovers; the soul holds; default monitor trips at 3, so use a monitor
   // that trips at 2 to exercise the hold path quickly.

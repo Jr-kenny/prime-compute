@@ -46,7 +46,7 @@ export function registryContract(
 
     test("recordDecisionLog persists structured provenance and lists it back", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "log-target" });
-      const rent = await reg.createRent({ name: "log-rent", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const rent = await reg.createRent({ name: "log-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       const log: DecisionLog = {
         decisionId: crypto.randomUUID(),
         soulVersion: "1.2.3",
@@ -97,7 +97,7 @@ export function registryContract(
     test("createRent defaults status to queued and autonomy to false", async () => {
       const rent = await reg.createRent({
         name: "train-x",
-        userId: "u1",
+        owner: { kind: "user", id: "u1", walletAddress: "0x0" },
         spec: { resourceType: "GPU", region: null },
       });
       expect(rent.id).toBeTruthy();
@@ -108,14 +108,38 @@ export function registryContract(
 
     test("updateRent patches fields", async () => {
       const provider = await reg.registerProvider(sampleProvider);
-      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const rent = await reg.createRent({ name: "j", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       const updated = await reg.updateRent(rent.id, { status: "running", providerId: provider.id });
       expect(updated.status).toBe("running");
       expect(updated.providerId).toBe(provider.id);
     });
 
+    test("creates and lists an agent-owned rent", async () => {
+      const rent = await reg.createRent({
+        name: "agent-rent",
+        owner: { kind: "agent", id: "agent-1", walletAddress: "0xagent" },
+        spec: { resourceType: "GPU", region: null },
+      });
+      expect(rent.agentId).toBe("agent-1");
+      expect(rent.userId).toBeNull();
+      const mine = await reg.listRents({ agentId: "agent-1" });
+      expect(mine.map((r) => r.id)).toContain(rent.id);
+      const notMine = await reg.listRents({ userId: "u1" });
+      expect(notMine.map((r) => r.id)).not.toContain(rent.id);
+    }, T);
+
+    test("creates a user-owned rent from a user principal", async () => {
+      const rent = await reg.createRent({
+        name: "user-rent",
+        owner: { kind: "user", id: "u1", walletAddress: "0xuser" },
+        spec: { resourceType: "GPU", region: null },
+      });
+      expect(rent.userId).toBe("u1");
+      expect(rent.agentId).toBeNull();
+    }, T);
+
     test("persists lastChargedAt and leaseAccessToken through updateRent", async () => {
-      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const rent = await reg.createRent({ name: "j", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       expect(rent.lastChargedAt).toBeNull();
       expect(rent.leaseAccessToken).toBeNull();
       const ts = new Date().toISOString();
@@ -129,7 +153,7 @@ export function registryContract(
 
     test("recordCharge + rentCost sums consumed charges exactly", async () => {
       const provider = await reg.registerProvider(sampleProvider);
-      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const rent = await reg.createRent({ name: "j", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, authorizationRef: "a0", settled: false, settlementRef: null });
       await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, authorizationRef: "a1", settled: false, settlementRef: null });
       expect(await reg.rentCost(rent.id)).toBe(200);
@@ -138,7 +162,7 @@ export function registryContract(
 
     test("markChargeSettled flips a charge to settled", async () => {
       const provider = await reg.registerProvider(sampleProvider);
-      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const rent = await reg.createRent({ name: "j", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       const charge = await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, authorizationRef: null, settled: false, settlementRef: "ref-0" });
       await reg.markChargeSettled(charge.id);
       const charges = await reg.listCharges(rent.id);
@@ -148,7 +172,7 @@ export function registryContract(
     test("recordDecision stores candidates + rationale", async () => {
       const a = await reg.registerProvider({ ...sampleProvider, alias: "cand-a" });
       const b = await reg.registerProvider({ ...sampleProvider, alias: "cand-b" });
-      const rent = await reg.createRent({ name: "j", userId: "u1", spec: { resourceType: "GPU", region: null } });
+      const rent = await reg.createRent({ name: "j", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       const d = await reg.recordDecision({
         rentId: rent.id,
         candidates: [{ providerId: b.id, rank: 0 }, { providerId: a.id, rank: 1 }],
@@ -161,8 +185,8 @@ export function registryContract(
 
     test("listRents filters by userId, providerId, and status", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "filter-target" });
-      const a = await reg.createRent({ name: "a", userId: "user-a", spec: { resourceType: "GPU", region: null } });
-      const b = await reg.createRent({ name: "b", userId: "user-b", spec: { resourceType: "GPU", region: null } });
+      const a = await reg.createRent({ name: "a", owner: { kind: "user", id: "user-a", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
+      const b = await reg.createRent({ name: "b", owner: { kind: "user", id: "user-b", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       await reg.updateRent(a.id, { status: "running", providerId: provider.id });
 
       expect((await reg.listRents({ userId: "user-a" })).map((r) => r.id)).toEqual([a.id]);

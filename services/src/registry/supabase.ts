@@ -34,7 +34,8 @@ function toRent(raw: unknown): Rent {
   return {
     id: r.id as string,
     name: r.name as string,
-    userId: r.user_id as string,
+    userId: (r.user_id as string) ?? null,
+    agentId: (r.agent_id as string) ?? null,
     spec: {
       resourceType: r.resource_type as Rent["spec"]["resourceType"],
       region: (r.region as string) ?? null,
@@ -151,7 +152,9 @@ export class SupabaseRegistry implements Registry {
   async createRent(r: NewRent): Promise<Rent> {
     const row = await this.one(
       this.db.from("rents").insert({
-        name: r.name, user_id: r.userId,
+        name: r.name,
+        user_id: r.owner.kind === "user" ? r.owner.id : null,
+        agent_id: r.owner.kind === "agent" ? r.owner.id : null,
         resource_type: r.spec.resourceType, region: r.spec.region,
         required_trust_tier: r.spec.requiredTrustTier ?? "Community",
         estimated_usage: r.estimatedUsage ?? null, autonomy_armed: r.autonomyArmed ?? false,
@@ -170,6 +173,7 @@ export class SupabaseRegistry implements Registry {
   async listRents(filter?: RentFilter): Promise<Rent[]> {
     let q = this.db.from("rents").select();
     if (filter?.userId) q = q.eq("user_id", filter.userId);
+    if (filter?.agentId) q = q.eq("agent_id", filter.agentId);
     if (filter?.providerId) q = q.eq("provider_id", filter.providerId);
     if (filter?.status) q = q.eq("status", filter.status);
     const { data, error } = await q;

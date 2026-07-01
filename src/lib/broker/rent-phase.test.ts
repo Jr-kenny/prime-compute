@@ -6,7 +6,7 @@ import { defaultTrust } from "@services/trust/trust";
 
 function rent(partial: Partial<Rent>): Rent {
   return {
-    id: "r1", name: "n", userId: "u1", spec: { resourceType: "GPU", region: null },
+    id: "r1", name: "n", userId: "u1", agentId: null, spec: { resourceType: "GPU", region: null },
     estimatedUsage: null, autonomyArmed: false, status: "queued", providerId: null,
     totalCost: 0, createdAt: "", startedAt: null, endedAt: null,
     lastChargedAt: null, leaseAccessToken: null, ...partial,

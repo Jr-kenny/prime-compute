@@ -39,7 +39,7 @@ test("a soul-driven migrate persists a structured decision log", async () => {
   const baseP = { ownerWallet: "0x0", resourceType: "GPU" as const, region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001, avgLatencyMs: 5 };
   const a = await reg.registerProvider({ ...baseP, alias: "A", endpointUrl: "http://aaa", computeScore: 99 });
   const b = await reg.registerProvider({ ...baseP, alias: "B", endpointUrl: "http://bbb", computeScore: 80 });
-  const rent = await reg.createRent({ name: "r", userId: "u1", spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
+  const rent = await reg.createRent({ name: "r", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null }, autonomyArmed: true });
   const settlement = urlAdapter(["aaa"]); // A is dead from the first charge
 
   const client: DecideClient = {

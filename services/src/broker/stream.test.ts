@@ -13,7 +13,7 @@ const provider: Provider = {
 };
 
 async function makeRent(reg: InMemoryRegistry): Promise<Rent> {
-  return reg.createRent({ name: "r", userId: "u1", spec: { resourceType: "GPU", region: null } });
+  return reg.createRent({ name: "r", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
 }
 
 test("streams maxUnits, records a charge each, cost is exact", async () => {

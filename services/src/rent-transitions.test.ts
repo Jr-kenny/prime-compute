@@ -7,6 +7,7 @@ function rentWithStatus(status: RentStatus): Rent {
     id: "r1",
     name: "test-rent",
     userId: "u1",
+    agentId: null,
     spec: { resourceType: "GPU", region: null },
     estimatedUsage: null,
     autonomyArmed: false,
