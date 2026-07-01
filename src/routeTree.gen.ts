@@ -19,6 +19,13 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MarketplaceIndexRouteImport } from './routes/marketplace.index'
 import { Route as MarketplaceIdRouteImport } from './routes/marketplace.$id'
+import { Route as ApiV1WalletRouteImport } from './routes/api.v1.wallet'
+import { Route as ApiV1RentsRouteImport } from './routes/api.v1.rents'
+import { Route as ApiV1ProvidersRouteImport } from './routes/api.v1.providers'
+import { Route as ApiV1AgentsRouteImport } from './routes/api.v1.agents'
+import { Route as ApiV1RentsIdRouteImport } from './routes/api.v1.rents.$id'
+import { Route as ApiV1ProvidersMineRouteImport } from './routes/api.v1.providers.mine'
+import { Route as ApiV1RentsIdCancelRouteImport } from './routes/api.v1.rents.$id.cancel'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -70,6 +77,41 @@ const MarketplaceIdRoute = MarketplaceIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => MarketplaceRoute,
 } as any)
+const ApiV1WalletRoute = ApiV1WalletRouteImport.update({
+  id: '/api/v1/wallet',
+  path: '/api/v1/wallet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1RentsRoute = ApiV1RentsRouteImport.update({
+  id: '/api/v1/rents',
+  path: '/api/v1/rents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ProvidersRoute = ApiV1ProvidersRouteImport.update({
+  id: '/api/v1/providers',
+  path: '/api/v1/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1AgentsRoute = ApiV1AgentsRouteImport.update({
+  id: '/api/v1/agents',
+  path: '/api/v1/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1RentsIdRoute = ApiV1RentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1RentsRoute,
+} as any)
+const ApiV1ProvidersMineRoute = ApiV1ProvidersMineRouteImport.update({
+  id: '/mine',
+  path: '/mine',
+  getParentRoute: () => ApiV1ProvidersRoute,
+} as any)
+const ApiV1RentsIdCancelRoute = ApiV1RentsIdCancelRouteImport.update({
+  id: '/cancel',
+  path: '/cancel',
+  getParentRoute: () => ApiV1RentsIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -82,6 +124,13 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/marketplace/$id': typeof MarketplaceIdRoute
   '/marketplace/': typeof MarketplaceIndexRoute
+  '/api/v1/agents': typeof ApiV1AgentsRoute
+  '/api/v1/providers': typeof ApiV1ProvidersRouteWithChildren
+  '/api/v1/rents': typeof ApiV1RentsRouteWithChildren
+  '/api/v1/wallet': typeof ApiV1WalletRoute
+  '/api/v1/providers/mine': typeof ApiV1ProvidersMineRoute
+  '/api/v1/rents/$id': typeof ApiV1RentsIdRouteWithChildren
+  '/api/v1/rents/$id/cancel': typeof ApiV1RentsIdCancelRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -93,6 +142,13 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/marketplace/$id': typeof MarketplaceIdRoute
   '/marketplace': typeof MarketplaceIndexRoute
+  '/api/v1/agents': typeof ApiV1AgentsRoute
+  '/api/v1/providers': typeof ApiV1ProvidersRouteWithChildren
+  '/api/v1/rents': typeof ApiV1RentsRouteWithChildren
+  '/api/v1/wallet': typeof ApiV1WalletRoute
+  '/api/v1/providers/mine': typeof ApiV1ProvidersMineRoute
+  '/api/v1/rents/$id': typeof ApiV1RentsIdRouteWithChildren
+  '/api/v1/rents/$id/cancel': typeof ApiV1RentsIdCancelRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -106,6 +162,13 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/marketplace/$id': typeof MarketplaceIdRoute
   '/marketplace/': typeof MarketplaceIndexRoute
+  '/api/v1/agents': typeof ApiV1AgentsRoute
+  '/api/v1/providers': typeof ApiV1ProvidersRouteWithChildren
+  '/api/v1/rents': typeof ApiV1RentsRouteWithChildren
+  '/api/v1/wallet': typeof ApiV1WalletRoute
+  '/api/v1/providers/mine': typeof ApiV1ProvidersMineRoute
+  '/api/v1/rents/$id': typeof ApiV1RentsIdRouteWithChildren
+  '/api/v1/rents/$id/cancel': typeof ApiV1RentsIdCancelRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -120,6 +183,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/marketplace/$id'
     | '/marketplace/'
+    | '/api/v1/agents'
+    | '/api/v1/providers'
+    | '/api/v1/rents'
+    | '/api/v1/wallet'
+    | '/api/v1/providers/mine'
+    | '/api/v1/rents/$id'
+    | '/api/v1/rents/$id/cancel'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -131,6 +201,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/marketplace/$id'
     | '/marketplace'
+    | '/api/v1/agents'
+    | '/api/v1/providers'
+    | '/api/v1/rents'
+    | '/api/v1/wallet'
+    | '/api/v1/providers/mine'
+    | '/api/v1/rents/$id'
+    | '/api/v1/rents/$id/cancel'
   id:
     | '__root__'
     | '/'
@@ -143,6 +220,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/marketplace/$id'
     | '/marketplace/'
+    | '/api/v1/agents'
+    | '/api/v1/providers'
+    | '/api/v1/rents'
+    | '/api/v1/wallet'
+    | '/api/v1/providers/mine'
+    | '/api/v1/rents/$id'
+    | '/api/v1/rents/$id/cancel'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -154,6 +238,10 @@ export interface RootRouteChildren {
   ProviderRoute: typeof ProviderRoute
   RegisterRoute: typeof RegisterRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiV1AgentsRoute: typeof ApiV1AgentsRoute
+  ApiV1ProvidersRoute: typeof ApiV1ProvidersRouteWithChildren
+  ApiV1RentsRoute: typeof ApiV1RentsRouteWithChildren
+  ApiV1WalletRoute: typeof ApiV1WalletRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -228,6 +316,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketplaceIdRouteImport
       parentRoute: typeof MarketplaceRoute
     }
+    '/api/v1/wallet': {
+      id: '/api/v1/wallet'
+      path: '/api/v1/wallet'
+      fullPath: '/api/v1/wallet'
+      preLoaderRoute: typeof ApiV1WalletRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/rents': {
+      id: '/api/v1/rents'
+      path: '/api/v1/rents'
+      fullPath: '/api/v1/rents'
+      preLoaderRoute: typeof ApiV1RentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/providers': {
+      id: '/api/v1/providers'
+      path: '/api/v1/providers'
+      fullPath: '/api/v1/providers'
+      preLoaderRoute: typeof ApiV1ProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/agents': {
+      id: '/api/v1/agents'
+      path: '/api/v1/agents'
+      fullPath: '/api/v1/agents'
+      preLoaderRoute: typeof ApiV1AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/rents/$id': {
+      id: '/api/v1/rents/$id'
+      path: '/$id'
+      fullPath: '/api/v1/rents/$id'
+      preLoaderRoute: typeof ApiV1RentsIdRouteImport
+      parentRoute: typeof ApiV1RentsRoute
+    }
+    '/api/v1/providers/mine': {
+      id: '/api/v1/providers/mine'
+      path: '/mine'
+      fullPath: '/api/v1/providers/mine'
+      preLoaderRoute: typeof ApiV1ProvidersMineRouteImport
+      parentRoute: typeof ApiV1ProvidersRoute
+    }
+    '/api/v1/rents/$id/cancel': {
+      id: '/api/v1/rents/$id/cancel'
+      path: '/cancel'
+      fullPath: '/api/v1/rents/$id/cancel'
+      preLoaderRoute: typeof ApiV1RentsIdCancelRouteImport
+      parentRoute: typeof ApiV1RentsIdRoute
+    }
   }
 }
 
@@ -245,6 +382,42 @@ const MarketplaceRouteWithChildren = MarketplaceRoute._addFileChildren(
   MarketplaceRouteChildren,
 )
 
+interface ApiV1ProvidersRouteChildren {
+  ApiV1ProvidersMineRoute: typeof ApiV1ProvidersMineRoute
+}
+
+const ApiV1ProvidersRouteChildren: ApiV1ProvidersRouteChildren = {
+  ApiV1ProvidersMineRoute: ApiV1ProvidersMineRoute,
+}
+
+const ApiV1ProvidersRouteWithChildren = ApiV1ProvidersRoute._addFileChildren(
+  ApiV1ProvidersRouteChildren,
+)
+
+interface ApiV1RentsIdRouteChildren {
+  ApiV1RentsIdCancelRoute: typeof ApiV1RentsIdCancelRoute
+}
+
+const ApiV1RentsIdRouteChildren: ApiV1RentsIdRouteChildren = {
+  ApiV1RentsIdCancelRoute: ApiV1RentsIdCancelRoute,
+}
+
+const ApiV1RentsIdRouteWithChildren = ApiV1RentsIdRoute._addFileChildren(
+  ApiV1RentsIdRouteChildren,
+)
+
+interface ApiV1RentsRouteChildren {
+  ApiV1RentsIdRoute: typeof ApiV1RentsIdRouteWithChildren
+}
+
+const ApiV1RentsRouteChildren: ApiV1RentsRouteChildren = {
+  ApiV1RentsIdRoute: ApiV1RentsIdRouteWithChildren,
+}
+
+const ApiV1RentsRouteWithChildren = ApiV1RentsRoute._addFileChildren(
+  ApiV1RentsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
@@ -254,6 +427,10 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderRoute: ProviderRoute,
   RegisterRoute: RegisterRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiV1AgentsRoute: ApiV1AgentsRoute,
+  ApiV1ProvidersRoute: ApiV1ProvidersRouteWithChildren,
+  ApiV1RentsRoute: ApiV1RentsRouteWithChildren,
+  ApiV1WalletRoute: ApiV1WalletRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
