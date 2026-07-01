@@ -1,5 +1,11 @@
 import type { Tier, TrustProfile } from "./trust/trust";
 
+// A caller the service layer acts on behalf of. Two authenticators (requireUser, requireAgent)
+// resolve to one of these, so every operation has a single principal-shaped implementation.
+export type Principal =
+  | { kind: "user"; id: string; walletAddress: string }
+  | { kind: "agent"; id: string; walletAddress: string };
+
 export type ResourceType = "GPU" | "CPU" | "Storage" | "Full Server";
 export type RentStatus =
   | "queued"
@@ -34,7 +40,8 @@ export type RentSpec = {
 export type Rent = {
   id: string;
   name: string;
-  userId: string;
+  userId: string | null;
+  agentId: string | null;
   spec: RentSpec;
   estimatedUsage: number | null;
   autonomyArmed: boolean;
