@@ -45,18 +45,21 @@ DB is shared with PrimeBot; every new table is namespaced to this app and unrefe
   `created_at`, `last_used_at timestamptz`, `revoked_at timestamptz`). Keys are stored hashed (SHA-256 of a
   high-entropy random token). An agent can hold several; rotation is issue-new then revoke-old; `revoked_at`
   is an instant kill switch.
-- `rents` and `providers`: `user_id` becomes nullable and a nullable `agent_id text` is added, with a check
-  constraint that exactly one of the two is set. No generic `owner_type/owner_id` abstraction: with only two
-  principal types, explicit columns are clearer, and we generalize only if a third type (orgs, teams) ever
-  appears. Migration is additive plus the null-relaxation and check.
+- `rents`: `user_id` becomes nullable and a nullable `agent_id text` is added, with a check constraint that
+  exactly one of the two is set. No generic `owner_type/owner_id` abstraction: with only two principal types,
+  explicit columns are clearer, and we generalize only if a third type (orgs, teams) ever appears. Migration
+  is additive plus the null-relaxation and check.
+- `providers` need no schema change: they are already owned purely by `owner_wallet` (there is no `user_id`
+  column). An agent registers with its own wallet as `ownerWallet`, and "my servers" is
+  `listProviders({ ownerWallet })`. This is why only rents carry an explicit `agent_id`.
 
 Domain and registry changes that follow:
 
-- `Rent` and `Provider` gain `agentId: string | null`; `userId` becomes `string | null`.
-- `NewRent`/`NewProvider` take `owner: Principal` instead of a bare `userId`; the registry maps it to the
-  right column.
-- `RentFilter`/`ProviderFilter` gain `agentId`. The in-memory and Supabase registries and their shared
-  contract are updated together.
+- `Rent` gains `agentId: string | null`; `userId` becomes `string | null`. `Provider` is unchanged (wallet-owned).
+- `NewRent` takes `owner: Principal` instead of a bare `userId`; the registry maps it to `user_id` or
+  `agent_id`. `NewProvider` is unchanged; `registerProviderFor` just sets `ownerWallet` from the principal.
+- `RentFilter` gains `agentId` (provider filtering already supports `ownerWallet`). The in-memory and Supabase
+  registries and their shared contract are updated together.
 - The metering worker is untouched: it only reads and advances existing leases and never cares who owns
   them. The added nullable field flows through its reads transparently.
 
