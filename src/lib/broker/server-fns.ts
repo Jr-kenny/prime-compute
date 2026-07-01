@@ -2,9 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRegistry } from "./registry";
 import { requireUser } from "../auth/require-user";
 import { defaultTrust } from "@services/trust/trust";
-import { canPause, canResume, canCancel } from "@services/rent-transitions";
+import { canPause, canResume } from "@services/rent-transitions";
 import type { NewProvider, RentPatch } from "@services/registry/registry";
-import type { Rent, RentSpec } from "@services/domain";
+import type { Principal, Rent, RentSpec } from "@services/domain";
+import {
+  createRentFor, listRentsFor, getRentFor, cancelRentFor, registerProviderFor, listMyProvidersFor,
+} from "@/lib/marketplace/service";
+
+// Humans are just one principal type; resolve the session to a Principal and use the shared service.
+function userPrincipal(user: { id: string; walletAddress: string }): Principal {
+  return { kind: "user", id: user.id, walletAddress: user.walletAddress };
+}
 import { loadBrokerAgent } from "./agent";
 import { decide, makeDecideClient, type DecideClient } from "@services/runtime/decide";
 import type { DecisionContext } from "@services/runtime/types";
@@ -27,7 +35,7 @@ export const listMyRents = createServerFn({ method: "GET" })
   .validator((d: { accessToken: string }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
-    return getRegistry().listRents({ userId: user.id });
+    return listRentsFor(getRegistry(), userPrincipal(user));
   });
 
 // One lease by id, but only if the caller owns it. Returns null (not a throw) for a missing or
@@ -36,16 +44,14 @@ export const getMyRent = createServerFn({ method: "GET", strict: { output: false
   .validator((d: { accessToken: string; rentId: string }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
-    const rent = await getRegistry().getRent(data.rentId);
-    if (!rent || rent.userId !== user.id) return null;
-    return rent;
+    return getRentFor(getRegistry(), userPrincipal(user), data.rentId);
   });
 
 export const listMyProviders = createServerFn({ method: "GET", strict: { output: false } })
   .validator((d: { accessToken: string }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
-    return getRegistry().listProviders({ ownerWallet: user.walletAddress });
+    return listMyProvidersFor(getRegistry(), userPrincipal(user));
   });
 
 export const listProviderRents = createServerFn({ method: "GET" })
@@ -62,9 +68,8 @@ export const registerProvider = createServerFn({ method: "POST", strict: false }
   .validator((d: { accessToken: string; provider: NewProviderInput }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
-    return getRegistry().registerProvider({
+    return registerProviderFor(getRegistry(), userPrincipal(user), {
       ...data.provider,
-      ownerWallet: user.walletAddress,
       trust: defaultTrust(),
       online: true,
       avgLatencyMs: 0,
@@ -75,9 +80,8 @@ export const createRent = createServerFn({ method: "POST" })
   .validator((d: { accessToken: string; name: string; spec: RentSpec; estimatedUsage?: number | null }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
-    return getRegistry().createRent({
+    return createRentFor(getRegistry(), userPrincipal(user), {
       name: data.name,
-      owner: { kind: "user", id: user.id, walletAddress: user.walletAddress },
       spec: data.spec,
       estimatedUsage: data.estimatedUsage ?? null,
     });
@@ -113,12 +117,10 @@ export const resumeRent = createServerFn({ method: "POST" })
 
 export const cancelRent = createServerFn({ method: "POST" })
   .validator((d: { accessToken: string; rentId: string }) => d)
-  .handler(async ({ data }) =>
-    transitionRent(data.accessToken, data.rentId, canCancel, "cancel", {
-      status: "cancelled",
-      endedAt: new Date().toISOString(),
-    }),
-  );
+  .handler(async ({ data }) => {
+    const user = await requireUser(data.accessToken);
+    return cancelRentFor(getRegistry(), userPrincipal(user), data.rentId);
+  });
 
 // Build the model client, or null if LLM_* isn't configured. makeDecideClient() throws
 // eagerly on missing config (loadConfig throws), which would 500 the chat before decide()'s
