@@ -18,6 +18,7 @@ This implements `docs/superpowers/specs/2026-07-01-agent-facing-marketplace-api-
 - `services/supabase/migrations/0008_agents.sql` - agents/agent_wallets/agent_api_keys tables + rents ownership columns.
 - `services/src/wallet/supabase-store.ts` - generalize the Supabase wallet store to a configurable table/id column.
 - `services/src/registry/*` - `NewRent` takes `owner: Principal`; `RentFilter` gains `agentId`; both impls + contract.
+- `services/src/worker/settlement-factory.ts` + `worker/index.ts` - resolve the lease payer by owner (agent leases pay from `agent_wallets`, user leases from `spend_wallets`). Correction to the spec's "worker untouched": the payer lookup was keyed on `rent.userId`, which is null for agent leases.
 - `src/lib/agents/keys.ts` - `generateApiKey` + `hashApiKey` (pure, Web Crypto).
 - `src/lib/agents/store.ts` - `createAgent` and `requireAgent` (Supabase-backed, returns a `Principal`).
 - `src/lib/marketplace/service.ts` - the principal-parameterized service layer (rent + provider + wallet ops).

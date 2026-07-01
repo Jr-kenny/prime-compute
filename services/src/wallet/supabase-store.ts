@@ -3,43 +3,52 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encryptSecret, decryptSecret } from "./crypto";
 import type { SpendWalletStore, SpendWallet, SpendSigner } from "./store";
 
-export class SupabaseSpendWalletStore implements SpendWalletStore {
-  constructor(private db: SupabaseClient, private encKey: string) {}
+type StoreOpts = { table?: string; idColumn?: string };
 
-  async getOrCreate(userId: string): Promise<SpendWallet> {
-    const found = await this.getAddress(userId);
+// One wallet per principal id. Defaults to the user spend-wallet table; pass opts to back a
+// different principal (e.g. agents). The encrypted key never leaves the server/worker.
+export class SupabaseSpendWalletStore implements SpendWalletStore {
+  private table: string;
+  private idColumn: string;
+  constructor(private db: SupabaseClient, private encKey: string, opts: StoreOpts = {}) {
+    this.table = opts.table ?? "spend_wallets";
+    this.idColumn = opts.idColumn ?? "user_id";
+  }
+
+  async getOrCreate(id: string): Promise<SpendWallet> {
+    const found = await this.getAddress(id);
     if (found) return { address: found };
 
     const pk = generatePrivateKey();
     const address = privateKeyToAccount(pk).address;
     const enc_private_key = await encryptSecret(pk, this.encKey);
     const { error } = await this.db
-      .from("spend_wallets")
-      .insert({ user_id: userId, address, enc_private_key });
+      .from(this.table)
+      .insert({ [this.idColumn]: id, address, enc_private_key });
     // A concurrent create may have won the race; re-read rather than fail.
     if (error) {
-      const again = await this.getAddress(userId);
+      const again = await this.getAddress(id);
       if (again) return { address: again };
       throw error;
     }
     return { address };
   }
 
-  async getAddress(userId: string): Promise<string | null> {
+  async getAddress(id: string): Promise<string | null> {
     const { data, error } = await this.db
-      .from("spend_wallets")
+      .from(this.table)
       .select("address")
-      .eq("user_id", userId)
+      .eq(this.idColumn, id)
       .maybeSingle();
     if (error) throw error;
     return (data?.address as string | undefined) ?? null;
   }
 
-  async loadSigner(userId: string): Promise<SpendSigner | null> {
+  async loadSigner(id: string): Promise<SpendSigner | null> {
     const { data, error } = await this.db
-      .from("spend_wallets")
+      .from(this.table)
       .select("address, enc_private_key")
-      .eq("user_id", userId)
+      .eq(this.idColumn, id)
       .maybeSingle();
     if (error) throw error;
     if (!data) return null;
