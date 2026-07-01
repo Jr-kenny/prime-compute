@@ -146,6 +146,7 @@ function StatusBadge({ status }: { status: RentStatus }) {
     running: "bg-primary/15 text-glow border-primary/30",
     paused: "bg-muted/40 text-muted-foreground border-border",
     queued: "bg-muted/40 text-muted-foreground border-border",
+    suspended: "bg-warning/15 text-warning border-warning/30",
   };
   return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${map[status]}`}>{status}</span>;
 }

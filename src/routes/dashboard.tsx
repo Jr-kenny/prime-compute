@@ -242,6 +242,25 @@ function RentDetailSheet({
                 </div>
               </div>
             </div>
+            {rent.status === "running" && rent.leaseAccessToken && (
+              <div className="glass-card p-4 space-y-2">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Connect</div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Endpoint</span>
+                    <span className="font-mono truncate">{provider?.endpointUrl ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Access token</span>
+                    <span className="font-mono truncate">{rent.leaseAccessToken}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground">
+              Charged so far{" "}
+              <span className="font-mono text-foreground">${(rent.totalCost / 1_000_000).toFixed(6)}</span>
+            </div>
             <div className="flex gap-2">
               {canPause(rent) && (
                 <Button variant="ghost" className="flex-1 border border-border" disabled={mutating} onClick={() => mutate(pauseRent)}>
@@ -279,6 +298,7 @@ function StatusBadge({ status }: { status: RentStatus }) {
     running: "bg-primary/15 text-glow border-primary/30",
     paused: "bg-muted/40 text-muted-foreground border-border",
     queued: "bg-muted/40 text-muted-foreground border-border",
+    suspended: "bg-warning/15 text-warning border-warning/30",
   };
   return (
     <span
