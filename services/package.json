@@ -9,6 +9,7 @@
     "probe:circle-signer": "bun run probes/circle-signer.ts",
     "probe:circle-signer:setup": "bun run probes/circle-signer-setup.ts",
     "circle:setup": "bun run scripts/circle-setup.ts",
+    "circle:roundtrip": "bun run scripts/circle-roundtrip.ts",
     "probe:x402": "bun run probes/x402-roundtrip.ts",
     "rank:soul": "bun run probes/rank-soul.ts",
     "soul:divergence": "bun run probes/soul-divergence.ts",
