@@ -282,6 +282,14 @@ export class SupabaseRegistry implements Registry {
     return (data ?? []).map((r) => toCharge(r));
   }
 
+  async listOutstandingFeeCharges(providerId: string): Promise<Charge[]> {
+    const { data, error } = await this.db.from("charges").select("*")
+      .eq("provider_id", providerId).gt("fee_amount", 0).is("fee_settlement_ref", null)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(`listOutstandingFeeCharges: ${error.message}`);
+    return (data ?? []).map((r) => toCharge(r));
+  }
+
   async rentCost(rentId: string): Promise<number> {
     // Gross: what the renter spent — provider payments plus streamed platform fees.
     const { data, error } = await this.db.from("charges").select("amount, fee_amount").eq("rent_id", rentId);

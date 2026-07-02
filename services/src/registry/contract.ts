@@ -214,6 +214,27 @@ export function registryContract(
       expect((await reg.listRents()).map((r) => r.id).sort()).toEqual([a.id, b.id].sort());
     }, T);
 
+    test("listOutstandingFeeCharges returns unstamped fee charges for one provider, oldest first", async () => {
+      const provider = await reg.registerProvider({
+        alias: "recv-p", ownerWallet: "0xs", endpointUrl: "http://x", resourceType: "GPU", region: "US-East",
+        specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001, avgLatencyMs: 1,
+      });
+      const other = await reg.registerProvider({
+        alias: "recv-q", ownerWallet: "0xs", endpointUrl: "http://y", resourceType: "GPU", region: "US-East",
+        specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001, avgLatencyMs: 1,
+      });
+      const rent = await reg.createRent({ name: "recv-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
+      // seq 0: outstanding; seq 1: already stamped; seq 2: zero fee; seq 3: other provider.
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, feeAmount: 1, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, feeAmount: 2, feeSettlementRef: "0xdone", authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 2, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: other.id, seq: 3, amount: 100, feeAmount: 5, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 4, amount: 100, feeAmount: 3, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+
+      const outstanding = await reg.listOutstandingFeeCharges(provider.id);
+      expect(outstanding.map((c) => c.feeAmount)).toEqual([1, 3]); // oldest first, only unstamped fee > 0, only this provider
+    }, T);
+
     test("listProviders filters by ownerWallet", async () => {
       await reg.registerProvider({ ...sampleProvider, alias: "mine-1", ownerWallet: "0xowner" });
       await reg.registerProvider({ ...sampleProvider, alias: "theirs-1", ownerWallet: "0xother" });
