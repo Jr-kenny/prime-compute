@@ -28,7 +28,7 @@ if (treasury && remitUrl && providerId && feeBps > 0) {
   const gateway = new GatewayClient({ chain: "arcTestnet", privateKey: key });
   const remitter = createFeeRemitter({
     feeBps,
-    thresholdAtomic: BigInt(process.env.FEE_REMIT_THRESHOLD_ATOMIC ?? "10000"), // $0.01
+    thresholdAtomic: BigInt(process.env.FEE_REMIT_THRESHOLD_ATOMIC ?? "100000"), // $0.10 (withdraw fee is ~0.0035 USDC)
     withdraw: async (atomic) => {
       const res = await gateway.withdraw((Number(atomic) / 1_000_000).toString(), {
         recipient: treasury,
