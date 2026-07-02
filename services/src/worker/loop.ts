@@ -4,7 +4,6 @@ import type { Rent } from "../domain";
 import type { RankStrategy } from "../broker/matching";
 import type { SettlementFactory } from "./settlement-factory";
 import { provisionLease, meterTick } from "./meter";
-import { sweepFees } from "./sweep";
 
 export type WorkerDeps = {
   registry: Registry;
@@ -13,7 +12,7 @@ export type WorkerDeps = {
   tickMs: number;
   defaultMaxUnits: number;
   nowMs?: () => number;
-  feeBaseUrl?: string; // the worker's own fee endpoint; unset = platform fees disabled
+  feeBps?: number; // platform fee (basis points) recorded as a receivable per charge
 };
 
 // estimatedUsage is the lease's unit budget; fall back to a sane default when unset.
@@ -41,28 +40,9 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
     try {
       const maxUnits = budget(rent, deps.defaultMaxUnits);
       const settlement = await deps.settlementFor(rent, maxUnits);
-      await meterTick(rent.id, { registry, settlement, tickMs: deps.tickMs, maxUnits, nowMs: deps.nowMs, feeBaseUrl: deps.feeBaseUrl });
+      await meterTick(rent.id, { registry, settlement, tickMs: deps.tickMs, maxUnits, nowMs: deps.nowMs, feeBps: deps.feeBps });
     } catch (e) {
       console.error(`[worker] tick ${rent.id} failed:`, e instanceof Error ? e.message : e);
-    }
-  }
-
-  // Terminal catch-up: collect fee ticks whose live payment failed, via the same rail.
-  if (deps.feeBaseUrl) {
-    const feeBaseUrl = deps.feeBaseUrl;
-    for (const status of ["completed", "cancelled", "failed"] as const) {
-      for (const rent of await registry.listRents({ status })) {
-        if (rent.feesSweptAt) continue;
-        try {
-          const settlement = await deps.settlementFor(rent, budget(rent, deps.defaultMaxUnits));
-          await sweepFees(rent.id, {
-            registry,
-            payFee: async (_r, atomic) => (await settlement.payForCompute(`${feeBaseUrl}/fee/${atomic}`)).settlementRef,
-          });
-        } catch (e) {
-          console.error(`[worker] fee sweep failed for ${rent.id}:`, e instanceof Error ? e.message : e);
-        }
-      }
     }
   }
 }

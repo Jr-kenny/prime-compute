@@ -124,7 +124,6 @@ export class InMemoryRegistry implements Registry {
   }
 
   async rentCost(rentId: string): Promise<number> {
-    // Gross: what the renter spent — provider payments plus streamed platform fees.
-    return this.charges.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount + t.feeAmount, 0);
+    return this.charges.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount, 0);
   }
 }

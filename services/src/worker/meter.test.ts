@@ -81,38 +81,31 @@ function fakeSettlementSeq(urls: string[], results: (bigint | Error)[]) {
   };
 }
 
-test("meterTick streams the fee as its own nano-payment and records both refs", async () => {
-  const { reg, rent } = await seed(); // gross = 100 atomic
+test("meterTick makes ONE gross payment and records the fee as a receivable", async () => {
+  const { reg, rent } = await seed(); // provider gross = 100 atomic
   await reg.updateRent(rent.id, { status: "running", providerId: (await reg.listProviders())[0]!.id, startedAt: new Date().toISOString() });
   const paidUrls: string[] = [];
-  const settlement = fakeSettlementSeq(paidUrls, [99n, 1n]); // provider net, then the fee
-  const r = await meterTick(rent.id, { registry: reg, settlement, tickMs: 1000, maxUnits: 10, nowMs: () => 5, feeBaseUrl: "http://worker:9999" });
+  const settlement = fakeSettlementSeq(paidUrls, [100n]); // one payment, at gross
+  const r = await meterTick(rent.id, { registry: reg, settlement, tickMs: 1000, maxUnits: 10, nowMs: () => 5, feeBps: 100 });
   expect(r.charged).toBe(true);
+  expect(paidUrls.length).toBe(1); // no second payment, ever
   const [charge] = await reg.listCharges(rent.id);
-  expect(charge?.amount).toBe(99);
-  expect(charge?.feeAmount).toBe(1);
-  expect(charge?.feeSettlementRef).toBeTruthy();
-  expect(paidUrls[1]).toBe("http://worker:9999/fee/1");
-  expect((await reg.getRent(rent.id))?.totalCost).toBe(100); // renter sees gross
+  expect(charge?.amount).toBe(100);
+  expect(charge?.feeAmount).toBe(1); // floor(100 * 100 / 10000) — a receivable, not a payment
+  expect(charge?.feeSettlementRef).toBeNull(); // stamped later by a remittance
+  expect((await reg.getRent(rent.id))?.totalCost).toBe(100); // renter spend only; see the rentCost note below
 });
 
-test("a failed fee payment doesn't block the provider stream; ref stays null for the sweep", async () => {
+test("fee receivable floors and zero-bps records zero", async () => {
   const { reg, rent } = await seed();
   await reg.updateRent(rent.id, { status: "running", providerId: (await reg.listProviders())[0]!.id, startedAt: new Date().toISOString() });
-  const settlement = fakeSettlementSeq([], [99n, new Error("fee endpoint down")]);
-  const r = await meterTick(rent.id, { registry: reg, settlement, tickMs: 1000, maxUnits: 10, nowMs: () => 5, feeBaseUrl: "http://worker:9999" });
-  expect(r.charged).toBe(true);
-  const [charge] = await reg.listCharges(rent.id);
-  expect(charge?.feeAmount).toBe(1);
-  expect(charge?.feeSettlementRef).toBeNull();
-});
+  const settlement = fakeSettlementSeq([], [99n]);
+  await meterTick(rent.id, { registry: reg, settlement, tickMs: 1000, maxUnits: 10, nowMs: () => 5, feeBps: 100 });
+  expect((await reg.listCharges(rent.id))[0]?.feeAmount).toBe(0); // floor(99/100) = 0
 
-test("zero fee (legacy gross endpoint) skips the fee payment entirely", async () => {
-  const { reg, rent } = await seed();
-  await reg.updateRent(rent.id, { status: "running", providerId: (await reg.listProviders())[0]!.id, startedAt: new Date().toISOString() });
-  const paidUrls: string[] = [];
-  const settlement = fakeSettlementSeq(paidUrls, [100n]);
-  await meterTick(rent.id, { registry: reg, settlement, tickMs: 1000, maxUnits: 10, nowMs: () => 5, feeBaseUrl: "http://worker:9999" });
-  expect((await reg.listCharges(rent.id))[0]?.feeAmount).toBe(0);
-  expect(paidUrls.length).toBe(1); // no second payment for a zero fee
+  const { reg: reg2, rent: rent2 } = await seed();
+  await reg2.updateRent(rent2.id, { status: "running", providerId: (await reg2.listProviders())[0]!.id, startedAt: new Date().toISOString() });
+  const settlement2 = fakeSettlementSeq([], [100n]);
+  await meterTick(rent2.id, { registry: reg2, settlement: settlement2, tickMs: 1000, maxUnits: 10, nowMs: () => 5 }); // no feeBps
+  expect((await reg2.listCharges(rent2.id))[0]?.feeAmount).toBe(0);
 });

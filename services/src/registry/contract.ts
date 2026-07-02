@@ -160,14 +160,14 @@ export function registryContract(
       expect((await reg.listCharges(rent.id)).length).toBe(2);
     });
 
-    test("recordCharge persists feeAmount and rentCost sums amount + fee", async () => {
+    test("recordCharge persists feeAmount; rentCost is what the renter paid", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "fee-p" });
       const rent = await reg.createRent({ name: "fee-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 99, feeAmount: 1, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
       const [c] = await reg.listCharges(rent.id);
       expect(c?.feeAmount).toBe(1);
       expect(c?.feeSettlementRef).toBeNull();
-      expect(await reg.rentCost(rent.id)).toBe(100); // gross: what the renter spent
+      expect(await reg.rentCost(rent.id)).toBe(99);
       await reg.markChargeFeeSettled(c!.id, "fee-batch-1");
       expect((await reg.listCharges(rent.id))[0]?.feeSettlementRef).toBe("fee-batch-1");
     }, T);

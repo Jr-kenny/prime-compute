@@ -291,10 +291,9 @@ export class SupabaseRegistry implements Registry {
   }
 
   async rentCost(rentId: string): Promise<number> {
-    // Gross: what the renter spent — provider payments plus streamed platform fees.
-    const { data, error } = await this.db.from("charges").select("amount, fee_amount").eq("rent_id", rentId);
+    const { data, error } = await this.db.from("charges").select("amount").eq("rent_id", rentId);
     if (error) throw new Error(`rentCost: ${error.message}`);
-    return (data ?? []).reduce((s, r) => s + Number((r as Row).amount) + Number((r as Row).fee_amount ?? 0), 0);
+    return (data ?? []).reduce((s, r) => s + Number((r as Row).amount), 0);
   }
 
   async markChargeFeeSettled(chargeId: string, ref: string): Promise<void> {

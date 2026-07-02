@@ -63,7 +63,7 @@ export type TickDeps = {
   tickMs: number;          // minimum ms between charges for one lease
   maxUnits: number;        // budget bound
   nowMs?: () => number;    // injectable clock (tests)
-  feeBaseUrl?: string;     // the worker's own fee endpoint; unset = platform fees disabled
+  feeBps?: number;         // platform fee in basis points; recorded as a receivable, never paid here
 };
 
 export type TickResult = { charged: boolean; status: RentStatus | "missing"; reason: string };
@@ -99,26 +99,16 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   const url = `${provider.endpointUrl}/compute?session=${rent.id}`;
   try {
     const paid = await settlement.payForCompute(url);
-    const grossAtomic = Math.round(provider.pricePerCharge * 1_000_000);
     const paidAtomic = Number(paid.amountAtomic);
-    // Provider-side fee: the renter pays at most the listed gross; the provider's endpoint
-    // demands net, and the difference is the platform's — streamed as its own nano-payment
-    // to the worker's fee endpoint, from the same Gateway balance, same adapter. A legacy
-    // endpoint that still charges gross yields zero fee; the renter never overpays.
-    const feeAtomic = Math.max(0, grossAtomic - paidAtomic);
-    let feeSettlementRef: string | null = null;
-    if (feeAtomic > 0 && deps.feeBaseUrl) {
-      try {
-        const feePaid = await settlement.payForCompute(`${deps.feeBaseUrl}/fee/${feeAtomic}`);
-        feeSettlementRef = feePaid.settlementRef || null;
-      } catch (e) {
-        // Never block the provider stream on the fee leg; the terminal sweep collects it.
-        console.warn(`[meter] fee payment failed for ${rentId}:`, e instanceof Error ? e.message : e);
-      }
-    }
+    // The platform fee is a RECEIVABLE the provider owes from this payment (they received
+    // gross; they remit fee from their Gateway earnings). Nothing extra leaves the renter,
+    // and no second payment happens here. fee_settlement_ref is stamped when a verified
+    // remittance covers this charge.
+    const feeAtomic = Math.floor((paidAtomic * (deps.feeBps ?? 0)) / 10_000);
     await registry.recordCharge({
       rentId, providerId: provider.id, seq: charges.length,
-      amount: paidAtomic, feeAmount: feeAtomic, feeSettlementRef, authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
+      amount: paidAtomic, feeAmount: feeAtomic, feeSettlementRef: null,
+      authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
     });
     await registry.updateRent(rentId, {
       totalCost: await registry.rentCost(rentId),
