@@ -17,7 +17,6 @@ const app = createProviderApp({
   executor: new SimulatedExecutor({ hasGpu }),
   sellerAddress,
   price,
-  platformFeeBps: Number(process.env.PLATFORM_FEE_BPS ?? "100"),
   facilitatorUrl,
   meta: {
     alias: process.env.PROVIDER_ALIAS ?? "node-local-1",

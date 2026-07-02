@@ -21,7 +21,6 @@ const app = createProviderApp({
   executor: new SimulatedExecutor(),
   sellerAddress: process.env.PROVIDER_OWNER_WALLET ?? address,
   price: "$0.0001",
-  platformFeeBps: 100,
   facilitatorUrl: "https://gateway-api-testnet.circle.com",
   meta: { alias: "circle-rt", resourceType: "GPU", region: "US-East", specs: {} },
 });
@@ -38,4 +37,4 @@ const paid = await adapter.payForCompute("http://localhost:4111/compute?session=
 console.log("paid:", paid.amountAtomic, "ref:", paid.settlementRef);
 console.log("[4] reconcile:", await adapter.reconcile(paid.settlementRef));
 server.close();
-console.log("✅ Circle-custodied wallet paid a real x402 charge (net of the 1% fee).");
+console.log("✅ Circle-custodied wallet paid a real x402 charge (gross; fee is remitted provider-side).");
