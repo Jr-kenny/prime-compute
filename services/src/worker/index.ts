@@ -36,7 +36,24 @@ try {
   console.warn("[worker] LLM_* not configured; using the deterministic ranker");
 }
 
-const deps: WorkerDeps = { registry, settlementFor, rank, tickMs: TICK_MS, defaultMaxUnits: DEFAULT_MAX_UNITS };
+// The platform's own revenue endpoint: fee nano-payments settle to the treasury through
+// the same Gateway rail the providers use. Loopback-only; the meter is its only caller.
+import { createServer } from "node:http";
+import { createFeeApp } from "./fee-app";
+
+const treasury = process.env.PLATFORM_TREASURY_ADDRESS;
+const feePort = Number(process.env.WORKER_FEE_PORT ?? "8788");
+let feeBaseUrl: string | undefined;
+if (treasury) {
+  const feeApp = createFeeApp({ treasury, facilitatorUrl: "https://gateway-api-testnet.circle.com" });
+  createServer(feeApp).listen(feePort, "127.0.0.1");
+  feeBaseUrl = `http://127.0.0.1:${feePort}`;
+  console.log(`[worker] fee endpoint on :${feePort} -> treasury ${treasury}`);
+} else {
+  console.warn("[worker] PLATFORM_TREASURY_ADDRESS unset; platform fees disabled");
+}
+
+const deps: WorkerDeps = { registry, settlementFor, rank, tickMs: TICK_MS, defaultMaxUnits: DEFAULT_MAX_UNITS, feeBaseUrl };
 
 let running = false;
 async function tick() {
