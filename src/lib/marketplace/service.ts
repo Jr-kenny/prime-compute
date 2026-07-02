@@ -2,7 +2,7 @@
 import type { Registry, NewProvider } from "@services/registry/registry";
 import type { Principal, Rent, Provider, RentSpec } from "@services/domain";
 import { canCancel } from "@services/rent-transitions";
-import { walletStoreFor } from "./wallet";
+import { walletProviderFor, liveWalletDeps } from "./wallet";
 
 export type NewRentInput = { name: string; spec: RentSpec; estimatedUsage?: number | null };
 // Provider input minus the fields the service derives (ownerWallet from the principal).
@@ -41,6 +41,5 @@ export function listMyProvidersFor(reg: Registry, principal: Principal): Promise
 }
 
 export async function walletFor(principal: Principal): Promise<{ address: string }> {
-  const store = walletStoreFor(principal);
-  return store.getOrCreate(principal.id);
+  return walletProviderFor(principal, liveWalletDeps(principal)).getOrCreate();
 }
