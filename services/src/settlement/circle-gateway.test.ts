@@ -5,7 +5,7 @@ import { SpendCapError } from "./spend-policy";
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64");
 const requirement = {
-  scheme: "exact", network: "eip155:5042002", asset: "0xusdc", amount: "99", payTo: "0xseller",
+  scheme: "exact", network: "eip155:5042002", asset: "0xusdc", amount: "99", payTo: "0x000000000000000000000000000000000000dEaD",
   maxTimeoutSeconds: 60, extra: { name: "GatewayWalletBatched", version: "1", verifyingContract: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" },
 };
 
@@ -36,7 +36,7 @@ function paywalledFetch() {
 }
 
 const opts = (over: Partial<CircleGatewayOptions> = {}): CircleGatewayOptions => ({
-  client: stubCircle(), walletId: "w1", address: "0xbuyer",
+  client: stubCircle(), walletId: "w1", address: "0x5aD0cCd42FE945AFF0C7e64e268f3E82788C2c16",
   capAtomic: 10_000n, usdcAddress: "0xusdc", fetchImpl: paywalledFetch(), ...over,
 });
 
