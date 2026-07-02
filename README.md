@@ -88,9 +88,10 @@ gitignored (they hold wallet keys and service-role credentials). Copy
 - Your Supabase project's URL and service role key.
 
 The frontend's `.env` additionally needs `VITE_SUPABASE_URL` /
-`VITE_SUPABASE_ANON_KEY`, `VITE_CIRCLE_CLIENT_KEY` / `VITE_CIRCLE_CLIENT_URL`
-(Circle Modular Wallets), `VITE_ARC_RPC_URL` / `VITE_ARC_CHAIN_ID`, and a server-side
-`AUTH_NONCE_SECRET` for the passkey auth bridge.
+`VITE_SUPABASE_ANON_KEY`, `VITE_CIRCLE_APP_ID` (the Circle user-controlled wallets
+app that drives the email OTP + PIN login), `VITE_ARC_RPC_URL` / `VITE_ARC_CHAIN_ID`,
+and a server-side `CIRCLE_API_KEY` (same value as `services/.env`) for verifying the
+login token and building treasury challenges.
 
 Each user gets their own Arc spend wallet (the EOA that streams their nano-payments),
 so both the root `.env` and `services/.env` need the non-`VITE` Arc vars (`ARC_RPC_URL`,
