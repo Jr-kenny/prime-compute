@@ -26,3 +26,14 @@ test("SpendCapError carries the reason", () => {
   expect(err.name).toBe("SpendCapError");
   expect(err.message).toBe("over the cap");
 });
+
+test("checkSpend rejects a single charge above maxPerChargeAtomic", () => {
+  const d = checkSpend({ nextAtomic: 101n, spentAtomic: 0n, capAtomic: 10_000n, maxPerChargeAtomic: 100n });
+  expect(d.ok).toBe(false);
+  if (!d.ok) expect(d.reason).toContain("per-charge");
+});
+
+test("checkSpend allows a charge at exactly maxPerChargeAtomic", () => {
+  const d = checkSpend({ nextAtomic: 100n, spentAtomic: 0n, capAtomic: 10_000n, maxPerChargeAtomic: 100n });
+  expect(d.ok).toBe(true);
+});

@@ -5,6 +5,7 @@ import { checkSpend, SpendCapError } from "./spend-policy";
 export type GatewayAdapterOptions = {
   privateKey: `0x${string}`;
   capAtomic: bigint; // per-stream spend cap
+  maxPerChargeAtomic?: bigint; // per-charge ceiling (the listed price)
   chain?: "arcTestnet"; // slice 1 target
   // Custom Arc RPC for the on-chain parts (deposit, balance, withdraw). Point this at the
   // Canteen tokenized Arc endpoint (the hackathon host's RPC) so settlement reads/writes go
@@ -33,7 +34,7 @@ export class GatewaySettlementAdapter implements SettlementAdapter {
     // pay() throw before any EIP-3009 authorization is signed.
     this.client.onBeforePaymentCreation(async (ctx) => {
       const nextAtomic = BigInt(ctx.selectedRequirements.amount);
-      const decision = checkSpend({ nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic });
+      const decision = checkSpend({ nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic, maxPerChargeAtomic: this.opts.maxPerChargeAtomic });
       if (!decision.ok) {
         this.lastAbortReason = decision.reason;
         return { abort: true, reason: decision.reason };
