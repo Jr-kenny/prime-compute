@@ -51,6 +51,7 @@ function toRent(raw: unknown): Rent {
     endedAt: (r.ended_at as string) ?? null,
     lastChargedAt: (r.last_charged_at as string) ?? null,
     leaseAccessToken: (r.lease_access_token as string) ?? null,
+    feesSweptAt: (r.fees_swept_at as string) ?? null,
   };
 }
 
@@ -62,6 +63,8 @@ function toCharge(raw: unknown): Charge {
     providerId: r.provider_id as string,
     seq: Number(r.seq),
     amount: Number(r.amount),
+    feeAmount: Number(r.fee_amount ?? 0),
+    feeSettlementRef: (r.fee_settlement_ref as string) ?? null,
     authorizationRef: (r.authorization_ref as string) ?? null,
     settled: r.settled as boolean,
     settlementRef: (r.settlement_ref as string) ?? null,
@@ -190,6 +193,7 @@ export class SupabaseRegistry implements Registry {
     if (patch.endedAt !== undefined) dbPatch.ended_at = patch.endedAt;
     if (patch.lastChargedAt !== undefined) dbPatch.last_charged_at = patch.lastChargedAt;
     if (patch.leaseAccessToken !== undefined) dbPatch.lease_access_token = patch.leaseAccessToken;
+    if (patch.feesSweptAt !== undefined) dbPatch.fees_swept_at = patch.feesSweptAt;
     const row = await this.one(
       this.db.from("rents").update(dbPatch).eq("id", id).select().single(),
       "updateRent",
@@ -259,6 +263,7 @@ export class SupabaseRegistry implements Registry {
     const row = await this.one(
       this.db.from("charges").insert({
         rent_id: t.rentId, provider_id: t.providerId, seq: t.seq, amount: t.amount,
+        fee_amount: t.feeAmount, fee_settlement_ref: t.feeSettlementRef,
         authorization_ref: t.authorizationRef, settled: t.settled, settlement_ref: t.settlementRef,
       }).select().single(),
       "recordCharge",
@@ -278,8 +283,14 @@ export class SupabaseRegistry implements Registry {
   }
 
   async rentCost(rentId: string): Promise<number> {
-    const { data, error } = await this.db.from("charges").select("amount").eq("rent_id", rentId);
+    // Gross: what the renter spent — provider payments plus streamed platform fees.
+    const { data, error } = await this.db.from("charges").select("amount, fee_amount").eq("rent_id", rentId);
     if (error) throw new Error(`rentCost: ${error.message}`);
-    return (data ?? []).reduce((s, r) => s + Number((r as Row).amount), 0);
+    return (data ?? []).reduce((s, r) => s + Number((r as Row).amount) + Number((r as Row).fee_amount ?? 0), 0);
+  }
+
+  async markChargeFeeSettled(chargeId: string, ref: string): Promise<void> {
+    const { error } = await this.db.from("charges").update({ fee_settlement_ref: ref }).eq("id", chargeId);
+    if (error) throw new Error(`markChargeFeeSettled: ${error.message}`);
   }
 }

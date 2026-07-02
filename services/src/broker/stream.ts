@@ -62,7 +62,7 @@ export async function streamRent(
       rentId: rent.id,
       providerId: provider.id,
       seq: seq++,
-      amount: Number(paid.amountAtomic),
+      amount: Number(paid.amountAtomic), feeAmount: 0, feeSettlementRef: null,
       authorizationRef: null,
       settled: false,
       settlementRef: paid.settlementRef,

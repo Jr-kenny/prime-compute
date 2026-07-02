@@ -57,6 +57,7 @@ export class InMemoryRegistry implements Registry {
       endedAt: null,
       lastChargedAt: null,
       leaseAccessToken: null,
+      feesSweptAt: null,
     };
     this.rents.set(rent.id, rent);
     return rent;
@@ -109,11 +110,17 @@ export class InMemoryRegistry implements Registry {
     if (c) c.settled = true;
   }
 
+  async markChargeFeeSettled(chargeId: string, ref: string): Promise<void> {
+    const c = this.charges.find((x) => x.id === chargeId);
+    if (c) c.feeSettlementRef = ref;
+  }
+
   async listCharges(rentId: string): Promise<Charge[]> {
     return this.charges.filter((t) => t.rentId === rentId).sort((a, b) => a.seq - b.seq);
   }
 
   async rentCost(rentId: string): Promise<number> {
-    return this.charges.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount, 0);
+    // Gross: what the renter spent — provider payments plus streamed platform fees.
+    return this.charges.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.amount + t.feeAmount, 0);
   }
 }

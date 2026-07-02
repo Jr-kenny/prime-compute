@@ -6,7 +6,10 @@ export type Principal =
   | { kind: "user"; id: string; walletAddress: string }
   | { kind: "agent"; id: string; walletAddress: string };
 
-export type ResourceType = "GPU" | "CPU" | "Storage" | "Full Server";
+// Runtime source of truth for the resource-type enum; mirrors the DB check constraint in
+// 0001_init.sql. API layers validate against this instead of casting blindly.
+export const RESOURCE_TYPES = ["GPU", "CPU", "Storage", "Full Server"] as const;
+export type ResourceType = (typeof RESOURCE_TYPES)[number];
 export type RentStatus =
   | "queued"
   | "running"
@@ -53,6 +56,7 @@ export type Rent = {
   endedAt: string | null;
   lastChargedAt: string | null; // when the meter last charged this lease (resumability)
   leaseAccessToken: string | null; // shown to the user as the connect credential
+  feesSweptAt: string | null; // when outstanding platform fees were collected after the rent ended
 };
 
 export type RentDecision = {
@@ -69,7 +73,9 @@ export type Charge = {
   rentId: string;
   providerId: string;
   seq: number;
-  amount: number; // atomic USDC units (6 decimals)
+  amount: number; // atomic USDC units (6 decimals), paid to the provider
+  feeAmount: number; // atomic USDC for the platform on this charge (renter paid amount + feeAmount)
+  feeSettlementRef: string | null; // the fee nano-payment's batch ref; null until it lands
   authorizationRef: string | null;
   settled: boolean;
   settlementRef: string | null;

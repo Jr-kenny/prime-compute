@@ -100,7 +100,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     const paid = await settlement.payForCompute(url);
     await registry.recordCharge({
       rentId, providerId: provider.id, seq: charges.length,
-      amount: Number(paid.amountAtomic), authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
+      amount: Number(paid.amountAtomic), feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
     });
     await registry.updateRent(rentId, {
       totalCost: await registry.rentCost(rentId),

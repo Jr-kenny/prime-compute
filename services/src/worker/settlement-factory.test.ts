@@ -10,6 +10,7 @@ function rent(userId: string): Rent {
     id: `r-${userId}`, name: "n", userId, agentId: null, spec: { resourceType: "GPU", region: null }, estimatedUsage: null,
     autonomyArmed: false, status: "queued", providerId: null, totalCost: 0, createdAt: "",
     startedAt: null, endedAt: null, lastChargedAt: null, leaseAccessToken: null,
+  feesSweptAt: null,
   };
 }
 

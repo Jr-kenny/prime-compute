@@ -19,6 +19,7 @@ function rentWithStatus(status: RentStatus): Rent {
     endedAt: null,
     lastChargedAt: null,
     leaseAccessToken: null,
+  feesSweptAt: null,
   };
 }
 

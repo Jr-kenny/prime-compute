@@ -23,7 +23,7 @@ export type NewRent = {
 };
 
 export type RentPatch = Partial<
-  Pick<Rent, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt" | "lastChargedAt" | "leaseAccessToken">
+  Pick<Rent, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt" | "lastChargedAt" | "leaseAccessToken" | "feesSweptAt">
 >;
 
 export type ProviderFilter = {
@@ -56,6 +56,8 @@ export interface Registry {
   listDecisionLogs(rentId: string): Promise<DecisionLog[]>;
   recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge>;
   markChargeSettled(chargeId: string): Promise<void>;
+  /** Stamp the fee nano-payment's settlement ref on a charge (fee streamed live or swept). */
+  markChargeFeeSettled(chargeId: string, ref: string): Promise<void>;
   listCharges(rentId: string): Promise<Charge[]>;
   rentCost(rentId: string): Promise<number>;
 }
