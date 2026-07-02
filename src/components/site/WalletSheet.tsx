@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { useSession } from "@/lib/auth/session";
 import { getSpendWalletBalance, withdrawFromSpendWallet } from "@/lib/wallet/server-fns";
 import { listMySpend } from "@/lib/wallet/history-fns";
+import { getTreasuryBalance, treasuryTransferChallenge } from "@/lib/auth/circle-fns";
+import { loadCircleSession, executeChallenge } from "@/lib/circle/user-sdk";
 
 function AddressRow({ label, hint, address }: { label: string; hint?: string; address: string }) {
   return (
@@ -56,6 +58,12 @@ export function WalletSheet({
     enabled: !!accessToken && open,
     refetchInterval: 5000,
   });
+  const { data: treasury } = useQuery({
+    queryKey: ["treasury-wallet", accessToken],
+    queryFn: () => getTreasuryBalance({ data: { accessToken: accessToken! } }),
+    enabled: !!accessToken && open,
+    refetchInterval: 5000,
+  });
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -80,9 +88,9 @@ export function WalletSheet({
               address={data?.address ?? "…"}
             />
             <AddressRow
-              label="Your wallet (passkey)"
-              hint="identity"
-              address={walletAddress ?? "…"}
+              label="Treasury (Circle wallet)"
+              hint={treasury?.usdcFormatted ? `$${treasury.usdcFormatted} USDC` : "identity + treasury"}
+              address={treasury?.address ?? walletAddress ?? "…"}
             />
           </div>
 
@@ -97,6 +105,8 @@ export function WalletSheet({
               .
             </p>
           </div>
+
+          <TreasuryTransferFlow accessToken={accessToken} spendWalletAddress={data?.address} />
 
           <WithdrawFlow accessToken={accessToken} />
 
@@ -124,6 +134,93 @@ export function WalletSheet({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Treasury transfer: amount -> PIN challenge. Funds the spend wallet by       */
+/* default; "someone else" reveals a destination field for external withdraws. */
+/* -------------------------------------------------------------------------- */
+
+function TreasuryTransferFlow({
+  accessToken,
+  spendWalletAddress,
+}: {
+  accessToken: string | undefined;
+  spendWalletAddress: string | undefined;
+}) {
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState("");
+  const [external, setExternal] = useState(false);
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const destination = external ? to.trim() : (spendWalletAddress ?? "");
+  const destinationValid = /^0x[0-9a-fA-F]{40}$/.test(destination);
+
+  async function send() {
+    if (!accessToken) return;
+    const circle = loadCircleSession();
+    if (!circle) {
+      setError("Circle session expired — sign in again from Onboarding to approve transfers.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { challengeId } = await treasuryTransferChallenge({
+        data: { accessToken, userToken: circle.userToken, amount: amount.trim(), destinationAddress: destination },
+      });
+      await executeChallenge(challengeId, circle); // Circle's PIN UI approves the move
+      setDone(true);
+      await queryClient.invalidateQueries({ queryKey: ["treasury-wallet"] });
+      await queryClient.invalidateQueries({ queryKey: ["spend-wallet"] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "transfer failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="glass-card p-5 space-y-3">
+      <h3 className="font-semibold text-sm">Fund spend wallet</h3>
+      <p className="text-xs text-muted-foreground">
+        Moves USDC from your treasury. You approve with your Circle PIN.
+      </p>
+      {done ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-2 rounded-lg bg-success/15 py-2.5 text-sm text-success">
+            <Check className="h-4 w-4" /> Approved
+          </div>
+          <Button variant="ghost" className="w-full border border-border" onClick={() => { setDone(false); setAmount(""); }}>
+            New transfer
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <Label className="text-xs">Amount (USDC)</Label>
+          <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="font-mono bg-card border-border" />
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={external} onChange={(e) => setExternal(e.target.checked)} />
+            Send somewhere else instead
+          </label>
+          {external && (
+            <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="Destination address (0x…)" className="font-mono bg-card border-border" />
+          )}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <Button
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            disabled={busy || !amount.trim() || !destinationValid}
+            onClick={send}
+          >
+            {busy ? "Waiting for PIN…" : "Approve with PIN"}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
