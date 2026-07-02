@@ -6,6 +6,9 @@
   "scripts": {
     "test": "bun test",
     "probe:llm": "bun run probes/llm-toolcall.ts",
+    "probe:circle-signer": "bun run probes/circle-signer.ts",
+    "probe:circle-signer:setup": "bun run probes/circle-signer-setup.ts",
+    "circle:setup": "bun run scripts/circle-setup.ts",
     "probe:x402": "bun run probes/x402-roundtrip.ts",
     "rank:soul": "bun run probes/rank-soul.ts",
     "soul:divergence": "bun run probes/soul-divergence.ts",
@@ -20,6 +23,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.1.0",
+    "@circle-fin/developer-controlled-wallets": "^10.8.0",
     "@circle-fin/x402-batching": "^3.2.0",
     "@supabase/supabase-js": "^2.108.2",
     "@x402/core": "^2.3.0",
