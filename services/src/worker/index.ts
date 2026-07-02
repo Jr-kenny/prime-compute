@@ -8,6 +8,8 @@ import { makeSettlementFactory, type Payer } from "./settlement-factory";
 import { workerPass, type WorkerDeps } from "./loop";
 import type { RankStrategy } from "../broker/matching";
 import { CircleWalletStore, makeCircleClient } from "../wallet/circle";
+import { handleRemittance } from "./remit";
+import { transferredToTreasury, makeReceiptReader } from "./verify-remittance";
 import type { Rent } from "../domain";
 
 const cfg = loadConfig();
@@ -77,12 +79,27 @@ console.log(`[worker] metering loop started (tick ${TICK_MS}ms)`);
 // Render's free tier is a WEB service: expose /health so it stays up and an external pinger can keep
 // it warm. The metering loop runs regardless; this is just the liveness surface.
 const port = Number(process.env.PORT ?? "8787");
+const treasury = process.env.PLATFORM_TREASURY_ADDRESS;
+const usdc = process.env.USDC_ADDRESS;
+const rpcUrl = process.env.ARC_RPC_URL;
+const remitReady = Boolean(treasury && usdc && rpcUrl);
+const reader = remitReady ? makeReceiptReader(rpcUrl!) : null;
+if (!remitReady) console.warn("[worker] remittance endpoint disabled (needs PLATFORM_TREASURY_ADDRESS, USDC_ADDRESS, ARC_RPC_URL)");
+
 Bun.serve({
   port,
-  fetch(req) {
+  async fetch(req) {
     const { pathname } = new URL(req.url);
     if (pathname === "/health") return new Response("ok", { status: 200 });
+    // Providers report fee remittances here; this must be publicly reachable (Render
+    // exposes only $PORT, which is why it rides the health server, not its own port).
+    if (pathname === "/remittances" && req.method === "POST" && remitReady) {
+      return handleRemittance(req, {
+        registry,
+        verify: (txHash) => transferredToTreasury(reader!, txHash, usdc!, treasury!),
+      });
+    }
     return new Response("metering worker", { status: 200 });
   },
 });
-console.log(`[worker] health server on :${port}`);
+console.log(`[worker] health + remittance server on :${port}`);
