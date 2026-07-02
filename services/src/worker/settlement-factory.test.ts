@@ -19,13 +19,43 @@ test("caches one adapter per lease and throws when the owner has no wallet", asy
   await store.getOrCreate("u1");
   let built = 0;
   // Resolver picks the payer by owner; here every fixture rent is user-owned.
-  const factory = makeSettlementFactory((r) => store.loadSigner(r.userId ?? r.agentId ?? ""), {
-    capAtomic: 5_000n,
-    build: (signer, cap) => { built++; return { buyerAddress: signer.address, capAtomic: cap } as never; },
-  });
+  const factory = makeSettlementFactory(
+    async (r) => {
+      const signer = await store.loadSigner(r.userId ?? r.agentId ?? "");
+      return signer ? { kind: "raw", signer } : null;
+    },
+    {
+      capAtomic: 5_000n,
+      build: (signer, cap) => { built++; return { buyerAddress: signer.address, capAtomic: cap } as never; },
+    },
+  );
   const a = await factory(rent("u1"), 10);
   const b = await factory(rent("u1"), 10);
   expect(a).toBe(b);        // cached per lease id
   expect(built).toBe(1);
   await expect(factory(rent("ghost"), 10)).rejects.toThrow(/no spend wallet/);
+});
+
+test("a circle payer builds via the circle builder", async () => {
+  const built: string[] = [];
+  const factory = makeSettlementFactory(
+    async () => ({ kind: "circle" as const, walletId: "w1", address: "0xc" }),
+    {
+      capAtomic: 10n,
+      build: () => { built.push("raw"); return {} as never; },
+      buildCircle: (payer) => { built.push(`circle:${payer.walletId}`); return {} as never; },
+    },
+  );
+  await factory(rent("u-circle"), 1);
+  expect(built).toEqual(["circle:w1"]);
+});
+
+test("a raw payer still builds via the raw builder", async () => {
+  const built: string[] = [];
+  const factory = makeSettlementFactory(
+    async () => ({ kind: "raw" as const, signer: { address: "0xa", privateKey: "0xkey" as `0x${string}` } }),
+    { capAtomic: 10n, build: () => { built.push("raw"); return {} as never; }, buildCircle: () => { built.push("circle"); return {} as never; } },
+  );
+  await factory(rent("u-raw"), 1);
+  expect(built).toEqual(["raw"]);
 });

@@ -4,9 +4,11 @@ import { SupabaseSpendWalletStore } from "../wallet/supabase-store";
 import { createClient } from "@supabase/supabase-js";
 import { loadConfig } from "../config";
 import { liveBrokerDeps } from "../broker/deps";
-import { makeSettlementFactory } from "./settlement-factory";
+import { makeSettlementFactory, type Payer } from "./settlement-factory";
 import { workerPass, type WorkerDeps } from "./loop";
 import type { RankStrategy } from "../broker/matching";
+import { CircleWalletStore, makeCircleClient } from "../wallet/circle";
+import type { Rent } from "../domain";
 
 const cfg = loadConfig();
 if (!cfg.supabase) throw new Error("worker needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY");
@@ -22,10 +24,26 @@ const admin = createClient(cfg.supabase.url, cfg.supabase.serviceRoleKey, { auth
 // A lease pays from its owner's wallet: agent leases from agent_wallets, user leases from spend_wallets.
 const userStore = new SupabaseSpendWalletStore(admin, encKey);
 const agentStore = new SupabaseSpendWalletStore(admin, encKey, { table: "agent_wallets", idColumn: "agent_id" });
-const settlementFor = makeSettlementFactory(
-  (rent) => (rent.agentId ? agentStore.loadSigner(rent.agentId) : userStore.loadSigner(rent.userId!)),
-  { capAtomic: LEASE_CAP_ATOMIC, rpcUrl: process.env.ARC_RPC_URL },
-);
+
+// Circle-custodied wallets win when the principal has one; legacy enc-key wallets keep
+// paying for everyone provisioned before the switch. Zero keys for anything new.
+const circleSetId = process.env.CIRCLE_WALLET_SET_ID;
+const circleStore = circleSetId ? new CircleWalletStore(admin, makeCircleClient(), circleSetId) : null;
+
+const loadPayer = async (rent: Rent): Promise<Payer | null> => {
+  const kind = rent.agentId ? ("agent" as const) : ("user" as const);
+  const ownerId = rent.agentId ?? rent.userId!;
+  if (circleStore) {
+    const cw = await circleStore.get(kind, ownerId);
+    if (cw) return { kind: "circle", walletId: cw.walletId, address: cw.address };
+  }
+  const signer = rent.agentId ? await agentStore.loadSigner(rent.agentId) : await userStore.loadSigner(rent.userId!);
+  return signer ? { kind: "raw", signer } : null;
+};
+
+const settlementFor = makeSettlementFactory(loadPayer, {
+  capAtomic: LEASE_CAP_ATOMIC, rpcUrl: process.env.ARC_RPC_URL, usdcAddress: process.env.USDC_ADDRESS,
+});
 
 // The soul-driven ranker, with the deterministic scorer as the built-in fallback inside decide().
 // If LLM_* is unset, fall back to no ranker (matchProviders uses its deterministic default).
