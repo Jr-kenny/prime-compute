@@ -4,8 +4,8 @@ import type {} from "@tanstack/react-start";
 import { getRegistry } from "@/lib/broker/registry";
 import { registerProviderFor } from "@/lib/marketplace/service";
 import { authAgent, json, errorResponse } from "@/lib/agents/http";
+import { parseProviderBody } from "@/lib/agents/validate";
 import { defaultTrust } from "@services/trust/trust";
-import type { ResourceType } from "@services/domain";
 
 export const Route = createFileRoute("/api/v1/providers")({
   server: {
@@ -14,16 +14,13 @@ export const Route = createFileRoute("/api/v1/providers")({
       POST: async ({ request }) => {
         const principal = await authAgent(request);
         if (principal instanceof Response) return principal;
-        let b: any;
+        let b: unknown;
         try { b = await request.json(); } catch { return errorResponse(400, "bad_request", "invalid JSON body"); }
-        if (!b?.alias || !b?.endpointUrl || !b?.resourceType || !b?.region || typeof b?.pricePerCharge !== "number") {
-          return errorResponse(400, "bad_request", "alias, endpointUrl, resourceType, region, pricePerCharge are required");
-        }
+        const parsed = parseProviderBody(b);
+        if (!parsed.ok) return errorResponse(400, "bad_request", parsed.message);
         const provider = await registerProviderFor(getRegistry(), principal, {
-          alias: String(b.alias), endpointUrl: String(b.endpointUrl),
-          resourceType: b.resourceType as ResourceType, region: String(b.region),
-          specs: (b.specs ?? {}) as Record<string, unknown>, online: b.online ?? true,
-          trust: defaultTrust(), pricePerCharge: b.pricePerCharge, avgLatencyMs: b.avgLatencyMs ?? 0,
+          ...parsed.value,
+          trust: defaultTrust(),
         });
         return json(provider, 201);
       },

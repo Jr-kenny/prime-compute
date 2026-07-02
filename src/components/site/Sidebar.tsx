@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth/session";
-import { walletChainSegment } from "@/lib/circle/chain";
 import { LumenSidebarEntry } from "./LumenOverlay";
 
 function shortWallet(address: string | null): string {
@@ -69,7 +68,7 @@ export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
             Prime Compute
           </div>
           <div className="text-[11px] text-sidebar-foreground/50 font-mono truncate">
-            {walletChainSegment}
+            arcTestnet
           </div>
         </div>
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/40" />
