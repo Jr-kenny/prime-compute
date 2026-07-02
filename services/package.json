@@ -21,11 +21,13 @@
     "settlement:roundtrip": "bun run scripts/settlement-roundtrip.ts",
     "broker:roundtrip": "bun run scripts/broker-roundtrip.ts",
     "integration:roundtrip": "bun run scripts/integration-roundtrip.ts",
-    "remit:roundtrip": "bun run scripts/remit-roundtrip.ts"
+    "remit:roundtrip": "bun run scripts/remit-roundtrip.ts",
+    "probe:circle-user-gate": "bun run probes/circle-user-gate.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.1.0",
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
+    "@circle-fin/user-controlled-wallets": "^10.8.0",
     "@circle-fin/x402-batching": "^3.2.0",
     "@supabase/supabase-js": "^2.108.2",
     "@x402/core": "^2.3.0",
