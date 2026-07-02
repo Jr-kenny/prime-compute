@@ -57,6 +57,23 @@ export function createAgent(label?: string): Promise<{ agentId: string; apiKey: 
   return createAgentWith(supabaseAdmin(), backendAgentWallets(), label);
 }
 
+export type LegacyAgentWallets = { getAddress(id: string): Promise<string | null> };
+
+// Circle-first address resolution, mirroring the worker's payer order: an agent
+// provisioned under WALLET_BACKEND=circle has a circle_wallets row and no agent_wallets
+// row, so auth must look there before the legacy enc-key store.
+export async function resolveAgentAddress(db: AgentDb, legacy: LegacyAgentWallets, agentId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("circle_wallets")
+    .select("address")
+    .eq("owner_kind", "agent")
+    .eq("owner_id", agentId)
+    .maybeSingle();
+  if (error) throw error;
+  if (data?.address) return data.address as string;
+  return legacy.getAddress(agentId);
+}
+
 // Resolve a bearer key to an agent Principal, or null. Stamps last_used_at for anomaly detection.
 export async function requireAgent(apiKey: string): Promise<Principal | null> {
   const db = supabaseAdmin();
@@ -68,7 +85,7 @@ export async function requireAgent(apiKey: string): Promise<Principal | null> {
   if (error) throw error;
   if (!data || data.revoked_at) return null;
 
-  const walletAddress = await agentWalletStore().getAddress(data.agent_id as string);
+  const walletAddress = await resolveAgentAddress(db, agentWalletStore(), data.agent_id as string);
   if (!walletAddress) return null; // wallet must exist for a real agent
   await db.from("agent_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", data.id);
   return { kind: "agent", id: data.agent_id as string, walletAddress };
