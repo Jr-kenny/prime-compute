@@ -26,6 +26,12 @@ provisioned Circle wallets (no private key ever touches our database). Keep
 resolves payers circle-first per lease and falls back to the enc-key store, so both backends
 coexist during the transition.
 
+Platform fees are provider-remitted: the renter pays the listed price, and each provider
+remits its accrued fee from Gateway earnings to `PLATFORM_TREASURY_ADDRESS`, reporting
+the tx to `POST /remittances` on the worker's public port. The worker verifies the
+transfer on-chain (needs `ARC_RPC_URL` + `USDC_ADDRESS`) before stamping receivables, so
+the endpoint needs no auth. `WORKER_FEE_PORT` is gone; nothing listens there anymore.
+
 It is fully resumable: on restart it re-scans `running` leases and continues. `last_charged_at` plus
 the persisted charge `seq` mean a restart never double-charges or skips, so the spin-down/restart
 behaviour of the free tier is non-fatal.
