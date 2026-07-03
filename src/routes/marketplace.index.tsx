@@ -19,6 +19,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import type { Provider, ResourceType } from "@services/domain";
+import { serviceIds } from "@services/services/registry";
 import { listProviders, createRent } from "@/lib/broker/server-fns";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -27,12 +28,12 @@ export const Route = createFileRoute("/marketplace/")({
   component: MarketplaceIndex,
 });
 
-const allTypes: ResourceType[] = ["GPU", "CPU", "Storage"];
+const allTypes: ResourceType[] = serviceIds();
 
 function MarketplaceIndex() {
   const providers = Route.useLoaderData();
   const [q, setQ] = useState("");
-  const [types, setTypes] = useState<ResourceType[]>(["GPU", "CPU", "Storage"]);
+  const [types, setTypes] = useState<ResourceType[]>(serviceIds());
   const [minScore, setMinScore] = useState(0);
   const [maxPrice, setMaxPrice] = useState(0.00003);
   const [availableOnly, setAvailableOnly] = useState(false);
@@ -41,8 +42,7 @@ function MarketplaceIndex() {
   const filtered = useMemo(() => {
     return providers.filter((p) => {
       if (q && !p.alias.toLowerCase().includes(q.toLowerCase())) return false;
-      if (!types.includes(p.resourceType as ResourceType) && p.resourceType !== "Full Server")
-        return false;
+      if (!types.includes(p.resourceType)) return false;
       if (p.computeScore < minScore) return false;
       if (p.pricePerCharge > maxPrice) return false;
       if (availableOnly && !p.online) return false;
