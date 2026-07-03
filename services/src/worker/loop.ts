@@ -2,7 +2,9 @@
 import type { Registry } from "../registry/registry";
 import type { Rent } from "../domain";
 import type { RankStrategy } from "../broker/matching";
+import type { DegradationDeps } from "../broker/degradation";
 import type { SettlementFactory } from "./settlement-factory";
+import type { LeaseHealthTracker } from "./lease-health";
 import { provisionLease, meterTick } from "./meter";
 
 export type WorkerDeps = {
@@ -14,6 +16,11 @@ export type WorkerDeps = {
   nowMs?: () => number;
   feeBps?: number; // platform fee (basis points) recorded as a receivable per charge
   perTickCap?: number; // max paid hits per volume tick (default in meterTick)
+  // Autonomous hand-off on provider degradation. Both must be set for a lease to migrate; the
+  // tracker is created once and reused across passes so failure streaks live across ticks.
+  health?: LeaseHealthTracker;
+  degradation?: DegradationDeps;
+  maxMigrations?: number;
 };
 
 // Reads the provider's unpaywalled per-session usage so volume services (VPN, storage) can bill the
@@ -54,7 +61,13 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
     try {
       const maxUnits = budget(rent, deps.defaultMaxUnits);
       const settlement = await deps.settlementFor(rent, maxUnits);
-      await meterTick(rent.id, { registry, settlement, tickMs: deps.tickMs, maxUnits, nowMs: deps.nowMs, feeBps: deps.feeBps, perTickCap: deps.perTickCap, readUsage });
+      const res = await meterTick(rent.id, {
+        registry, settlement, tickMs: deps.tickMs, maxUnits, nowMs: deps.nowMs, feeBps: deps.feeBps, perTickCap: deps.perTickCap, readUsage,
+        health: deps.health, degradation: deps.degradation, rank: deps.rank, maxMigrations: deps.maxMigrations,
+      });
+      // A lease that left the running state won't be ticked again, so drop its ephemeral health
+      // record to keep the in-memory tracker from growing without bound.
+      if (res.status !== "running") deps.health?.clear(rent.id);
     } catch (e) {
       console.error(`[worker] tick ${rent.id} failed:`, e instanceof Error ? e.message : e);
     }

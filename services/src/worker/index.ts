@@ -6,7 +6,9 @@ import { loadConfig } from "../config";
 import { liveBrokerDeps } from "../broker/deps";
 import { makeSettlementFactory, type Payer } from "./settlement-factory";
 import { workerPass, type WorkerDeps } from "./loop";
+import { LeaseHealthTracker } from "./lease-health";
 import type { RankStrategy } from "../broker/matching";
+import type { DegradationDeps } from "../broker/degradation";
 import { CircleWalletStore, makeCircleClient } from "../wallet/circle";
 import { handleRemittance } from "./remit";
 import { transferredToTreasury, makeReceiptReader } from "./verify-remittance";
@@ -47,18 +49,40 @@ const settlementFor = makeSettlementFactory(loadPayer, {
   capAtomic: LEASE_CAP_ATOMIC, rpcUrl: process.env.ARC_RPC_URL, usdcAddress: process.env.USDC_ADDRESS,
 });
 
-// The soul-driven ranker, with the deterministic scorer as the built-in fallback inside decide().
-// If LLM_* is unset, fall back to no ranker (matchProviders uses its deterministic default).
+// The soul-driven ranker AND degradation responder, both reasoning from the shipped soul with the
+// deterministic scorer / migrate-to-best as the built-in fallback inside decide(). If LLM_* is
+// unset we run without either: deterministic ranking, and a degraded provider just retries (no
+// autonomous hand-off) rather than migrating.
 let rank: RankStrategy | undefined;
+let degradation: DegradationDeps | undefined;
 try {
-  rank = (await liveBrokerDeps()).rank;
+  const brokerDeps = await liveBrokerDeps();
+  rank = brokerDeps.rank;
+  degradation = brokerDeps.degradation;
 } catch {
-  console.warn("[worker] LLM_* not configured; using the deterministic ranker");
+  console.warn("[worker] LLM_* not configured; deterministic ranker and no autonomous migration");
 }
+
+// Ephemeral per-lease health tracking that drives hand-off on degradation. Only meaningful with the
+// degradation deps wired; its failure streaks live in memory across ticks and reset on restart.
+const health = degradation
+  ? new LeaseHealthTracker({
+      healthOpts: {
+        maxConsecutiveFailures: Number(process.env.WORKER_HEALTH_MAX_FAILURES ?? "3"),
+        maxLatencyMs: process.env.WORKER_HEALTH_MAX_LATENCY_MS ? Number(process.env.WORKER_HEALTH_MAX_LATENCY_MS) : undefined,
+      },
+      holdBudget: {
+        maxRetries: Number(process.env.WORKER_HOLD_MAX_RETRIES ?? "3"),
+        maxDurationMs: Number(process.env.WORKER_HOLD_MAX_MS ?? "30000"),
+        maxExtraSpend: BigInt(process.env.WORKER_HOLD_MAX_SPEND_ATOMIC ?? "200000"),
+      },
+    })
+  : undefined;
 
 const deps: WorkerDeps = {
   registry, settlementFor, rank, tickMs: TICK_MS, defaultMaxUnits: DEFAULT_MAX_UNITS,
   feeBps: Number(process.env.PLATFORM_FEE_BPS ?? "0"),
+  health, degradation, maxMigrations: Number(process.env.WORKER_MAX_MIGRATIONS ?? "3"),
 };
 
 let running = false;

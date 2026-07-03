@@ -4,6 +4,9 @@ import { InMemoryRegistry } from "../registry/in-memory";
 import { FakeSettlementAdapter } from "../settlement/fake";
 import { defaultTrust } from "../trust/trust";
 import { provisionLease, meterTick } from "./meter";
+import { LeaseHealthTracker } from "./lease-health";
+import type { DegradationDeps } from "../broker/degradation";
+import type { Soul, Policy } from "../runtime/types";
 
 async function seed() {
   const reg = new InMemoryRegistry();
@@ -131,6 +134,67 @@ test("charges pending whole units per tick for a volume service", async () => {
   const second = await meterTick(rent.id, deps);
   expect(second.charged).toBe(false);
   expect(calls.n).toBe(3);
+});
+
+// --- degradation -> migration --------------------------------------------------------------
+// A soul/policy plus a dead model client, so decideMigrateOrHold takes its deterministic
+// fallback (migrate to the best untried candidate) without a live LLM.
+const soul: Soul = { schema: "soul/v1", version: "1.0.0", name: "Broker", body: "s" };
+const policy: Policy = { schema: "policy/v1", version: "1.0.0", body: "p" };
+const deadModel: DegradationDeps = { soul, policy, client: { propose: async () => { throw new Error("model down"); } } };
+const tracker = () => new LeaseHealthTracker({ healthOpts: { maxConsecutiveFailures: 3 }, holdBudget: { maxRetries: 2, maxDurationMs: 60_000, maxExtraSpend: 10_000n } });
+
+// Settlement that never manages to pay: every hit throws a plain (non spend-cap) error, i.e. the
+// provider endpoint is degraded. ensureFunded still succeeds so provisioning works.
+const brokenProvider = {
+  buyerAddress: "0xbuyer",
+  async ensureFunded() { return { deposited: false }; },
+  async payForCompute(): Promise<never> { throw new Error("provider endpoint down"); },
+  async reconcile(ref: string) { return { ref, status: "completed" as const, settled: true }; },
+};
+
+async function seedTwoGpus() {
+  const reg = new InMemoryRegistry();
+  const p1 = await reg.registerProvider({ alias: "p1", ownerWallet: "0xseller", endpointUrl: "http://p1", resourceType: "GPU", region: "US-East", specs: { gpu: "H100" }, online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 90, avgLatencyMs: 5 });
+  const p2 = await reg.registerProvider({ alias: "p2", ownerWallet: "0xseller", endpointUrl: "http://p2", resourceType: "GPU", region: "US-East", specs: { gpu: "H100" }, online: true, trust: defaultTrust(), pricePerCharge: 0.0002, computeScore: 88, avgLatencyMs: 6 });
+  // Pin p1 so the lease deterministically starts there; migration must NOT return to it.
+  const rent = await reg.createRent({ name: "demo", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null, preferredProviderId: p1.id }, estimatedUsage: 100 });
+  return { reg, rent, p1, p2 };
+}
+
+test("a degrading provider hands off to a healthy alternative after the failure streak", async () => {
+  const { reg, rent, p1, p2 } = await seedTwoGpus();
+  await reg.updateRent(rent.id, { status: "running", providerId: p1.id, startedAt: new Date().toISOString() });
+
+  const health = tracker();
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement: brokenProvider, tickMs: 1000, maxUnits: 100, nowMs: () => clock, health, degradation: deadModel, maxMigrations: 3 };
+
+  // Two failed ticks: streak building, still on p1.
+  await meterTick(rent.id, deps);
+  clock += 1001; await meterTick(rent.id, deps);
+  expect((await reg.getRent(rent.id))?.providerId).toBe(p1.id);
+
+  // Third consecutive failure crosses the threshold -> migrate to the untried provider.
+  clock += 1001; const r = await meterTick(rent.id, deps);
+  expect(r.status).toBe("running");
+  expect((await reg.getRent(rent.id))?.providerId).toBe(p2.id); // handed off, and NOT back to the pinned p1
+  expect((await reg.listDecisionLogs(rent.id)).length).toBeGreaterThan(0); // the hand-off is on the record
+});
+
+test("a degrading provider with no alternative keeps retrying rather than killing the lease", async () => {
+  const { reg, rent, p1 } = await seedTwoGpus();
+  await reg.setProviderOnline((await reg.listProviders()).find((p) => p.alias === "p2")!.id, false); // no alternative
+  await reg.updateRent(rent.id, { status: "running", providerId: p1.id, startedAt: new Date().toISOString() });
+
+  const health = tracker();
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement: brokenProvider, tickMs: 1000, maxUnits: 100, nowMs: () => clock, health, degradation: deadModel, maxMigrations: 3 };
+
+  for (let i = 0; i < 4; i++) { await meterTick(rent.id, deps); clock += 1001; }
+  const r = await reg.getRent(rent.id);
+  expect(r?.status).toBe("running");   // still alive, will resume if the provider recovers
+  expect(r?.providerId).toBe(p1.id);   // nowhere healthy to go, so it stays put
 });
 
 test("fee receivable floors and zero-bps records zero", async () => {

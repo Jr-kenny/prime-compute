@@ -4,8 +4,11 @@ import type { SettlementAdapter } from "../settlement/adapter";
 import type { RankStrategy } from "../broker/matching";
 import { matchProviders } from "../broker/matching";
 import { revalidateProvider } from "../broker/guardrails";
+import { untriedValidProviders } from "../broker/migrate";
+import { decideMigrateOrHold, type DegradationDeps } from "../broker/degradation";
 import { SpendCapError } from "../settlement/spend-policy";
-import type { RentStatus } from "../domain";
+import type { Provider, Rent, RentStatus } from "../domain";
+import type { LeaseHealthTracker, LeaseHealthState } from "./lease-health";
 import { descriptorFor } from "../services/registry";
 
 const isoNow = () => new Date().toISOString();
@@ -67,6 +70,13 @@ export type TickDeps = {
   feeBps?: number;         // platform fee in basis points; recorded as a receivable, never paid here
   perTickCap?: number;     // max paid hits in one tick so a volume burst can't run away (default 10)
   readUsage?: (url: string) => Promise<number>; // cumulative accrued units from the provider's /usage
+  // Autonomous hand-off on degradation is opt-in: only when BOTH a health tracker and the broker's
+  // degradation deps are wired does a failing provider trigger a migrate/hold. Absent them, a
+  // transient failure just retries next tick, exactly as before.
+  health?: LeaseHealthTracker;
+  degradation?: DegradationDeps;
+  rank?: RankStrategy;     // used when re-ranking alternatives for a hand-off
+  maxMigrations?: number;  // cap on hand-offs per lease (default 0 = never migrate)
 };
 
 export type TickResult = { charged: boolean; status: RentStatus | "missing"; reason: string };
@@ -116,7 +126,9 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   }
 
   const url = `${provider.endpointUrl}${d.path}?session=${rent.id}`;
+  const lh = deps.health && deps.degradation ? deps.health.for(rentId, provider.id) : null;
   let chargedAny = false;
+  let degradedReason: string | null = null;
   const toCharge = Math.min(pending, perTickCap);
   for (let i = 0; i < toCharge; i++) {
     const charges = await registry.listCharges(rentId);
@@ -138,13 +150,26 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
         authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
       });
       chargedAny = true;
+      lh?.monitor.observe({ ok: true }); // a paid hit is a healthy sample; clears the failure streak
     } catch (e) {
       if (e instanceof SpendCapError) {
         await registry.updateRent(rentId, { status: "suspended" });
         return { charged: chargedAny, status: "suspended", reason: e.message };
       }
-      break; // transient: stop this tick, retry next
+      // A failed hit is a health sample too. Once the streak crosses the monitor's threshold the
+      // provider is degraded and we resolve a migrate/hold below instead of just retrying forever.
+      if (lh) {
+        const h = lh.monitor.observe({ ok: false });
+        if (!h.healthy) degradedReason = h.reason;
+      }
+      break; // transient: stop this tick
     }
+  }
+
+  if (lh && degradedReason) {
+    const reason = await resolveDegradation(rentId, rent, provider, lh, degradedReason, deps);
+    await registry.updateRent(rentId, { totalCost: await registry.rentCost(rentId), lastChargedAt: new Date(clock()).toISOString() });
+    return { charged: chargedAny, status: "running", reason };
   }
 
   await registry.updateRent(rentId, {
@@ -152,4 +177,51 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     lastChargedAt: new Date(clock()).toISOString(),
   });
   return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
+}
+
+// The current provider degraded. Ask the broker soul (deterministic fallback when the model is
+// down) to migrate or hold, honoring the already-used set so we never hand back to a provider that
+// already failed this lease. Migrate re-points the lease and starts a fresh health leg; hold keeps
+// the provider while the retry leash allows; a fallback with nothing healthy left just keeps
+// retrying the current provider (a stalled lease bills nothing and resumes if it recovers).
+async function resolveDegradation(
+  rentId: string,
+  rent: Rent,
+  current: Provider,
+  lh: LeaseHealthState,
+  reason: string,
+  deps: TickDeps,
+): Promise<string> {
+  const { registry, degradation } = deps;
+  const candidates = await untriedValidProviders(registry, rent.spec, lh.used, deps.rank);
+  const choice = await decideMigrateOrHold(degradation!, {
+    current,
+    reason,
+    candidates,
+    spec: rent.spec,
+    leash: lh.leash,
+    nextChargeAtomic: BigInt(Math.round(current.pricePerCharge * 1_000_000)),
+  });
+
+  if (choice.action === "migrate") {
+    const cap = deps.maxMigrations ?? 0;
+    if (lh.migrations >= cap) {
+      await registry.recordDecisionLog(rentId, choice.log);
+      return `degraded (${reason}); migration cap ${cap} reached, staying on ${current.alias}`;
+    }
+    await registry.recordDecision({
+      rentId,
+      candidates: candidates.map((p, i) => ({ providerId: p.id, rank: i })),
+      chosenProviderId: choice.target.id,
+      rationale: choice.rationale,
+    });
+    await registry.recordDecisionLog(rentId, choice.log);
+    await registry.updateRent(rentId, { providerId: choice.target.id });
+    deps.health!.onMigrate(rentId, choice.target.id);
+    return `degraded (${reason}); migrated to ${choice.target.alias}`;
+  }
+
+  await registry.recordDecisionLog(rentId, choice.log);
+  if (choice.action === "hold") return `degraded (${reason}); holding on ${current.alias}`;
+  return `degraded (${reason}); no healthy alternative, retrying ${current.alias}`;
 }
