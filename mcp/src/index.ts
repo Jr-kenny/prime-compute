@@ -7,7 +7,12 @@ import { serviceIds } from "../../services/src/services/registry";
 
 const baseUrl = process.env.PRIME_API_URL ?? "https://primecomputelive.vercel.app";
 const apiKey = process.env.PRIME_API_KEY;
-if (!apiKey) throw new Error("PRIME_API_KEY required (register once via POST /api/v1/agents)");
+if (!apiKey) {
+  // Fail fast with a clean message on stderr (an MCP client shows this when the server won't start),
+  // not a stack trace. Register once via POST /api/v1/agents to get a key.
+  console.error("prime-compute-mcp: PRIME_API_KEY is required. Register once via POST /api/v1/agents, then set PRIME_API_KEY (and PRIME_API_URL for a non-default deployment).");
+  process.exit(1);
+}
 const client = new PrimeClient(baseUrl, apiKey);
 
 const server = new McpServer({ name: "prime-compute", version: "1.0.0" });

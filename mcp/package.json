@@ -1,13 +1,44 @@
 {
   "name": "@prime-compute/mcp",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for the Prime Compute marketplace: discover, rent, provide, and pay for compute over the agent API.",
+  "license": "MIT",
   "type": "module",
+  "bin": {
+    "prime-compute-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "start": "bun run src/index.ts",
+    "build": "tsup",
+    "dev": "bun run src/index.ts",
+    "start": "node dist/index.js",
+    "prepublishOnly": "tsup",
     "test": "bun test"
   },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "prime-compute",
+    "agent",
+    "compute",
+    "usdc",
+    "x402"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
