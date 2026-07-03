@@ -59,8 +59,8 @@ docs/superpowers/      Specs and implementation plans this project was built fro
   Vercel AI SDK (`ai` + `@ai-sdk/openai-compatible`) for the broker's LLM calls.
 - **Chain/settlement:** [Arc testnet](https://docs.arc.io) (Circle's stablecoin
   L1), `@circle-fin/x402-batching`, `viem`.
-- **Identity:** Circle Modular Wallets (passkey-backed wallets, no seed phrases),
-  Supabase for session/profile state.
+- **Identity:** wallet connect + SIWE signature (RainbowKit/wagmi), the connected
+  address is the identity anchor; Supabase for session/profile state.
 - **Data:** Supabase (registry + realtime), with an in-memory registry
   implementation used by the test suite.
 
@@ -88,10 +88,11 @@ gitignored (they hold wallet keys and service-role credentials). Copy
 - Your Supabase project's URL and service role key.
 
 The frontend's `.env` additionally needs `VITE_SUPABASE_URL` /
-`VITE_SUPABASE_ANON_KEY`, `VITE_CIRCLE_APP_ID` (the Circle user-controlled wallets
-app that drives the email OTP + PIN login), `VITE_ARC_RPC_URL` / `VITE_ARC_CHAIN_ID`,
-and a server-side `CIRCLE_API_KEY` (same value as `services/.env`) for verifying the
-login token and building treasury challenges.
+`VITE_SUPABASE_ANON_KEY`, `VITE_ARC_RPC_URL` / `VITE_ARC_CHAIN_ID`,
+`VITE_WALLETCONNECT_PROJECT_ID` (RainbowKit/WalletConnect, from cloud.reown.com) and
+`VITE_USDC_ADDRESS` (the USDC token on Arc, for funding the spend wallet). Login is a
+wallet connect + SIWE signature; the server verifies the signed message against the Arc
+RPC and signs the login nonce with `AUTH_NONCE_SECRET`.
 
 Each user gets their own Arc spend wallet (the EOA that streams their nano-payments),
 so both the root `.env` and `services/.env` need the non-`VITE` Arc vars (`ARC_RPC_URL`,
