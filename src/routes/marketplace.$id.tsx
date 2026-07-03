@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { RentSheet } from "@/components/site/RentSheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { rateDisplay } from "@/lib/pricing/rate";
 import type { RentStatus } from "@services/domain";
 import { getProviderById, listProviderRents } from "@/lib/broker/server-fns";
 
@@ -73,7 +74,8 @@ function ProviderDetail() {
         </div>
 
         <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Rate" value={`$${p.pricePerCharge.toFixed(7)}/s`} />
+          <Stat label="Rate" value={rateDisplay(p.resourceType, p.pricePerCharge).streaming} />
+          <Stat label="Est." value={rateDisplay(p.resourceType, p.pricePerCharge).human} />
           <Stat label="Uptime" value={`${uptimePct.toFixed(2)}%`} />
           <Stat label="Rents completed" value={p.trust.signals.successfulRentals.toLocaleString()} />
           <Stat label="Avg latency" value={`${p.avgLatencyMs.toFixed(1)}ms`} />

@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { createRent, getMyRent } from "@/lib/broker/server-fns";
 import { rentPhase } from "@/lib/broker/rent-phase";
+import { rateDisplay } from "@/lib/pricing/rate";
 import type { Provider, Rent } from "@services/domain";
 
 export function RentSheet({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
@@ -122,7 +123,7 @@ export function RentSheet({ provider, onClose }: { provider: Provider | null; on
               <div className="text-xs text-muted-foreground">Estimated max budget</div>
               <div className="mt-1 text-2xl font-semibold text-foreground">${budget}</div>
               <div className="mt-1 text-[11px] text-muted-foreground">
-                at ${provider.pricePerCharge.toFixed(7)}/s · metered per second, only pay for what runs
+                at {rateDisplay(provider.resourceType, provider.pricePerCharge).streaming} ({rateDisplay(provider.resourceType, provider.pricePerCharge).human}) · metered per unit, only pay for what runs
               </div>
             </div>
             <SheetFooter>

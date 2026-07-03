@@ -2,6 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { Cpu, MemoryStick, HardDrive, MapPin, Server, Zap } from "lucide-react";
 import { ComputeScoreRing } from "./ComputeScoreRing";
 import { Button } from "@/components/ui/button";
+import { rateDisplay } from "@/lib/pricing/rate";
+import { isFirstParty } from "@/lib/marketplace/first-party";
 import type { Provider } from "@services/domain";
 
 export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider) => void }) {
@@ -17,6 +19,11 @@ export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider
       <div className="flex items-start justify-between">
         <div>
           <span className="text-sm font-medium text-foreground">{p.alias}</span>
+          {isFirstParty(p) && (
+            <span className="ml-2 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-400 align-middle">
+              Simulation
+            </span>
+          )}
           <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
             {p.region}
@@ -58,9 +65,8 @@ export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider
       <div className="flex items-end justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Rate</div>
-          <div className="text-base font-semibold text-foreground">
-            ${p.pricePerCharge.toFixed(7)}<span className="text-xs text-muted-foreground"> /sec</span>
-          </div>
+          <div className="text-base font-semibold text-foreground">{rateDisplay(p.resourceType, p.pricePerCharge).streaming}</div>
+          <div className="text-[11px] text-muted-foreground">{rateDisplay(p.resourceType, p.pricePerCharge).human}</div>
         </div>
         <div className="flex gap-1">
           <Pill>{uptimePct.toFixed(2)}%</Pill>
