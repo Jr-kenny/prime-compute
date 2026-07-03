@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { Sidebar, MobileTopBar, BottomTabBar } from "./Sidebar";
 import { Footer } from "./Footer";
 import { LumenOverlay, LumenFab } from "./LumenOverlay";
+import { WalletSheet } from "./WalletSheet";
+import { useSession } from "@/lib/auth/session";
 
 /**
  * App shell for the authenticated/product pages (marketplace, dashboard,
@@ -15,11 +17,13 @@ import { LumenOverlay, LumenFab } from "./LumenOverlay";
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [lumenOpen, setLumenOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false);
+  const { session } = useSession();
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       {/* Desktop: fixed left sidebar */}
-      <Sidebar onOpenLumen={() => setLumenOpen(true)} />
+      <Sidebar onOpenLumen={() => setLumenOpen(true)} onOpenWallet={() => setWalletOpen(true)} />
 
       {/* Mobile: slim top bar (logo + connect) */}
       <MobileTopBar />
@@ -33,6 +37,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Lumen AI assistant: floating button + overlay drawer */}
       <LumenFab onClick={() => setLumenOpen(true)} />
       <LumenOverlay open={lumenOpen} onOpenChange={setLumenOpen} />
+
+      {/* Wallet sheet, summonable from the sidebar Wallet entry on every app page */}
+      <WalletSheet open={walletOpen} onClose={() => setWalletOpen(false)} accessToken={session?.access_token} />
 
       {/* Mobile: fixed bottom tab bar */}
       <BottomTabBar />

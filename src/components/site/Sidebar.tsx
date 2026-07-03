@@ -53,7 +53,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
 /* Desktop sidebar                                                            */
 /* -------------------------------------------------------------------------- */
 
-export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
+export function Sidebar({ onOpenLumen, onOpenWallet }: { onOpenLumen?: () => void; onOpenWallet?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { session, walletAddress, signOut } = useSession();
 
@@ -95,6 +95,17 @@ export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
             </Link>
           );
         })}
+
+        {onOpenWallet && (
+          <button
+            type="button"
+            onClick={onOpenWallet}
+            className="flex items-center gap-3 rounded-full px-3 py-2 text-sm text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-white/5 transition w-full"
+          >
+            <Wallet className="h-4 w-4 shrink-0" />
+            <span>Wallet</span>
+          </button>
+        )}
 
         {/* Lumen AI assistant entry */}
         {onOpenLumen && (
