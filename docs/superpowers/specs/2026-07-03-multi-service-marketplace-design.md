@@ -92,29 +92,37 @@ default: platform-supplied listings keep `SimulatedExecutor` for now, so turning
 is a config flip, not a rewrite. Users always register their own `endpointUrl`, so their listings are
 real by definition; only the platform's own seed/template listings are simulated.
 
-## 3. Metering on unit-accrual (priced at the provider endpoint)
+## 3. Metering: one fixed-price hit per accrued unit
 
-Settlement already works by paying the provider's x402-paywalled endpoint per tick and recording
-whatever it charged (`payForCompute(url)` returns `amountAtomic`). The unit-accrual therefore lives at
-the provider endpoint, not the worker: the worker never computes a charge, it hits the endpoint and
-records the amount, exactly as it does today.
+The x402 paywall charges a fixed price per paid request (`gateway.require(price)`), so a charge is
+always "one unit at the listed price." Per-type metering is expressed by what a unit *is* and how fast
+it accrues, not by varying the price:
 
-- **time** (compute, worker): the endpoint charges a flat amount per tick (unchanged from today).
-- **storage** (capacity × time): the endpoint charges provisionedGb × elapsed-since-last-hit.
-- **VPN** (transfer): the endpoint tracks its own per-session cumulative bytes and charges for the GB
-  transferred since the last hit.
+- **time** (compute, worker): one unit per tick (`~1s`). Accrues every tick, so it charges every tick,
+  exactly as today.
+- **VPN** (transfer): one unit per GB transferred. An idle tick accrues no unit and charges nothing; a
+  busy tick can owe several units.
+- **storage** (capacity × time): one unit per GB-hour (provisionedGb × elapsed).
 
-The worker generalizes in two small ways. First, the paywalled path comes from the descriptor
-(`/compute`, `/vpn`, `/storage`, `/worker`) instead of the hardcoded `/compute`. Second, the budget
-check switches from counting charges (`charges.length >= maxUnits`) to summing atomic spend against a
-budget, so one large volume charge counts proportionally instead of as a single "unit." The existing
-`lastChargedAt` plus persisted charge records keep the "never double-charge or skip on restart"
-guarantee, so no new column is needed. `pricePerCharge` on the provider is the per-unit price, where
-the unit is defined by the type's descriptor (per second for time types, per GB for VPN).
+Two seams make this work without touching the x402 price or the count-based budget:
 
-The simulated executors implement this pricing behind the paywall: the simulated VPN endpoint grows
-its session byte counter and charges the delta; the simulated storage endpoint charges on provisioned
-GB times elapsed; compute/worker charge a flat per-tick amount as today.
+1. The provider exposes an **unpaywalled per-session usage read** (units accrued so far), backed by the
+   executor. The paywalled service path comes from the descriptor (`/compute`, `/vpn`, `/storage`,
+   `/worker`) instead of the hardcoded `/compute`.
+2. Each tick, `meterTick` reads pending whole units (`accrued − charged`) for the session and makes
+   that many paid hits, each one fixed-price charge for one unit, capped per tick so a burst can't run
+   away. Time types report one pending unit per tick (unchanged cadence); an idle VPN reports zero and
+   is not charged.
+
+The budget stays **count-based** (`charges.length >= maxUnits` = max units), because each paid hit is
+exactly one unit. `pricePerCharge` is the per-unit price (per second for compute, per GB for VPN),
+already how it is priced. `lastChargedAt` plus the persisted charge records keep the "never
+double-charge or skip on restart" guarantee, so no new column is needed.
+
+The simulated executors accrue per-type usage: compute/worker tick a unit each heartbeat; the VPN
+simulator grows a session byte counter (so pending GB units appear over time); storage accrues
+GB-hours from provisioned capacity. A real user-supplied provider reports its own real usage through
+the same unpaywalled read.
 
 ## 4. VPN end to end
 
@@ -151,10 +159,10 @@ providers are re-priced accordingly.
 
 - Registry completeness: every descriptor has a spec, telemetry, connect schema, metering kind, and
   executor kind.
-- Per-type simulated endpoint pricing: flat per tick for time types, delta-since-last-hit for VPN
-  (session byte counter) and storage (provisioned GB × elapsed).
-- The worker records `amountAtomic` per charge and stops on the spend-based budget; a simulated
-  restart does not double-charge (the `lastChargedAt` gate holds).
+- Unit accrual per type: the VPN simulator's per-session usage read grows one pending unit per GB
+  transferred (idle ticks accrue none); compute/worker report one unit per tick.
+- `meterTick` charges pending whole units per tick (capped), records `amountAtomic` per charge, and
+  stops on the count-based budget; a simulated restart does not double-charge (`lastChargedAt` gate).
 - Per-type simulator telemetry validates against its descriptor's telemetry schema.
 - `RenderExecutor` conforms to `ServiceExecutor` (mocked Render API, since it is off by default).
 - VPN end to end: provide → rent → meter on transfer → download profile, on the in-memory registry.
@@ -173,5 +181,5 @@ providers are re-priced accordingly.
 - Service types at launch: GPU, CPU, Full Server, Storage, VPN, Worker.
 - Model shape: descriptor registry (single source of truth) over discriminated unions or loose JSON.
 - Platform provisioning: `RenderExecutor` seam-ready but simulated by default; users are real.
-- Metering: unit-accrual priced at the provider endpoint (flat per tick for time, delta for volume);
-  the worker records the amount and enforces a spend-based budget. No new DB column.
+- Metering: one fixed-price x402 hit per accrued unit; the worker charges pending whole units per tick
+  (capped) and keeps the count-based budget. No new DB column, no dynamic pricing.
