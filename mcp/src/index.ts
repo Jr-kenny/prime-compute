@@ -5,7 +5,7 @@ import { z } from "zod";
 import { PrimeClient } from "./client";
 import { serviceIds } from "../../services/src/services/registry";
 
-const baseUrl = process.env.PRIME_API_URL ?? "https://primecomputelive.vercel.app";
+const baseUrl = process.env.PRIME_API_URL ?? "https://primecompute.vercel.app";
 const apiKey = process.env.PRIME_API_KEY;
 if (!apiKey) {
   // Fail fast with a clean message on stderr (an MCP client shows this when the server won't start),
