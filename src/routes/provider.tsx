@@ -110,7 +110,7 @@ function ProviderDash() {
               <div className="glass-card p-6 lg:col-span-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Total earned</div>
                 <div className="mt-2 text-3xl font-bold text-foreground">${totalEarned.toFixed(4)}</div>
-                <div className="mt-1 text-xs text-muted-foreground">across {allRents.length} rent{allRents.length === 1 ? "" : "s"}</div>
+                <div className="mt-1 text-xs text-muted-foreground">billed to renters across {allRents.length} rent{allRents.length === 1 ? "" : "s"} · paid directly to your endpoint wallet</div>
               </div>
             </TabsContent>
 
@@ -139,11 +139,13 @@ function ProviderDash() {
                 <div className="flex items-center justify-between"><Label>Accept matched rents automatically</Label><Switch defaultChecked /></div>
                 <div className="flex items-center justify-between"><Label>Allow rent migration in</Label><Switch defaultChecked /></div>
               </div>
-              <div className="glass-card p-6 space-y-4">
-                <h3 className="font-semibold">Payout wallet</h3>
+              <div className="glass-card p-6 space-y-3">
+                <h3 className="font-semibold">Earnings & payout</h3>
+                <p className="text-sm text-muted-foreground">
+                  You're paid directly on-chain to the wallet your service endpoint signs with. Prime Compute never holds your earnings, so there's nothing to withdraw here - the money is already yours the moment a charge settles.
+                </p>
+                <Label>Identity wallet (attribution)</Label>
                 <Input readOnly value={walletAddress ?? "—"} className="font-mono bg-card border-border" />
-                <Label>Minimum payout</Label>
-                <Input defaultValue="50" className="bg-card border-border" />
               </div>
             </TabsContent>
           </Tabs>
