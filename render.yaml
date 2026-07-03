@@ -1,0 +1,50 @@
+# Render blueprint for the metering worker (see docs/WORKER_DEPLOY.md).
+# The free plan spins down after ~15 min idle: point a free pinger
+# (cron-job.org / UptimeRobot) at /health every ~10 min to keep it warm.
+# Metering is restart-safe, so a spin-down pauses billing, never corrupts it.
+services:
+  - type: web
+    name: primecompute-worker
+    runtime: docker
+    plan: free
+    dockerfilePath: ./services/Dockerfile
+    dockerContext: ./services
+    healthCheckPath: /health
+    envVars:
+      # Tuning (safe defaults, override in the dashboard if needed)
+      - key: WORKER_TICK_MS
+        value: "1000"
+      - key: WORKER_DEFAULT_MAX_UNITS
+        value: "600"
+      - key: WORKER_LEASE_CAP_ATOMIC
+        value: "1000000"
+      # Secrets: sync:false means Render prompts for the value on first deploy.
+      # Use the same values as the web app's env (root .env).
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SPEND_WALLET_ENC_KEY
+        sync: false
+      - key: ARC_RPC_URL
+        sync: false
+      - key: ARC_CHAIN_ID
+        sync: false
+      - key: USDC_ADDRESS
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: CIRCLE_API_KEY
+        sync: false
+      - key: CIRCLE_ENTITY_SECRET
+        sync: false
+      - key: CIRCLE_WALLET_SET_ID
+        sync: false
+      - key: PLATFORM_TREASURY_ADDRESS
+        sync: false
+      - key: WALLET_BACKEND
+        sync: false
