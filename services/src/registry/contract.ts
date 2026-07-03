@@ -35,7 +35,7 @@ export function registryContract(
       expect(p.id).toBeTruthy();
       expect(p.alias).toBe("node-astral-1");
       expect(typeof p.computeScore).toBe("number");
-    });
+    }, T);
 
     test("a provider's trust tier round-trips", async () => {
       const p = await reg.registerProvider({ ...sampleProvider, alias: "bonded-1", trust: defaultTrust("Bonded") });
@@ -79,12 +79,12 @@ export function registryContract(
 
       const onlineGpus = await reg.listProviders({ resourceType: "GPU", onlineOnly: true });
       expect(onlineGpus.map((p) => p.alias)).toEqual(["node-astral-1"]);
-    });
+    }, T);
 
     test("getProvider returns null for unknown id", async () => {
       // A well-formed but absent id (real stores type the id column as uuid).
       expect(await reg.getProvider(crypto.randomUUID())).toBeNull();
-    });
+    }, T);
 
     test("bumpComputeScore adjusts and persists the score", async () => {
       const p = await reg.registerProvider({ ...sampleProvider, computeScore: 90 });
@@ -92,7 +92,7 @@ export function registryContract(
       expect(bumped.computeScore).toBe(85);
       const fetched = await reg.getProvider(p.id);
       expect(fetched?.computeScore).toBe(85);
-    });
+    }, T);
 
     test("createRent defaults status to queued and autonomy to false", async () => {
       const rent = await reg.createRent({
@@ -104,7 +104,7 @@ export function registryContract(
       expect(rent.status).toBe("queued");
       expect(rent.autonomyArmed).toBe(false);
       expect(rent.totalCost).toBe(0);
-    });
+    }, T);
 
     test("updateRent patches fields", async () => {
       const provider = await reg.registerProvider(sampleProvider);
@@ -112,7 +112,7 @@ export function registryContract(
       const updated = await reg.updateRent(rent.id, { status: "running", providerId: provider.id });
       expect(updated.status).toBe("running");
       expect(updated.providerId).toBe(provider.id);
-    });
+    }, T);
 
     test("creates and lists an agent-owned rent", async () => {
       const rent = await reg.createRent({
@@ -158,7 +158,7 @@ export function registryContract(
       await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: "a1", settled: false, settlementRef: null });
       expect(await reg.rentCost(rent.id)).toBe(200);
       expect((await reg.listCharges(rent.id)).length).toBe(2);
-    });
+    }, T);
 
     test("recordCharge persists feeAmount; rentCost is what the renter paid", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "fee-p" });
@@ -186,7 +186,7 @@ export function registryContract(
       await reg.markChargeSettled(charge.id);
       const charges = await reg.listCharges(rent.id);
       expect(charges[0]?.settled).toBe(true);
-    });
+    }, T);
 
     test("recordDecision stores candidates + rationale", async () => {
       const a = await reg.registerProvider({ ...sampleProvider, alias: "cand-a" });
@@ -200,7 +200,7 @@ export function registryContract(
       });
       expect(d.id).toBeTruthy();
       expect(d.chosenProviderId).toBe(b.id);
-    });
+    }, T);
 
     test("listRents filters by userId, providerId, and status", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "filter-target" });
