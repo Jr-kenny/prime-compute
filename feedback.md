@@ -293,6 +293,20 @@ could act on it. Concrete beats vague.
 - **Suggestion:** ship a browser-native build of the Web SDK that doesn't pull jsonwebtoken/node-stream into the client (use WebCrypto + a browser JWT decoder), or document the exact polyfill setup the SDK needs, including an SSR-safe (client-only) configuration for Vite/Next/TanStack Start. Right now the happy-path `import` is a landmine.
 - **Date:** 2026-07-02
 
+### The Web SDK's OTP/PIN modals ignore the host app's theme
+- **Area:** SDK (user-controlled wallets, w3s-pw-web-sdk)
+- **What happened:** the email-OTP verification modal (and the PIN screens) render as a fixed white card. Our app is dark-themed; the modal glows in the middle of it. The SDK exposes `setThemeColor`-style customization for accents, but there's no dark mode and no way to restyle the modal surface to match the host app.
+- **Impact:** the single most user-visible step of onboarding looks like a third-party popup rather than part of the product, which is exactly where users bail on custody flows.
+- **Suggestion:** support a dark theme (or arbitrary background/foreground tokens) in the Web SDK's ChallengeUI customization, or offer a headless mode where the host app renders the inputs and the SDK only handles the crypto.
+- **Date:** 2026-07-03
+
+### OTP verification fails in production with no error surfaced anywhere
+- **Area:** SDK (user-controlled wallets, w3s-pw-web-sdk)
+- **What happened:** on the deployed app (primecompute.vercel.app) the user enters the emailed OTP correctly and the flow fails; the SDK's error callback delivers nothing actionable to show the user, and nothing appears in the modal itself (it just fails closed). The same flow worked on localhost with the same App ID.
+- **Impact:** a production login outage with zero diagnostics: the developer can't tell if the deviceToken expired, the code was consumed by a retry, the App ID rejects the origin, or something else. Debugging means instrumenting every callback and guessing.
+- **Suggestion:** make the verify failure return a structured error code + human message through the callback (and render it in the modal), and document the OTP/deviceToken expiry and retry semantics.
+- **Date:** 2026-07-03
+
 <!-- Add new entries above this line as we hit them during implementation. -->
 
 ### signTypedData rejects viem-style typed data with a cryptic count error
