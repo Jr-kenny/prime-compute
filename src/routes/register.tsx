@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Cpu, Zap, HardDrive, Server, Shield, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { authGuard } from "../lib/auth/guard";
@@ -14,6 +14,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { registerProvider } from "@/lib/broker/server-fns";
 import type { ResourceType } from "@services/domain";
 import { serviceIds, descriptorFor } from "@services/services/registry";
+import { rateDisplay } from "@/lib/pricing/rate";
+import { LanternMark } from "@/components/site/LanternMark";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: authGuard,
@@ -116,6 +118,18 @@ function Register() {
 
   return (
     <PageShell>
+      <div className="border-b border-border">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 h-14 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-white">
+            <LanternMark className="h-6 w-6" />
+            Prime <span className="text-glow">Compute</span>
+          </Link>
+          <div className="flex items-center gap-4 text-sm">
+            <Link to="/marketplace" className="text-muted-foreground hover:text-foreground transition">Marketplace</Link>
+            <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition">Dashboard</Link>
+          </div>
+        </div>
+      </div>
       <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12">
         <div className="text-[11px] uppercase tracking-wider text-glow">Provider onboarding</div>
         <h1 className="mt-1 text-3xl md:text-4xl font-bold">List your server</h1>
@@ -244,7 +258,7 @@ function Register() {
                 <Input type="number" step="0.0000001" className="mt-2 bg-card border-border font-mono" value={form.pricePerCharge}
                   onChange={(e) => setForm({ ...form, pricePerCharge: +e.target.value })} />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  At this rate, a 1-hour rent costs <span className="text-foreground">${(form.pricePerCharge * 3600).toFixed(4)}</span>.
+                  Renters see this as <span className="text-foreground">{rateDisplay(form.type, form.pricePerCharge).human}</span> ({rateDisplay(form.type, form.pricePerCharge).streaming}). The streaming meter charges per unit; they only pay for what runs.
                 </p>
               </div>
             </div>
