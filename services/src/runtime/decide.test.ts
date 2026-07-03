@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { decide, type DecideClient } from "./decide";
+import { decide, proposeArgsSchema, type DecideClient } from "./decide";
 import type { Soul, Policy, DecisionContext, ActionSpec, Proposal } from "./types";
 
 const policy: Policy = { schema: "policy/v1", version: "9.9.9", body: "p" };
@@ -55,4 +55,24 @@ test("falls back when the client hangs past the timeout", async () => {
   const d = await decide({ soul, policy, context, actions, client, fallback, timeoutMs: 50, timer: immediateTimer });
   expect(d.usedFallback).toBe(true);
   expect(d.proposals[0]?.action).toBe("hold");
+});
+
+// Small models (e.g. llama-3.1-8b via NIM) often double-encode nested tool args, sending
+// `proposals` as a JSON *string* instead of an array. The schema must accept both shapes,
+// or every chat turn silently degrades to the fallback.
+test("proposeArgsSchema accepts proposals as an array", () => {
+  const args = { proposals: [{ action: "answer", score: 1, rationale: ["r"], user_explanation: "hi" }] };
+  const parsed = proposeArgsSchema.parse(args);
+  expect(parsed.proposals[0]?.action).toBe("answer");
+});
+
+test("proposeArgsSchema accepts proposals double-encoded as a JSON string", () => {
+  const args = { proposals: JSON.stringify([{ action: "answer", score: 1, rationale: ["r"], user_explanation: "hi" }]) };
+  const parsed = proposeArgsSchema.parse(args);
+  expect(parsed.proposals[0]?.action).toBe("answer");
+  expect(parsed.proposals[0]?.user_explanation).toBe("hi");
+});
+
+test("proposeArgsSchema still rejects a string that isn't JSON", () => {
+  expect(() => proposeArgsSchema.parse({ proposals: "not json" })).toThrow();
 });

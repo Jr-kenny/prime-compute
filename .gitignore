@@ -51,3 +51,6 @@ services/node_modules
 
 # Playwright MCP scratch output
 .playwright-mcp/
+
+# Circle entity-secret recovery file (probe:circle-signer:setup writes it; never commit)
+recovery_file_*.dat

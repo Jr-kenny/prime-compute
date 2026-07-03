@@ -1,6 +1,6 @@
 # Running Prime Compute on the Canteen Arc RPC
 
-Prime Compute settles real USDC on Arc testnet. For the Agora Agents hackathon, Arc access is
+Prime Compute settles real USDC on Arc testnet. For the lepton hackathon, Arc access is
 handed out through Canteen's `arc-canteen` CLI, which gives you a tokenized Arc RPC endpoint. This
 app is built so that endpoint drops straight in: every Arc call (the broker's Gateway settlement,
 the per-user spend wallets, and passkey ownership verification) reads one env var, `ARC_RPC_URL`.

@@ -3,6 +3,19 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
+// In dev, server functions read secrets (SUPABASE_*, CIRCLE_API_KEY, USDC_ADDRESS, ...) off
+// process.env. Vite v8 runs the SSR runtime in a separate process from vite.config, and the
+// launcher (e.g. the preview runner) doesn't always auto-load .env into it, so populate it here
+// where the server code actually executes. Guarded to dev: in production (Cloudflare) env comes
+// from the platform and there's no .env on disk.
+if (import.meta.env.DEV && !process.env.SUPABASE_URL) {
+  try {
+    process.loadEnvFile();
+  } catch (error) {
+    console.warn("[server] could not load .env:", error);
+  }
+}
+
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };

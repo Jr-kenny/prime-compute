@@ -85,6 +85,34 @@ export async function decide(input: DecideInput): Promise<Decision> {
   };
 }
 
+// Small models (llama-3.1-8b via NIM, notably) often double-encode nested tool args,
+// sending `proposals` as a JSON *string* of the array instead of the array itself. Without
+// this preprocess the SDK's schema validation rejects the call and every chat turn silently
+// degrades to the fallback, looking like the model is down when it answered fine.
+const jsonArrayTolerant = (v: unknown) => {
+  if (typeof v !== "string") return v;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return v; // let zod report the real shape error
+  }
+};
+
+export const proposeArgsSchema = z.object({
+  proposals: z.preprocess(
+    jsonArrayTolerant,
+    z.array(
+      z.object({
+        action: z.string(),
+        target: z.string().optional(),
+        score: z.number(),
+        rationale: z.array(z.string()),
+        user_explanation: z.string(),
+      }),
+    ),
+  ),
+});
+
 // The real model-backed client. Network + tool-calling live only here.
 export function makeDecideClient(): DecideClient {
   const { provider, modelId } = makeModel();
@@ -104,24 +132,14 @@ export function makeDecideClient(): DecideClient {
         tools: {
           propose_actions: tool({
             description: "Return the available actions ranked best-first for this situation.",
-            parameters: z.object({
-              proposals: z.array(
-                z.object({
-                  action: z.string(),
-                  target: z.string().optional(),
-                  score: z.number(),
-                  rationale: z.array(z.string()),
-                  user_explanation: z.string(),
-                }),
-              ),
-            }),
+            parameters: proposeArgsSchema,
           }),
         },
         maxSteps: 1,
       });
       const call = result.toolCalls.find((c) => c.toolName === "propose_actions");
       if (!call) throw new Error("model did not call propose_actions");
-      const raw = (call.args as { proposals: Array<{ action: string; target?: string; score: number; rationale: string[]; user_explanation: string }> }).proposals;
+      const raw = (call.args as z.infer<typeof proposeArgsSchema>).proposals;
       return raw.map((p) => ({
         action: p.action,
         target: p.target,

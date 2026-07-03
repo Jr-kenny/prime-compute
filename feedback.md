@@ -258,4 +258,53 @@ could act on it. Concrete beats vague.
   of paymaster/gas-sponsorship behavior per network (especially Arc testnet).
 - **Date:** 2026-06-30
 
+### Faucet API returns a bare 403 for developer-controlled wallets on Arc testnet
+- **Area:** API (faucet, developer-controlled wallets)
+- **What happened:** `client.requestTestnetTokens({ address, blockchain: "ARC-TESTNET", usdc: true })` (the SDK wrapper for `POST /v1/faucet/drips`) returned a bare 403 with no body explaining why, for an API key that can create wallets, sign, and execute contracts on Arc testnet just fine. There's no way to tell whether the faucet doesn't support Arc, isn't enabled for this key tier, or needs some console toggle; the docs for the faucet endpoint don't list supported blockchains.
+- **Impact:** an end-to-end test of "Circle wallet funds Gateway and pays an x402 charge" dead-ends at funding: everything else is automatable through the SDK, but getting the first testnet USDC into the wallet requires a human at faucet.circle.com, so CI or an agent can't run the proof unattended.
+- **Suggestion:** return a reason with the 403 (unsupported chain vs. key permissions), document which blockchains `POST /v1/faucet/drips` supports, and ideally support Arc testnet since Circle's own Gateway/x402 stack targets it.
+- **Date:** 2026-07-02
+
+### Insufficient-balance error on contractExecution doesn't say which asset or how much
+- **Area:** API (developer-controlled wallets, contract execution)
+- **What happened:** `POST /v1/w3s/developer/transactions/contractExecution` on an unfunded Arc-testnet wallet returned 400 code 155258 `the asset amount owned by the wallet is insufficient for the transaction`. It doesn't say which asset (the USDC being approved? the USDC-denominated gas Arc uses?), the required amount, or the wallet's current balance.
+- **Impact:** on Arc, where gas is also USDC, "insufficient" is ambiguous between transfer value and fee; you have to look up the balance separately and guess which leg fell short before knowing how much to fund.
+- **Suggestion:** include asset, required amount, and available amount in the error body (the estimation layer clearly knows all three).
+- **Date:** 2026-07-02
+
+### Gateway withdraw fee isn't documented or queryable before you try the withdraw
+- **Area:** SDK (`@circle-fin/x402-batching` GatewayClient)
+- **What happened:** `gateway.withdraw()` on Arc testnet charges a same-chain fee of ~0.0035 USDC, but nothing exposes that number upfront: no `estimateWithdrawFee`, no constant in the SDK, and the docs only mention the `maxFee` cap (default 2.01 USDC). The only way to learn the real fee is to attempt a withdraw and parse it out of the insufficient-balance error (`available 0.002300, required 0.003501` when withdrawing 0.000001).
+- **Impact:** any accrue-then-remit design has to pick its remittance threshold blind. We shipped a $0.01 default, discovered the fee is 35% of that from a failed live run, and had to recalibrate to $0.10. An agent can't budget fees it can't query.
+- **Suggestion:** expose a fee quote (an `estimateWithdrawFee()` or a field on `getBalances()`), and document the typical same-chain fee next to `maxFee` so the default isn't the only visible number.
+- **Date:** 2026-07-02
+
+### Gateway deposit credits minutes after the deposit tx confirms, with no status to poll
+- **Area:** SDK (`@circle-fin/x402-batching` GatewayClient)
+- **What happened:** `gateway.deposit("0.05")` returned a confirmed `depositTxHash` immediately, but `getBalances()` kept reporting the old available balance for a couple of minutes until Circle's attestation credited it. Nothing in the deposit result or balances object says "pending attestation": the deposit just looks lost until it suddenly isn't.
+- **Impact:** scripts that deposit-then-spend have to hand-roll a polling loop against `getBalances()` with a guessed timeout, because there's no pending-deposit state to watch and no docs stating the expected attestation delay.
+- **Suggestion:** surface in-flight deposits in `getBalances()` (a `pendingDeposit` bucket, like `withdrawing` already exists for the other direction) or document the attestation delay and a recommended polling pattern.
+- **Date:** 2026-07-02
+
+### w3s-pw-web-sdk needs a full Node polyfill set to load in the browser, and it crashes at import if you don't
+- **Area:** SDK (`@circle-fin/w3s-pw-web-sdk`, the user-controlled Web SDK)
+- **What happened:** a plain `import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk"` in a Vite app throws at module init: `TypeError: Cannot read properties of undefined (reading 'from')` (safe-buffer reading `require('buffer').Buffer`, which Vite externalizes to `undefined` for the browser). Fixing buffer just surfaces the next one: `TypeError: Object prototype may only be an Object or null: undefined` from `util.inherits` inside the SDK's bundled `jsonwebtoken`/`jws` stream code. The Web SDK drags jsonwebtoken (and its safe-buffer/crypto-browserify/readable-stream chain) into the browser, so it needs buffer/crypto/stream/util/events/process all polyfilled with correct CommonJS interop.
+- **Impact:** you can't just install and import the browser SDK in a modern bundler; you have to add `vite-plugin-node-polyfills` (or equivalent) before it will even evaluate. Worse in an SSR framework (TanStack Start / nitro / Cloudflare): the global polyfill that makes the client work then breaks the server build, because the same jsonwebtoken chain gets shimmed in the SSR bundle (`node:buffer is not exported by .../shims/buffer`). Scoping the polyfill to only the client is fiddly because the plugin works through Vite's global `config` hook, not per-environment hooks.
+- **Suggestion:** ship a browser-native build of the Web SDK that doesn't pull jsonwebtoken/node-stream into the client (use WebCrypto + a browser JWT decoder), or document the exact polyfill setup the SDK needs, including an SSR-safe (client-only) configuration for Vite/Next/TanStack Start. Right now the happy-path `import` is a landmine.
+- **Date:** 2026-07-02
+
 <!-- Add new entries above this line as we hit them during implementation. -->
+
+### signTypedData rejects viem-style typed data with a cryptic count error
+- **Area:** SDK (developer-controlled wallets)
+- **What happened:** `POST /v1/w3s/developer/sign/typedData` returned 400 code 156026, `error: there is extra data provided in the message (0 < 4) with external msg: Failed during the validation for typed data`, for a payload that viem/ethers accept as-is. The actual problem: Circle's validator requires `EIP712Domain` to be declared explicitly in `types`; viem-style payloads (and Circle's own x402-batching `BatchEvmSigner` interface!) omit it because it's inferable from the `domain` object. Nothing in the error names `EIP712Domain`, and the SDK's own signTypedData doc example omits it too.
+- **Impact:** a probe validating the "Circle wallet as x402 payer" architecture failed on a payload copied field-for-field from Circle's own x402-batching SDK; decoding "(0 < 4)" into "declare the domain type" took a debugging round-trip. Any adapter bridging Circle wallets into `BatchEvmScheme` must now inject `EIP712Domain` into `types` before every call.
+- **Suggestion:** either accept payloads without `EIP712Domain` (infer from `domain`, like viem/ethers), or return a message that says "types must declare EIP712Domain matching the domain fields". Aligning with the shape `@circle-fin/x402-batching` emits would make the two Circle SDKs composable out of the box.
+- **Date:** 2026-07-02
+
+### Entity secret errors never say it's account-global or where it was registered
+- **Area:** SDK / Docs (developer-controlled wallets)
+- **What happened:** registering an entity secret returned 409 code 156015 `The secret for this entity has already been set`, then signing with a freshly generated secret returned 400 code 156013 `The provided entity secret is invalid`. The secret had been registered months earlier by a different project on the same Circle account; nothing in either error, the console, or the quickstart says the entity secret is one-per-account (not per-project/per-API-key), or gives any hint where/when one was already registered.
+- **Impact:** a second project on the same account walks the documented "generate + register" quickstart and hits a dead end twice, with the fix (dig the original secret out of the first project's env) discoverable only by remembering the account's history.
+- **Suggestion:** make the 409 say "an entity secret was registered on <date>; reuse it or reset via the recovery file (Configurator -> Entity Secret)", and state clearly in the quickstart that the secret is account-wide and every project must share it.
+- **Date:** 2026-07-02
