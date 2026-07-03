@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { useSession } from "@/lib/auth/session";
 import { getSpendWalletBalance, withdrawFromSpendWallet } from "@/lib/wallet/server-fns";
 import { listMySpend } from "@/lib/wallet/history-fns";
-import { erc20Abi, parseUnits } from "viem";
-import { useAccount, useWriteContract } from "wagmi";
+import { erc20Abi, parseUnits, formatUnits } from "viem";
+import { useAccount, useWriteContract, useReadContract } from "wagmi";
 import { usdcAddress } from "@/lib/wallet-connect/config";
 
 function AddressRow({ label, hint, address }: { label: string; hint?: string; address: string }) {
@@ -135,8 +135,15 @@ export function WalletSheet({
    wallet itself confirms. USDC has 6 decimals on Arc. */
 function FundSpendWalletFlow({ spendWalletAddress }: { spendWalletAddress: string | undefined }) {
   const queryClient = useQueryClient();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const { data: fundingBalance } = useReadContract({
+    address: usdcAddress,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address, refetchInterval: 5000 },
+  });
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,7 +192,17 @@ function FundSpendWalletFlow({ spendWalletAddress }: { spendWalletAddress: strin
         </div>
       ) : (
         <div className="space-y-3">
-          <Label className="text-xs">Amount (USDC)</Label>
+          <div className="flex items-baseline justify-between">
+            <Label className="text-xs">Amount (USDC)</Label>
+            <button
+              type="button"
+              className="text-[10px] text-muted-foreground hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground"
+              disabled={fundingBalance == null}
+              onClick={() => fundingBalance != null && setAmount(formatUnits(fundingBalance, 6))}
+            >
+              Balance: {fundingBalance != null ? `${formatUnits(fundingBalance, 6)} USDC` : "…"}
+            </button>
+          </div>
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="font-mono bg-card border-border" />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <Button
