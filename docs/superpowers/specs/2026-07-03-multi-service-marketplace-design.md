@@ -92,23 +92,29 @@ default: platform-supplied listings keep `SimulatedExecutor` for now, so turning
 is a config flip, not a rewrite. Users always register their own `endpointUrl`, so their listings are
 real by definition; only the platform's own seed/template listings are simulated.
 
-## 3. Metering on unit-accrual
+## 3. Metering on unit-accrual (priced at the provider endpoint)
 
-Settlement stays one code path and does not branch on service type. Each executor emits its own
-**cumulative units accrued** in its telemetry, and the worker always charges
-`pricePerCharge × (unitsNow − unitsAlreadyCharged)`. The executor owns how units are computed, so the
-worker never needs a per-type switch:
+Settlement already works by paying the provider's x402-paywalled endpoint per tick and recording
+whatever it charged (`payForCompute(url)` returns `amountAtomic`). The unit-accrual therefore lives at
+the provider endpoint, not the worker: the worker never computes a charge, it hits the endpoint and
+records the amount, exactly as it does today.
 
-- **time** (compute, worker): the executor reports elapsed seconds since provision.
-- **storage** (capacity × time): the executor reports cumulative GB-hours (provisionedGb × elapsed).
-- **VPN** (transfer): the executor reports cumulative GB transferred.
+- **time** (compute, worker): the endpoint charges a flat amount per tick (unchanged from today).
+- **storage** (capacity × time): the endpoint charges provisionedGb × elapsed-since-last-hit.
+- **VPN** (transfer): the endpoint tracks its own per-session cumulative bytes and charges for the GB
+  transferred since the last hit.
 
-The descriptor's `metering` and `unit` are labels for pricing and display ("per second", "per GB"),
-not something the worker branches on. The metering worker persists cumulative units charged per rent;
-on restart it charges for `unitsReported − unitsCharged`, preserving the existing "never double-charge
-or skip" guarantee for volume services exactly as it holds for time today. `pricePerCharge` on the
-provider is reinterpreted as price-per-unit, where the unit is defined by the type's descriptor (no
-column rename).
+The worker generalizes in two small ways. First, the paywalled path comes from the descriptor
+(`/compute`, `/vpn`, `/storage`, `/worker`) instead of the hardcoded `/compute`. Second, the budget
+check switches from counting charges (`charges.length >= maxUnits`) to summing atomic spend against a
+budget, so one large volume charge counts proportionally instead of as a single "unit." The existing
+`lastChargedAt` plus persisted charge records keep the "never double-charge or skip on restart"
+guarantee, so no new column is needed. `pricePerCharge` on the provider is the per-unit price, where
+the unit is defined by the type's descriptor (per second for time types, per GB for VPN).
+
+The simulated executors implement this pricing behind the paywall: the simulated VPN endpoint grows
+its session byte counter and charges the delta; the simulated storage endpoint charges on provisioned
+GB times elapsed; compute/worker charge a flat per-tick amount as today.
 
 ## 4. VPN end to end
 
@@ -131,23 +137,24 @@ profile; a real user VPN reports actual transfer from its own endpoint. The dash
 
 ## Persistence and migration
 
-An additive Supabase migration:
+One additive Supabase migration: widen the `resourceType` CHECK constraint (from
+`services/supabase/migrations/0001_init.sql`) to also allow `VPN` and `Worker` (`Storage` and
+`Full Server` are already allowed). Nothing else changes at the schema level: per-type spec fields
+live in the existing `specs` JSON column, and metering needs no new column because pricing happens at
+the provider endpoint and restart-safety comes from the existing `lastChargedAt` + charge records.
 
-- Widen the `resourceType` CHECK constraint (from `0001_init.sql`) to also allow `VPN` and `Worker`
-  (`Storage` and `Full Server` are already allowed).
-- Add a `units_charged` numeric column on the rent/lease so volume metering is idempotent on restart.
-
-Per-type spec fields live in the existing `specs` JSON column, so no schema change is needed for
-them. Existing rows are compute types the registry already covers. Storage's metering changes from
-its current treatment to GB-hours; this is called out as a behavior change, and any seeded storage
+Existing rows are compute types the registry already covers. Storage's metering changes from its
+current treatment to GB-hours; this is called out as a behavior change, and any seeded storage
 providers are re-priced accordingly.
 
 ## Testing
 
 - Registry completeness: every descriptor has a spec, telemetry, connect schema, metering kind, and
   executor kind.
-- Metering math per kind (time, storage capacity×time, VPN transfer) with restart idempotency: after
-  a simulated restart the total charged equals `price × unitsReported`, never more.
+- Per-type simulated endpoint pricing: flat per tick for time types, delta-since-last-hit for VPN
+  (session byte counter) and storage (provisioned GB × elapsed).
+- The worker records `amountAtomic` per charge and stops on the spend-based budget; a simulated
+  restart does not double-charge (the `lastChargedAt` gate holds).
 - Per-type simulator telemetry validates against its descriptor's telemetry schema.
 - `RenderExecutor` conforms to `ServiceExecutor` (mocked Render API, since it is off by default).
 - VPN end to end: provide → rent → meter on transfer → download profile, on the in-memory registry.
@@ -166,4 +173,5 @@ providers are re-priced accordingly.
 - Service types at launch: GPU, CPU, Full Server, Storage, VPN, Worker.
 - Model shape: descriptor registry (single source of truth) over discriminated unions or loose JSON.
 - Platform provisioning: `RenderExecutor` seam-ready but simulated by default; users are real.
-- Metering: per-type units on one accrual path (`price × unit delta`).
+- Metering: unit-accrual priced at the provider endpoint (flat per tick for time, delta for volume);
+  the worker records the amount and enforces a spend-based budget. No new DB column.
