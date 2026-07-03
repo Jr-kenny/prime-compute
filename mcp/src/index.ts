@@ -56,4 +56,13 @@ server.registerTool(
   async () => asText(await client.walletBalance()),
 );
 
+server.registerTool(
+  "withdraw_funds",
+  {
+    description: "Withdraw USDC from your agent wallet to an external address",
+    inputSchema: { toAddress: z.string(), amount: z.string() },
+  },
+  async (a) => asText(await client.withdraw(a.toAddress, a.amount)),
+);
+
 await server.connect(new StdioServerTransport());

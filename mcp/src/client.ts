@@ -25,4 +25,5 @@ export class PrimeClient {
     return this.call("/api/v1/providers", "POST", input);
   }
   walletBalance() { return this.call("/api/v1/wallet", "GET"); }
+  withdraw(toAddress: string, amount: string) { return this.call("/api/v1/wallet", "POST", { toAddress, amount }); }
 }
