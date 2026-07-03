@@ -1,4 +1,5 @@
 import type { Tier, TrustProfile } from "./trust/trust";
+import { serviceIds } from "./services/registry";
 
 // A caller the service layer acts on behalf of. Two authenticators (requireUser, requireAgent)
 // resolve to one of these, so every operation has a single principal-shaped implementation.
@@ -6,10 +7,10 @@ export type Principal =
   | { kind: "user"; id: string; walletAddress: string }
   | { kind: "agent"; id: string; walletAddress: string };
 
-// Runtime source of truth for the resource-type enum; mirrors the DB check constraint in
-// 0001_init.sql. API layers validate against this instead of casting blindly.
-export const RESOURCE_TYPES = ["GPU", "CPU", "Storage", "Full Server"] as const;
-export type ResourceType = (typeof RESOURCE_TYPES)[number];
+// Runtime source of truth for the resource-type enum, derived from the service registry so a new
+// service type flows here automatically. Mirrors the widened DB check constraint (0002 migration).
+export const RESOURCE_TYPES = serviceIds() as readonly string[];
+export type ResourceType = string;
 export type RentStatus =
   | "queued"
   | "running"
