@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useSignMessage, useChainId, useSwitchChain } from "wagmi";
 import { createSiweMessage } from "viem/siwe";
 import { arcTestnet } from "../lib/wallet-connect/config";
 import { getLoginNonce, completeSiweLogin } from "../lib/auth/siwe-fns";
@@ -37,9 +37,28 @@ function Onboarding() {
   const { session, loading, walletAddress, signOut } = useSession();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
   const [step, setStep] = useState<Step>("connect");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const wrongChain = isConnected && chainId !== arcTestnet.id;
+
+  // Get the wallet onto Arc, adding the chain if the wallet has never seen it. Returns true
+  // once we're on Arc; false (with an error set) if the user waved the switch away.
+  async function ensureArcChain(): Promise<boolean> {
+    if (chainId === arcTestnet.id) return true;
+    try {
+      await switchChainAsync({ chainId: arcTestnet.id });
+      return true;
+    } catch (e) {
+      const rejected = e instanceof Error && /User rejected|denied/i.test(e.message);
+      setError(rejected ? "switch to the Arc network to sign in" : e instanceof Error ? e.message : "couldn't switch to Arc");
+      setStep("error");
+      return false;
+    }
+  }
 
   // Covers completing the ceremony while sitting on this page: `session` flips to truthy
   // reactively (no navigation happens), so beforeLoad's redirect never gets a chance to
@@ -53,6 +72,10 @@ function Onboarding() {
     setError(null);
     setBusy(true);
     try {
+      // [0] SIWE binds to Arc's chain id, so the wallet has to be on Arc before it signs.
+      // Auto-switch (and add the chain) rather than making the user do it by hand.
+      if (!(await ensureArcChain())) return;
+
       // [1] Server-issued stateless nonce, bound to this address.
       const { nonce } = await getLoginNonce({ data: { address } });
       setStep("prove");
@@ -152,13 +175,25 @@ function Onboarding() {
 
         <div className="mt-8 flex flex-col items-center gap-3">
           <ConnectButton showBalance={false} chainStatus="icon" />
-          {isConnected && step === "error" && (
+          {wrongChain ? (
             <button
-              onClick={run}
+              onClick={() => void ensureArcChain()}
               className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              Try signing in again
+              Switch to Arc network
             </button>
+          ) : (
+            isConnected && step === "error" && (
+              <button
+                onClick={run}
+                className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Try signing in again
+              </button>
+            )
+          )}
+          {wrongChain && (
+            <p className="text-xs text-muted-foreground">Your wallet is on another network. Prime Compute runs on Arc.</p>
           )}
           {busy && <p className="text-xs text-muted-foreground">Check your wallet…</p>}
         </div>

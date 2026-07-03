@@ -9,7 +9,11 @@ const TTL_MS = 5 * 60_000;
 const MAC_HEX = 64; // sha256 hex length
 
 type Opts = { secret?: string; now?: number };
-const secretOf = (o?: Opts) => o?.secret ?? process.env.AUTH_NONCE_SECRET!;
+const secretOf = (o?: Opts) => {
+  const secret = o?.secret ?? process.env.AUTH_NONCE_SECRET;
+  if (!secret) throw new Error("AUTH_NONCE_SECRET is not set — the login nonce can't be signed");
+  return secret;
+};
 const nowOf = (o?: Opts) => o?.now ?? Date.now();
 
 function mac(address: string, tsHex: string, secret: string): string {
