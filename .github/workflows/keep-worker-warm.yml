@@ -1,0 +1,18 @@
+# Render's free tier spins the metering worker down after ~15 min idle.
+# Metering is restart-safe so a nap never corrupts billing, but a warm worker
+# keeps charges streaming on time. GitHub cron is best-effort (runs can lag or
+# drop under load), which is fine here: the next ping wakes the worker anyway.
+name: keep worker warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ping worker health
+        run: |
+          curl -sS --max-time 60 --retry 2 https://primecompute-worker.onrender.com/health
