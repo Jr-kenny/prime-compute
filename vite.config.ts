@@ -105,6 +105,31 @@ export default defineConfig(async ({ command, mode }) => {
         "react/jsx-dev-runtime",
       ],
     },
+    // These CJS helpers (pulled in via the Circle SDK's axios/form-data chain) get
+    // externalized by Vite's SSR external detection, leaving bare require() calls the
+    // Cloudflare runtime can't resolve ("No such module get-intrinsic"). Force-bundle them.
+    ssr: {
+      noExternal: [
+        "get-intrinsic",
+        "es-set-tostringtag",
+        "has-tostringtag",
+        "hasown",
+        "es-errors",
+        "debug",
+        "call-bind-apply-helpers",
+        "dunder-proto",
+        "es-define-property",
+        "es-object-atoms",
+        "function-bind",
+        "get-proto",
+        "gopd",
+        "has-symbols",
+        "math-intrinsics",
+        "ms",
+        "supports-color",
+        "has-flag",
+      ],
+    },
     server: { host: "::", port: 8080 },
     plugins,
   };
