@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { Cpu, Zap, HardDrive, Server, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Cpu, Zap, HardDrive, Server, Shield, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { authGuard } from "../lib/auth/guard";
 import confetti from "canvas-confetti";
 import { PageShell } from "@/components/site/PageShell";
@@ -13,6 +13,7 @@ import { useSession } from "@/lib/auth/session";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { registerProvider } from "@/lib/broker/server-fns";
 import type { ResourceType } from "@services/domain";
+import { serviceIds, descriptorFor } from "@services/services/registry";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: authGuard,
@@ -26,12 +27,34 @@ export const Route = createFileRoute("/register")({
 });
 
 type ResType = ResourceType;
-const resOptions: { id: ResType; icon: any; desc: string }[] = [
-  { id: "GPU", icon: Zap, desc: "Single or multi-GPU rig" },
-  { id: "CPU", icon: Cpu, desc: "High-core CPU server" },
-  { id: "Storage", icon: HardDrive, desc: "Bulk SSD/NVMe" },
-  { id: "Full Server", icon: Server, desc: "Everything in one box" },
-];
+const iconFor: Record<string, any> = { compute: Zap, storage: HardDrive, network: Shield, worker: Cpu };
+const resOptions: { id: ResType; icon: any; desc: string }[] = serviceIds().map((id) => {
+  const d = descriptorFor(id);
+  return { id, icon: iconFor[d.category] ?? Server, desc: d.label };
+});
+
+// Collects the fields the chosen type's descriptor schema expects, from the form state. Every
+// schema requires region, and each category has its own shape, so we build per category rather
+// than passing a compute-shaped blob for everything.
+function buildSpecs(form: {
+  type: ResType; cpu: number; ram: number; storage: number; gpu: string; vram: number;
+  region: string; exitLocation: string; protocol: string; bandwidthMbps: number;
+  concurrency: number; runtime: string;
+}): Record<string, unknown> {
+  const cat = descriptorFor(form.type).category;
+  if (cat === "network") {
+    return { exitLocation: form.exitLocation, protocol: form.protocol, bandwidthMbps: form.bandwidthMbps, region: form.region };
+  }
+  if (cat === "storage") return { capacityGb: form.storage, region: form.region };
+  if (cat === "worker") return { cpuCores: form.cpu, ramGb: form.ram, concurrency: form.concurrency, runtime: form.runtime, region: form.region };
+  if (form.type === "Full Server") {
+    return { gpu: form.gpu, cpuCores: form.cpu, ramGb: form.ram, diskGb: form.storage, region: form.region };
+  }
+  if (form.type === "GPU") {
+    return { gpu: form.gpu, vramGb: form.vram, cpuCores: form.cpu, ramGb: form.ram, region: form.region };
+  }
+  return { cpuCores: form.cpu, ramGb: form.ram, region: form.region }; // CPU
+}
 
 function Register() {
   const router = useRouter();
@@ -45,11 +68,14 @@ function Register() {
     alias: "", type: "GPU" as ResType,
     cpu: 32, ram: 128, storage: 2000,
     gpu: "NVIDIA H100", vram: 80,
+    exitLocation: "NL", protocol: "WireGuard", bandwidthMbps: 1000,
+    concurrency: 4, runtime: "node20",
     endpointUrl: "",
     region: "US-East",
     pricePerCharge: 0.0000098,
     certified: false,
   });
+  const category = descriptorFor(form.type).category;
 
   const steps = ["Hardware", "Pricing", "Verification", "Review"];
 
@@ -65,10 +91,7 @@ function Register() {
 
     setSubmitting(true);
     try {
-      const specs: Record<string, unknown> =
-        form.type === "GPU" || form.type === "Full Server"
-          ? { gpu: form.gpu, vramGb: form.vram, cpuCores: form.cpu, ramGb: form.ram, storageGb: form.storage }
-          : { cpuCores: form.cpu, ramGb: form.ram, storageGb: form.storage };
+      const specs = buildSpecs(form);
 
       const created = await registerProvider({
         data: {
@@ -148,18 +171,57 @@ function Register() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="CPU cores" v={form.cpu} onChange={(v) => setForm({ ...form, cpu: +v })} />
-                <Field label="RAM (GB)" v={form.ram} onChange={(v) => setForm({ ...form, ram: +v })} />
-                <Field label="Storage (GB)" v={form.storage} onChange={(v) => setForm({ ...form, storage: +v })} />
-              </div>
-              {(form.type === "GPU" || form.type === "Full Server") && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>GPU model</Label>
-                    <Input className="mt-2 bg-card border-border" value={form.gpu} onChange={(e) => setForm({ ...form, gpu: e.target.value })} />
+              {category === "compute" && (
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="CPU cores" v={form.cpu} onChange={(v) => setForm({ ...form, cpu: +v })} />
+                    <Field label="RAM (GB)" v={form.ram} onChange={(v) => setForm({ ...form, ram: +v })} />
+                    <Field label={form.type === "Full Server" ? "Disk (GB)" : "Storage (GB)"} v={form.storage} onChange={(v) => setForm({ ...form, storage: +v })} />
                   </div>
-                  <Field label="VRAM (GB)" v={form.vram} onChange={(v) => setForm({ ...form, vram: +v })} />
+                  {(form.type === "GPU" || form.type === "Full Server") && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>GPU model</Label>
+                        <Input className="mt-2 bg-card border-border" value={form.gpu} onChange={(e) => setForm({ ...form, gpu: e.target.value })} />
+                      </div>
+                      {form.type === "GPU" && <Field label="VRAM (GB)" v={form.vram} onChange={(v) => setForm({ ...form, vram: +v })} />}
+                    </div>
+                  )}
+                </>
+              )}
+              {category === "storage" && (
+                <Field label="Capacity (GB)" v={form.storage} onChange={(v) => setForm({ ...form, storage: +v })} />
+              )}
+              {category === "worker" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="CPU cores" v={form.cpu} onChange={(v) => setForm({ ...form, cpu: +v })} />
+                  <Field label="RAM (GB)" v={form.ram} onChange={(v) => setForm({ ...form, ram: +v })} />
+                  <Field label="Concurrency" v={form.concurrency} onChange={(v) => setForm({ ...form, concurrency: +v })} />
+                  <div>
+                    <Label>Runtime</Label>
+                    <Input className="mt-2 bg-card border-border" value={form.runtime} onChange={(e) => setForm({ ...form, runtime: e.target.value })} />
+                  </div>
+                </div>
+              )}
+              {category === "network" && (
+                <div className="space-y-3">
+                  <div>
+                    <Label>Exit location</Label>
+                    <Input className="mt-2 bg-card border-border" value={form.exitLocation} onChange={(e) => setForm({ ...form, exitLocation: e.target.value })} placeholder="NL" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Protocol</Label>
+                      <select
+                        value={form.protocol}
+                        onChange={(e) => setForm({ ...form, protocol: e.target.value })}
+                        className="mt-2 w-full rounded-md border border-border bg-card px-3 py-2 text-sm"
+                      >
+                        {["WireGuard", "OpenVPN"].map((p) => <option key={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <Field label="Bandwidth (Mbps)" v={form.bandwidthMbps} onChange={(v) => setForm({ ...form, bandwidthMbps: +v })} />
+                  </div>
                 </div>
               )}
             </div>
@@ -205,8 +267,17 @@ function Register() {
               <Review label="Alias" value={form.alias || "—"} />
               <Review label="Type" value={form.type} />
               <Review label="Endpoint" value={form.endpointUrl || "—"} />
-              <Review label="Hardware" value={`${form.cpu} cores · ${form.ram} GB RAM · ${form.storage} GB SSD`} />
-              {(form.type === "GPU" || form.type === "Full Server") && <Review label="GPU" value={`${form.gpu} · ${form.vram} GB VRAM`} />}
+              {category === "compute" && (
+                <>
+                  <Review label="Hardware" value={`${form.cpu} cores · ${form.ram} GB RAM · ${form.storage} GB`} />
+                  {(form.type === "GPU" || form.type === "Full Server") && (
+                    <Review label="GPU" value={form.type === "GPU" ? `${form.gpu} · ${form.vram} GB VRAM` : form.gpu} />
+                  )}
+                </>
+              )}
+              {category === "storage" && <Review label="Capacity" value={`${form.storage} GB`} />}
+              {category === "worker" && <Review label="Worker" value={`${form.cpu} cores · ${form.ram} GB RAM · ${form.concurrency}× · ${form.runtime}`} />}
+              {category === "network" && <Review label="VPN" value={`${form.exitLocation} · ${form.protocol} · ${form.bandwidthMbps} Mbps`} />}
               <Review label="Region" value={form.region} />
               <Review label="Price" value={`$${form.pricePerCharge.toFixed(7)} / sec`} />
             </div>
