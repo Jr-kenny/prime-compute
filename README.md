@@ -13,9 +13,9 @@ There are four moving pieces:
 
 | Piece | What it does |
 |---|---|
-| **Marketplace** | Providers register idle resources (specs, region, price per tick, reliability); renters post rents (requirements, latency preference, estimated usage, budget). |
+| **Marketplace** | Providers register idle resources (specs, region, price per second, reliability); renters post rents (requirements, latency preference, estimated usage, budget). |
 | **Lumen, the broker** | Discovers and ranks providers, opens the payment stream, monitors health, migrates or rebalances on degradation, routes payments. Soul-driven, not a hardcoded weighting. |
-| **Streaming settlement** | Nanopayments on Arc via x402 + Circle Gateway: open, pay per tick, pause and cancel instantly, only pay for what got consumed. |
+| **Streaming settlement** | Nanopayments on Arc via x402 + Circle Gateway: open, pay per unit of use, pause and cancel instantly, only pay for what got consumed. |
 | **Reputation** | Every provider carries a Compute Score built from real outcomes (uptime, completion rate, latency, claimed-vs-observed specs). |
 
 Both people and autonomous agents can use the marketplace on either side: an agent can rent compute
@@ -31,7 +31,7 @@ flowchart LR
   lumen -->|"open payment stream"| provider[Provider<br/>x402 seller]
   lumen -->|"batched USDC"| gateway[[Circle Gateway<br/>on Arc]]
   provider --> gateway
-  worker[Metering worker] -->|"charge per tick"| gateway
+  worker[Metering worker] -->|"charge per unit"| gateway
   lumen -->|"health + migrate"| provider
 ```
 
@@ -50,9 +50,9 @@ sequenceDiagram
   R->>L: post rent (specs, budget, latency pref)
   L->>L: discover + rank candidates (soul-driven)
   L->>P: match top provider, open payment channel
-  loop every tick while running
+  loop every unit while running
     P-->>L: work + health signal
-    L->>G: batched USDC charge for consumed tick
+    L->>G: batched USDC charge for the consumed unit
   end
   Note over L,P: provider degrades past tolerance
   L->>P: migrate rent to next best provider
@@ -72,7 +72,7 @@ stateDiagram-v2
 ```
 
 A rent never pays for more than it used: `last_charged_at` plus a persisted charge `seq` let the
-metering worker restart mid-rent without double-charging or skipping a tick.
+metering worker restart mid-rent without double-charging or skipping a charge.
 
 ## Lumen, the broker
 
@@ -113,12 +113,15 @@ rent compute or list a server to provide it. Authenticate with `Authorization: B
 | `GET /api/v1/rents/:id` | One rent's status, plus connect credentials once running. |
 | `POST /api/v1/rents/:id/cancel` | Cancel a rent. |
 | `GET /api/v1/wallet` | The agent's wallet address and USDC balance. |
+| `POST /api/v1/wallet` | Withdraw USDC from the agent's wallet to an external address. |
 
 ## MCP server
 
 `mcp/` (`@prime-compute/mcp`) is a Model Context Protocol server that wraps the agent API as tools,
-so an LLM agent can find, rent, provide, and pay for compute directly. It speaks stdio and reads
-`PRIME_API_URL` (defaults to the live deployment) and `PRIME_API_KEY` (from `POST /api/v1/agents`).
+so an LLM agent can find, rent, provide, and pay for compute directly. It ships as a single
+self-contained Node binary (shebang'd, deps bundled), so any MCP client can spawn it over `npx` with
+no Bun or repo checkout. It reads `PRIME_API_KEY` (from `POST /api/v1/agents`) and optional
+`PRIME_API_URL` (defaults to the live deployment).
 
 | Tool | Purpose |
 |---|---|
@@ -127,11 +130,15 @@ so an LLM agent can find, rent, provide, and pay for compute directly. It speaks
 | `rent_status` | One rent's status and connect credentials when running. |
 | `register_server` | List your own server on the marketplace (provide compute). |
 | `wallet_balance` | Your agent wallet address and USDC balance. |
+| `withdraw_funds` | Withdraw USDC from your agent wallet to an external address. |
+
+Add it to Claude Code (or drop the equivalent block into any MCP client's config):
 
 ```bash
-cd mcp && bun install
-PRIME_API_KEY=<key from POST /api/v1/agents> bun run start
+claude mcp add prime-compute -e PRIME_API_KEY=pc_your_key -- npx -y @prime-compute/mcp
 ```
+
+See [mcp/README.md](mcp/README.md) for the JSON config, local-build usage, and full setup.
 
 ## Repo layout
 
@@ -153,8 +160,7 @@ services/              Backend: the broker brain, provider executor, on-chain
   scripts/               Round-trip scripts (seed, run a provider, exercise
                        settlement / broker / full-integration flows on Arc).
 mcp/                   MCP server exposing the marketplace to LLM agents.
-docs/                  Submission, feedback log, Canteen setup, broker write-up,
-                       worker deploy.
+docs/                  Submission, feedback log, Canteen setup, broker write-up.
 ```
 
 ## Tech stack
@@ -232,10 +238,8 @@ bun run integration:roundtrip      # full provider -> broker -> settlement loop
 - [docs/Lumen/broker.md](docs/Lumen/broker.md) - how the broker works and why it matters.
 - [docs/Canteen.md](docs/Canteen.md) - running the app on the Canteen tokenized Arc RPC.
 - [docs/Feedback.md](docs/Feedback.md) - dated log of Circle developer-tooling friction.
-- [docs/WORKER_DEPLOY.md](docs/WORKER_DEPLOY.md) - deploying the always-on metering worker.
 
 ## Status
 
 The marketplace UI reads and writes through the registry, the broker makes real ranking and matching
-decisions, and settlement is USDC moving on Arc testnet. Active development; `docs/superpowers/plans/`
-has the sequence of work it was built in.
+decisions, and settlement is USDC moving on Arc testnet. Active development.
