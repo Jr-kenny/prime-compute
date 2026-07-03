@@ -3,50 +3,49 @@
 A [Model Context Protocol](https://modelcontextprotocol.io) server for the Prime Compute
 marketplace. It wraps the agent API as tools so an LLM agent (Claude Code, Claude Desktop, or any
 MCP client) can discover, rent, provide, and pay for compute directly. It speaks stdio and ships as
-a single self-contained Node binary, so it runs under plain `npx`, no Bun or repo checkout needed.
+a single self-contained Node binary, so any client can spawn it over `npx`, no Bun or repo checkout.
 
-## Setup
+## No human in the loop
 
-You need an API key. Register once against the deployment:
+You don't register an agent or paste an API key. On first run the server provisions its own agent
+identity and Arc wallet automatically, saves it to `~/.prime-compute/credentials.json`, and reuses
+the same identity (and wallet) on every restart. It prints the wallet address to stderr on first
+run, send USDC there to give the agent something to spend. Call the `register_agent` tool any time
+to read the identity and wallet address back.
 
-```bash
-curl -X POST https://<your-deployment>/api/v1/agents -H 'content-type: application/json' -d '{"label":"my-agent"}'
-```
-
-The response includes a `pc_...` key (shown once) and your agent's Arc wallet address. Fund the
-wallet with USDC to rent compute.
+The API key is the agent's own wallet handle, not a human gate; registration is open and the server
+handles it for you. Set `PRIME_API_KEY` only if you want to pin a specific existing agent, and
+`PRIME_API_URL` only to point at a non-default deployment.
 
 ## Add it to an agent
 
-Point any MCP client at `npx -y @prime-compute/mcp` and pass the key in the env. For Claude Code:
+For Claude Code:
 
 ```bash
-claude mcp add prime-compute -e PRIME_API_KEY=pc_your_key -- npx -y @prime-compute/mcp
+claude mcp add prime-compute -- npx -y @prime-compute/mcp
 ```
 
-Or in an `.mcp.json` / `claude_desktop_config.json` (the same block works for any MCP client):
+Or in an `.mcp.json` / `claude_desktop_config.json` (works for any MCP client):
 
 ```json
 {
   "mcpServers": {
     "prime-compute": {
       "command": "npx",
-      "args": ["-y", "@prime-compute/mcp"],
-      "env": {
-        "PRIME_API_KEY": "pc_your_key",
-        "PRIME_API_URL": "https://your-deployment"
-      }
+      "args": ["-y", "@prime-compute/mcp"]
     }
   }
 }
 ```
 
-`PRIME_API_URL` is optional and defaults to the live deployment; set it to point at your own.
+That's the whole setup. To pin an existing agent or a custom deployment, add an `env` block with
+`PRIME_API_KEY` and/or `PRIME_API_URL`.
 
 ## Tools
 
 | Tool | Purpose |
 |---|---|
+| `register_agent` | This agent's identity and Arc wallet address to fund (auto-provisioned, no key needed). |
 | `discover_providers` | List available compute providers on the marketplace. |
 | `rent_compute` | Rent compute; returns a queued lease the worker provisions and meters. |
 | `rent_status` | One rent's status and connect credentials once running. |
@@ -56,13 +55,9 @@ Or in an `.mcp.json` / `claude_desktop_config.json` (the same block works for an
 
 ## Local development
 
-Run straight from source with Bun, or against the local build:
-
 ```bash
 bun install
-PRIME_API_KEY=pc_your_key bun run dev     # run from TypeScript source
-bun run build                             # bundle to dist/index.js (shebang'd Node ESM)
+bun run dev       # run from TypeScript source
+bun run build     # bundle to dist/index.js (shebang'd Node ESM)
+bun test
 ```
-
-To use the local build from an MCP client before it's published, point `command` at
-`node` and `args` at the absolute path to `dist/index.js`.

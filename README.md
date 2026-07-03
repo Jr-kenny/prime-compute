@@ -117,14 +117,16 @@ rent compute or list a server to provide it. Authenticate with `Authorization: B
 
 ## MCP server
 
-`mcp/` (`@prime-compute/mcp`) is a Model Context Protocol server that wraps the agent API as tools,
-so an LLM agent can find, rent, provide, and pay for compute directly. It ships as a single
-self-contained Node binary (shebang'd, deps bundled), so any MCP client can spawn it over `npx` with
-no Bun or repo checkout. It reads `PRIME_API_KEY` (from `POST /api/v1/agents`) and optional
-`PRIME_API_URL` (defaults to the live deployment).
+`mcp/` (`@prime-compute/mcp`, on npm) is a Model Context Protocol server that wraps the agent API as
+tools, so an LLM agent can find, rent, provide, and pay for compute directly. It ships as a single
+self-contained Node binary, so any MCP client can spawn it over `npx` with no Bun or repo checkout.
+There is no human in the loop: on first run it provisions its own agent identity and Arc wallet,
+saves them to `~/.prime-compute/credentials.json`, and reuses the same wallet on every restart.
+`PRIME_API_KEY` is optional (pin an existing agent) and `PRIME_API_URL` defaults to the live deployment.
 
 | Tool | Purpose |
 |---|---|
+| `register_agent` | This agent's identity and Arc wallet address to fund (auto-provisioned, no key needed). |
 | `discover_providers` | List available compute providers. |
 | `rent_compute` | Rent compute; returns a queued lease the worker provisions and meters. |
 | `rent_status` | One rent's status and connect credentials when running. |
@@ -135,7 +137,7 @@ no Bun or repo checkout. It reads `PRIME_API_KEY` (from `POST /api/v1/agents`) a
 Add it to Claude Code (or drop the equivalent block into any MCP client's config):
 
 ```bash
-claude mcp add prime-compute -e PRIME_API_KEY=pc_your_key -- npx -y @prime-compute/mcp
+claude mcp add prime-compute -- npx -y @prime-compute/mcp
 ```
 
 See [mcp/README.md](mcp/README.md) for the JSON config, local-build usage, and full setup.

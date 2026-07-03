@@ -3,17 +3,26 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { PrimeClient } from "./client";
+import { resolveCredentials, credentialsPath, type ResolvedCreds } from "./credentials";
 import { serviceIds } from "../../services/src/services/registry";
 
 const baseUrl = process.env.PRIME_API_URL ?? "https://primecompute.vercel.app";
-const apiKey = process.env.PRIME_API_KEY;
-if (!apiKey) {
-  // Fail fast with a clean message on stderr (an MCP client shows this when the server won't start),
-  // not a stack trace. Register once via POST /api/v1/agents to get a key.
-  console.error("prime-compute-mcp: PRIME_API_KEY is required. Register once via POST /api/v1/agents, then set PRIME_API_KEY (and PRIME_API_URL for a non-default deployment).");
+
+// No human in the loop: the agent gets its own identity + wallet automatically. An env key pins a
+// known agent; otherwise we reuse the saved identity, or self-register on first run and persist it.
+const creds: ResolvedCreds = await resolveCredentials(baseUrl).catch((e): ResolvedCreds => {
+  console.error(`prime-compute-mcp: couldn't obtain an agent identity from ${baseUrl}: ${e instanceof Error ? e.message : e}`);
+  console.error("prime-compute-mcp: check PRIME_API_URL is a reachable deployment, or set PRIME_API_KEY to use an existing agent.");
   process.exit(1);
+});
+const client = new PrimeClient(baseUrl, creds.apiKey);
+
+if (creds.source === "registered") {
+  console.error(`prime-compute-mcp: registered a new agent (${creds.agentId}). Fund its Arc wallet with USDC to rent compute: ${creds.walletAddress}`);
+  console.error(`prime-compute-mcp: identity saved to ${credentialsPath()} and reused automatically on restart.`);
+} else if (creds.source === "file") {
+  console.error(`prime-compute-mcp: using the saved agent identity (${creds.agentId}) from ${credentialsPath()}.`);
 }
-const client = new PrimeClient(baseUrl, apiKey);
 
 const server = new McpServer({ name: "prime-compute", version: "1.0.0" });
 const asText = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v, null, 2) }] });
@@ -53,6 +62,15 @@ server.registerTool(
     },
   },
   async (a) => asText(await client.registerServer(a)),
+);
+
+server.registerTool(
+  "register_agent",
+  {
+    description: "Show this agent's identity and the Arc wallet address to fund. The agent self-provisions on first run with no human and no API key; this reports who it is and where to send USDC.",
+    inputSchema: {},
+  },
+  async () => asText({ agentId: creds.agentId, identitySource: creds.source, credentialsPath: credentialsPath(), wallet: await client.walletBalance() }),
 );
 
 server.registerTool(
