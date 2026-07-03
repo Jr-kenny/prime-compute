@@ -23,11 +23,27 @@ test("parseProviderBody accepts a valid body", () => {
   const r = parseProviderBody({
     alias: "a1", endpointUrl: "https://gpu.example.com", resourceType: "CPU",
     region: "US-East", pricePerCharge: 0.000004,
+    specs: { cpuCores: 4, ramGb: 8, region: "US-East" },
   });
   if (!r.ok) throw new Error(r.message);
   expect(r.value.resourceType).toBe("CPU");
   expect(r.value.avgLatencyMs).toBe(0);
   expect(r.value.online).toBe(true);
+});
+
+test("parseProviderBody accepts a valid VPN listing", () => {
+  const base = { alias: "n", endpointUrl: "https://p.example.com", region: "EU", pricePerCharge: 0.01 };
+  const r = parseProviderBody({ ...base, resourceType: "VPN",
+    specs: { exitLocation: "NL", protocol: "WireGuard", bandwidthMbps: 1000, region: "EU" } }, { allowPrivate: true });
+  expect(r.ok).toBe(true);
+});
+
+test("parseProviderBody rejects a VPN listing missing exitLocation", () => {
+  const base = { alias: "n", endpointUrl: "https://p.example.com", region: "EU", pricePerCharge: 0.01 };
+  const r = parseProviderBody({ ...base, resourceType: "VPN",
+    specs: { protocol: "WireGuard", bandwidthMbps: 1000, region: "EU" } }, { allowPrivate: true });
+  expect(r.ok).toBe(false);
+  if (!r.ok) expect(r.message).toMatch(/exitLocation|specs/i);
 });
 
 test("parseProviderBody rejects a non-positive or non-finite price", () => {

@@ -3,6 +3,7 @@
 // this, but letting bad input reach Postgres turns agent typos into opaque 500s; these
 // return the 400 message the agent needs to self-correct.
 import { RESOURCE_TYPES, type ResourceType } from "@services/domain";
+import { descriptorFor } from "@services/services/registry";
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; message: string };
 
@@ -67,6 +68,13 @@ export function parseProviderBody(b: unknown, opts?: EndpointOpts): Parsed<Provi
   if (o.avgLatencyMs !== undefined && (!Number.isFinite(o.avgLatencyMs) || (o.avgLatencyMs as number) < 0)) {
     return fail("avgLatencyMs must be a non-negative number");
   }
+  // The listing's specs must match what its service type expects, so a VPN listing can't slip
+  // through with compute fields (or vice versa). The registry descriptor owns the shape.
+  const specsObj = (o.specs && typeof o.specs === "object" ? o.specs : {}) as Record<string, unknown>;
+  const specResult = descriptorFor(o.resourceType).specSchema.safeParse(specsObj);
+  if (!specResult.success) {
+    return fail(`specs invalid for ${o.resourceType}: ${specResult.error.issues[0]?.message ?? "bad specs"}`);
+  }
   return {
     ok: true,
     value: {
@@ -74,7 +82,7 @@ export function parseProviderBody(b: unknown, opts?: EndpointOpts): Parsed<Provi
       endpointUrl: o.endpointUrl,
       resourceType: o.resourceType,
       region: o.region.trim(),
-      specs: (o.specs && typeof o.specs === "object" ? o.specs : {}) as Record<string, unknown>,
+      specs: specResult.data as Record<string, unknown>,
       online: o.online === undefined ? true : Boolean(o.online),
       pricePerCharge: o.pricePerCharge,
       avgLatencyMs: typeof o.avgLatencyMs === "number" ? o.avgLatencyMs : 0,
