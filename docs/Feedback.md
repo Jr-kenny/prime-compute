@@ -11,7 +11,7 @@ see the order I ran into them.
 
 ## Nanopayments docs explain the model but not the SDK
 
-Area: Docs / Nanopayments — 2026-06-28
+Area: Docs / Nanopayments - 2026-06-28
 
 The nanopayments page (`https://developers.circle.com/gateway/nanopayments`) does a good job
 explaining the idea: batched settlement, x402, EIP-3009. What it doesn't show is the actual code
@@ -24,7 +24,7 @@ middleware, the buyer signing flow, the settle endpoint, one minimal framework-a
 
 ## Getting basic Arc network config takes too many hops
 
-Area: Arc / Docs — 2026-06-28
+Area: Arc / Docs - 2026-06-28
 
 `https://docs.arc.network/` 301s to `https://docs.arc.io/`, and the landing page is a nav hub with no
 concrete config on it. Chain id, RPC URL, faucet, Gateway contract addresses: none of it is on the
@@ -35,7 +35,7 @@ me the scavenger hunt.
 
 ## Not clear whether agent buyers support tool-calling
 
-Area: Agent Stack / Nanopayments — 2026-06-28
+Area: Agent Stack / Nanopayments - 2026-06-28
 
 The agent-stack and nanopayments docs talk about autonomous buyer agents but never say whether (or
 which) model interfaces support tool-calling for the actual buy decision, and the only example is
@@ -46,7 +46,7 @@ this land for everyone.
 
 ## x402-batching peer deps aren't installed or flagged
 
-Area: SDK / x402 / Gateway — 2026-06-28
+Area: SDK / x402 / Gateway - 2026-06-28
 
 `@circle-fin/x402-batching@3.2.0` lists `@x402/core` and `@x402/evm` as peerDependencies with no
 `dependencies`. Install just the Circle package, run it, and it throws at runtime with
@@ -58,7 +58,7 @@ loud "also install these peers" line at the top of the quick start, or fail with
 
 ## Batched settlement returns a UUID where I expected a tx hash
 
-Area: x402 / Gateway — 2026-06-28
+Area: x402 / Gateway - 2026-06-28
 
 On the seller, `req.payment.transaction` (named and typed like it's a settlement tx hash) actually
 returns a settlement UUID like `3f14c4dd-...`, because settlement is batched and `submitBatch` lands
@@ -70,7 +70,7 @@ lifecycle-hooks docs.
 
 ## GatewayClient doesn't compose with Circle's own developer-controlled wallets
 
-Area: SDK / x402 / Gateway — 2026-06-28
+Area: SDK / x402 / Gateway - 2026-06-28
 
 The buyer `GatewayClient` (`@circle-fin/x402-batching/client`) only takes `privateKey: Hex`. The
 lower-level `BatchEvmScheme` does accept a `BatchEvmSigner` (`{ address, signTypedData }`), which a
@@ -86,7 +86,7 @@ wallet paying via x402" a first-class path.
 
 ## Spend-guard abort comes back as an untyped string error
 
-Area: SDK / x402 — 2026-06-28
+Area: SDK / x402 - 2026-06-28
 
 Register a guard via `onBeforePaymentCreation`, return `{ abort: true, reason }`, and `pay()` throws a
 generic `Error("Payment creation aborted: <reason>")`. There's no typed error class, so to tell "my
@@ -98,7 +98,7 @@ let callers `instanceof`-check it.
 
 ## No confirmation signal or stated latency for when a batched payment settles
 
-Area: x402 / Gateway / Docs — 2026-06-28
+Area: x402 / Gateway / Docs - 2026-06-28
 
 Across three separate live runs on Arc testnet, every `pay()` left `getTransferById(transferId)` at
 `status: "received"`, `settled: false`, and the batch never flipped inside the script's runtime.
@@ -112,7 +112,7 @@ terminal status to poll for).
 
 ## pay() connection failures don't say which URL couldn't be reached
 
-Area: x402 / Gateway / SDK — 2026-06-29
+Area: x402 / Gateway / SDK - 2026-06-29
 
 On a live Arc-testnet run, `GatewayClient.pay(url)` threw
 `Error: "Unable to connect. Is the computer able to access the url?"` from inside
@@ -128,7 +128,7 @@ typed `GatewayConnectionError` with `.url` / `.phase`.
 
 ## Modular Wallets don't slot into standard wallet auth
 
-Area: Modular Wallets / SDK / Docs — 2026-06-29
+Area: Modular Wallets / SDK / Docs - 2026-06-29
 
 Designing passkey login on Circle Modular Wallets, the obvious path was a standard Sign-In-with-Ethereum
 / EIP-4361 provider (Supabase's built-in Web3 auth and most off-the-shelf wallet-auth providers work
@@ -145,7 +145,7 @@ that handles the counterfactual ERC-6492 case.
 
 ## "Cannot find the entity config in the system" really means "you didn't set a passkey domain"
 
-Area: Modular Wallets / SDK / Console — 2026-06-29
+Area: Modular Wallets / SDK / Console - 2026-06-29
 
 Building passkey onboarding, the wallet-creation call (the `toCircleSmartAccount` flow) failed with
 `An unknown RPC error occurred. Details: Cannot find the entity config in the system.` Nothing in that
@@ -160,7 +160,7 @@ the Allowed Domain)," ideally surfaced at SDK init rather than deep in the smart
 
 ## A passkey Modular Wallet can't be the x402 payer, so every user needs a second wallet
 
-Area: Modular Wallets / x402 / Gateway — 2026-06-30
+Area: Modular Wallets / x402 / Gateway - 2026-06-30
 
 I wanted each user to stream their own USDC nano-payments from the same wallet they log in with, their
 passkey Modular Wallet. It can't be done. The buyer `GatewayClient` only takes a raw `privateKey`, and
@@ -178,7 +178,7 @@ first-class path to pay x402 from a Modular Wallet: a Gateway/x402 adapter that 
 
 ## No "which chains do Modular Wallets support" list; I confirmed it by grepping a d.ts enum
 
-Area: Modular Wallets / Docs — 2026-06-30
+Area: Modular Wallets / Docs - 2026-06-30
 
 Before moving my onboarding to Arc, I wanted to confirm Modular Wallets actually support Arc testnet,
 since an earlier Arc attempt had errored. There's no obvious supported-chains list in the docs. I ended up
@@ -191,7 +191,7 @@ from the SDK programmatically.
 
 ## No recipe for sending a plain USDC transfer from a Modular Wallet
 
-Area: Modular Wallets / SDK / Docs — 2026-06-30
+Area: Modular Wallets / SDK / Docs - 2026-06-30
 
 To move USDC from a user's Modular Wallet to their spend wallet I had to wire the smart account to a viem
 `createBundlerClient` and `sendUserOperation` myself. The SDK ships the pieces
@@ -205,7 +205,7 @@ conversion, and a clear statement of paymaster behaviour per network, especially
 
 ## Faucet API returns a bare 403 for developer-controlled wallets on Arc
 
-Area: API (faucet, developer-controlled wallets) — 2026-07-02
+Area: API (faucet, developer-controlled wallets) - 2026-07-02
 
 `client.requestTestnetTokens({ address, blockchain: "ARC-TESTNET", usdc: true })` (the SDK wrapper for
 `POST /v1/faucet/drips`) returned a bare 403 with no body, for an API key that can create wallets, sign,
@@ -219,7 +219,7 @@ since Circle's own stack targets it.
 
 ## Insufficient-balance error on contractExecution doesn't say which asset or how much
 
-Area: API (developer-controlled wallets, contract execution) — 2026-07-02
+Area: API (developer-controlled wallets, contract execution) - 2026-07-02
 
 `POST /v1/w3s/developer/transactions/contractExecution` on an unfunded Arc wallet returned 400 code 155258
 `the asset amount owned by the wallet is insufficient for the transaction`. It doesn't say which asset (the
@@ -230,7 +230,7 @@ estimation layer clearly knows all three numbers; put asset, required, and avail
 
 ## signTypedData rejects viem-style typed data with a cryptic count error
 
-Area: SDK (developer-controlled wallets) — 2026-07-02
+Area: SDK (developer-controlled wallets) - 2026-07-02
 
 `POST /v1/w3s/developer/sign/typedData` returned 400 code 156026,
 `error: there is extra data provided in the message (0 < 4) ... Failed during the validation for typed
@@ -247,7 +247,7 @@ the two SDKs composable out of the box.
 
 ## Entity secret errors never say it's account-global or where it was registered
 
-Area: SDK / Docs (developer-controlled wallets) — 2026-07-02
+Area: SDK / Docs (developer-controlled wallets) - 2026-07-02
 
 Registering an entity secret returned 409 code 156015 `The secret for this entity has already been set`,
 and then signing with a freshly generated one returned 400 code 156013 `The provided entity secret is
@@ -261,7 +261,7 @@ state clearly in the quickstart that the secret is account-wide and every projec
 
 ## Gateway withdraw fee isn't documented or queryable before you try it
 
-Area: SDK (`@circle-fin/x402-batching` GatewayClient) — 2026-07-02
+Area: SDK (`@circle-fin/x402-batching` GatewayClient) - 2026-07-02
 
 `gateway.withdraw()` on Arc testnet charges a same-chain fee of ~0.0035 USDC, but nothing exposes that
 number up front: no `estimateWithdrawFee`, no constant in the SDK, and the docs only mention the `maxFee`
@@ -274,7 +274,7 @@ typical same-chain fee next to `maxFee`.
 
 ## Gateway deposit credits minutes after the tx confirms, with no status to poll
 
-Area: SDK (`@circle-fin/x402-batching` GatewayClient) — 2026-07-02
+Area: SDK (`@circle-fin/x402-batching` GatewayClient) - 2026-07-02
 
 `gateway.deposit("0.05")` returned a confirmed `depositTxHash` immediately, but `getBalances()` kept
 reporting the old available balance for a couple of minutes until Circle's attestation credited it. Nothing
@@ -286,7 +286,7 @@ that already exists for the other direction), or document the delay and a recomm
 
 ## w3s-pw-web-sdk needs a full Node polyfill set to load in the browser, and crashes at import without it
 
-Area: SDK (`@circle-fin/w3s-pw-web-sdk`, the user-controlled Web SDK) — 2026-07-02
+Area: SDK (`@circle-fin/w3s-pw-web-sdk`, the user-controlled Web SDK) - 2026-07-02
 
 A plain `import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk"` in a Vite app throws at module init:
 `TypeError: Cannot read properties of undefined (reading 'from')` (safe-buffer reading
@@ -307,7 +307,7 @@ entirely and moved login to wallet-connect + SIWE, which let me delete this whol
 
 ## The Web SDK's OTP/PIN modals ignore the host app's theme
 
-Area: SDK (user-controlled wallets, w3s-pw-web-sdk) — 2026-07-03
+Area: SDK (user-controlled wallets, w3s-pw-web-sdk) - 2026-07-03
 
 The email-OTP verification modal and the PIN screens render as a fixed white card. My app is dark-themed, so
 the modal glows in the middle of it. The SDK exposes `setThemeColor`-style accent customization but there's
@@ -319,7 +319,7 @@ crypto.
 
 ## OTP verification fails in production with no error surfaced anywhere
 
-Area: SDK (user-controlled wallets, w3s-pw-web-sdk) — 2026-07-03
+Area: SDK (user-controlled wallets, w3s-pw-web-sdk) - 2026-07-03
 
 On the deployed app (primecompute.vercel.app) the user enters the emailed OTP correctly and the flow just
 fails: the SDK's error callback delivers nothing actionable, and nothing shows in the modal either, it fails

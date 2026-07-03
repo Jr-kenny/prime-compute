@@ -8,8 +8,7 @@ env var, `ARC_RPC_URL`, and everything Arc-facing reads from it.
 
 ## Getting the endpoint
 
-Canteen's own setup is the source of truth ([reference](https://github.com/Mrgtee/precall/blob/main/docs/AGORA_ARC_SETUP.md)),
-but it's three commands:
+Canteen's own setup is the source of truth, but it's three commands:
 
 ```bash
 uv tool install arc-canteen          # install the CLI (uv)

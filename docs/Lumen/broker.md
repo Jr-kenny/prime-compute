@@ -7,10 +7,9 @@ opens the payment stream, watches the rent while it's live, and moves or cancels
 provider starts to degrade. The little lantern in the corner of the app is the face of it, but
 the real work happens in `services/`.
 
-The one thing I care about most here: Lumen genuinely decides. It isn't a pile of if-statements
-wearing an assistant costume. It reasons from a written soul and a written policy, and the code
-around it only exists to stop it doing something unsafe with money. That split is the whole
-design, so let me walk through it.
+The thing I care about most here: Lumen genuinely decides. It reasons from a written soul and a
+written policy, and the code around it only exists to stop it doing something unsafe with money.
+That split is the whole design, so let me walk through it.
 
 ## What it actually does
 
