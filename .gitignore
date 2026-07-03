@@ -54,3 +54,8 @@ services/node_modules
 
 # Circle entity-secret recovery file (probe:circle-signer:setup writes it; never commit)
 recovery_file_*.dat
+
+# Vercel CLI project link + local env files (root .env holds real secrets)
+.vercel
+.env
+.env.local
