@@ -13,7 +13,21 @@ export type WorkerDeps = {
   defaultMaxUnits: number;
   nowMs?: () => number;
   feeBps?: number; // platform fee (basis points) recorded as a receivable per charge
+  perTickCap?: number; // max paid hits per volume tick (default in meterTick)
 };
+
+// Reads the provider's unpaywalled per-session usage so volume services (VPN, storage) can bill the
+// whole units accrued since the last charge. Any read failure means "nothing new pending" this tick.
+async function readUsage(url: string): Promise<number> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return 0;
+    const j = (await res.json()) as { units?: number };
+    return typeof j.units === "number" ? j.units : 0;
+  } catch {
+    return 0;
+  }
+}
 
 // estimatedUsage is the lease's unit budget; fall back to a sane default when unset.
 function budget(rent: Rent, defaultMaxUnits: number): number {
@@ -40,7 +54,7 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
     try {
       const maxUnits = budget(rent, deps.defaultMaxUnits);
       const settlement = await deps.settlementFor(rent, maxUnits);
-      await meterTick(rent.id, { registry, settlement, tickMs: deps.tickMs, maxUnits, nowMs: deps.nowMs, feeBps: deps.feeBps });
+      await meterTick(rent.id, { registry, settlement, tickMs: deps.tickMs, maxUnits, nowMs: deps.nowMs, feeBps: deps.feeBps, perTickCap: deps.perTickCap, readUsage });
     } catch (e) {
       console.error(`[worker] tick ${rent.id} failed:`, e instanceof Error ? e.message : e);
     }

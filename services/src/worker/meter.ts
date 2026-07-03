@@ -6,6 +6,7 @@ import { matchProviders } from "../broker/matching";
 import { revalidateProvider } from "../broker/guardrails";
 import { SpendCapError } from "../settlement/spend-policy";
 import type { RentStatus } from "../domain";
+import { descriptorFor } from "../services/registry";
 
 const isoNow = () => new Date().toISOString();
 
@@ -64,6 +65,8 @@ export type TickDeps = {
   maxUnits: number;        // budget bound
   nowMs?: () => number;    // injectable clock (tests)
   feeBps?: number;         // platform fee in basis points; recorded as a receivable, never paid here
+  perTickCap?: number;     // max paid hits in one tick so a volume burst can't run away (default 10)
+  readUsage?: (url: string) => Promise<number>; // cumulative accrued units from the provider's /usage
 };
 
 export type TickResult = { charged: boolean; status: RentStatus | "missing"; reason: string };
@@ -84,8 +87,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     return { charged: false, status: "running", reason: "not yet" };
   }
 
-  const charges = await registry.listCharges(rentId);
-  if (charges.length >= maxUnits) {
+  if ((await registry.listCharges(rentId)).length >= maxUnits) {
     await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow() });
     return { charged: false, status: "completed", reason: "budget reached" };
   }
@@ -96,30 +98,58 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     return { charged: false, status: "suspended", reason: "no provider" };
   }
 
-  const url = `${provider.endpointUrl}/compute?session=${rent.id}`;
-  try {
-    const paid = await settlement.payForCompute(url);
-    const paidAtomic = Number(paid.amountAtomic);
-    // The platform fee is a RECEIVABLE the provider owes from this payment (they received
-    // gross; they remit fee from their Gateway earnings). Nothing extra leaves the renter,
-    // and no second payment happens here. fee_settlement_ref is stamped when a verified
-    // remittance covers this charge.
-    const feeAtomic = Math.floor((paidAtomic * (deps.feeBps ?? 0)) / 10_000);
-    await registry.recordCharge({
-      rentId, providerId: provider.id, seq: charges.length,
-      amount: paidAtomic, feeAmount: feeAtomic, feeSettlementRef: null,
-      authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
-    });
-    await registry.updateRent(rentId, {
-      totalCost: await registry.rentCost(rentId),
-      lastChargedAt: new Date(clock()).toISOString(),
-    });
-    return { charged: true, status: "running", reason: "charged" };
-  } catch (e) {
-    if (e instanceof SpendCapError) {
-      await registry.updateRent(rentId, { status: "suspended" });
-      return { charged: false, status: "suspended", reason: e.message };
-    }
-    return { charged: false, status: "running", reason: e instanceof Error ? e.message : "transient" };
+  // What a "unit" is comes from the descriptor. Time types owe one unit per tick (unchanged cadence);
+  // volume types (VPN, storage) owe however many whole units accrued at the provider since the last
+  // charge, read unpaywalled from /usage. An idle volume session owes nothing and is never charged.
+  const d = descriptorFor(provider.resourceType);
+  const perTickCap = deps.perTickCap ?? 10;
+  let pending = 1;
+  if (d.metering === "volume") {
+    const accrued = deps.readUsage
+      ? await deps.readUsage(`${provider.endpointUrl}/usage?session=${rent.id}`)
+      : 0;
+    pending = Math.max(0, accrued - (await registry.listCharges(rentId)).length);
   }
+  if (pending === 0) {
+    await registry.updateRent(rentId, { lastChargedAt: new Date(clock()).toISOString() });
+    return { charged: false, status: "running", reason: "no units pending" };
+  }
+
+  const url = `${provider.endpointUrl}${d.path}?session=${rent.id}`;
+  let chargedAny = false;
+  const toCharge = Math.min(pending, perTickCap);
+  for (let i = 0; i < toCharge; i++) {
+    const charges = await registry.listCharges(rentId);
+    if (charges.length >= maxUnits) {
+      await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow() });
+      return { charged: chargedAny, status: "completed", reason: "budget reached" };
+    }
+    try {
+      const paid = await settlement.payForCompute(url);
+      const paidAtomic = Number(paid.amountAtomic);
+      // The platform fee is a RECEIVABLE the provider owes from this payment (they received
+      // gross; they remit fee from their Gateway earnings). Nothing extra leaves the renter,
+      // and no second payment happens here. fee_settlement_ref is stamped when a verified
+      // remittance covers this charge.
+      const feeAtomic = Math.floor((paidAtomic * (deps.feeBps ?? 0)) / 10_000);
+      await registry.recordCharge({
+        rentId, providerId: provider.id, seq: charges.length,
+        amount: paidAtomic, feeAmount: feeAtomic, feeSettlementRef: null,
+        authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
+      });
+      chargedAny = true;
+    } catch (e) {
+      if (e instanceof SpendCapError) {
+        await registry.updateRent(rentId, { status: "suspended" });
+        return { charged: chargedAny, status: "suspended", reason: e.message };
+      }
+      break; // transient: stop this tick, retry next
+    }
+  }
+
+  await registry.updateRent(rentId, {
+    totalCost: await registry.rentCost(rentId),
+    lastChargedAt: new Date(clock()).toISOString(),
+  });
+  return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
 }

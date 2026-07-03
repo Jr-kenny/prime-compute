@@ -96,6 +96,43 @@ test("meterTick makes ONE gross payment and records the fee as a receivable", as
   expect((await reg.getRent(rent.id))?.totalCost).toBe(100); // renter spend only; see the rentCost note below
 });
 
+test("charges pending whole units per tick for a volume service", async () => {
+  const reg = new InMemoryRegistry();
+  await reg.registerProvider({
+    alias: "vpn1", ownerWallet: "0xseller", endpointUrl: "http://localhost:9", resourceType: "VPN",
+    region: "EU", specs: { exitLocation: "NL", protocol: "WireGuard", bandwidthMbps: 1000, region: "EU" },
+    online: true, trust: defaultTrust(), pricePerCharge: 0.02, computeScore: 90, avgLatencyMs: 5,
+  });
+  const rent = await reg.createRent({
+    name: "vpn", owner: { kind: "user", id: "u1", walletAddress: "0x0" },
+    spec: { resourceType: "VPN", region: null }, estimatedUsage: 100,
+  });
+  await reg.updateRent(rent.id, { status: "running", providerId: (await reg.listProviders())[0]!.id, startedAt: new Date().toISOString() });
+
+  const calls = { n: 0 };
+  const settlement = {
+    buyerAddress: "0xbuyer",
+    async ensureFunded() { return { deposited: false }; },
+    async payForCompute(_url: string) { calls.n++; return { amountAtomic: 20n, settlementRef: `ref-${calls.n}`, data: {}, status: 200 }; },
+    async reconcile(ref: string) { return { ref, status: "completed", settled: true }; },
+  };
+
+  const accrued = 3; // provider /usage reports 3 GB transferred this session
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, nowMs: () => clock, perTickCap: 10, readUsage: async () => accrued };
+
+  const first = await meterTick(rent.id, deps);
+  expect(first.charged).toBe(true);
+  expect(calls.n).toBe(3); // 3 GB -> 3 paid hits
+  expect((await reg.listCharges(rent.id)).length).toBe(3);
+
+  // Next tick, no new transfer accrued -> nothing pending, no charge.
+  clock += 1001;
+  const second = await meterTick(rent.id, deps);
+  expect(second.charged).toBe(false);
+  expect(calls.n).toBe(3);
+});
+
 test("fee receivable floors and zero-bps records zero", async () => {
   const { reg, rent } = await seed();
   await reg.updateRent(rent.id, { status: "running", providerId: (await reg.listProviders())[0]!.id, startedAt: new Date().toISOString() });
