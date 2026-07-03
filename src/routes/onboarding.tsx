@@ -1,7 +1,10 @@
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { getDeviceId, runEmailOtp, executeChallenge, type CircleSession } from "../lib/circle/user-sdk";
-import { startEmailLogin, completeCircleLogin } from "../lib/auth/circle-fns";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount, useSignMessage } from "wagmi";
+import { createSiweMessage } from "viem/siwe";
+import { arcTestnet } from "../lib/wallet-connect/config";
+import { getLoginNonce, completeSiweLogin } from "../lib/auth/siwe-fns";
 import { supabaseBrowser } from "../lib/supabase/client";
 import { useSession } from "../lib/auth/session";
 
@@ -20,12 +23,11 @@ export const Route = createFileRoute("/onboarding")({
   component: Onboarding,
 });
 
-type Step = "anonymous" | "email" | "wallet" | "verifying" | "ready" | "error";
+type Step = "connect" | "prove" | "verifying" | "ready" | "error";
 
 const LADDER: { key: Step; label: string }[] = [
-  { key: "anonymous", label: "Anonymous" },
-  { key: "email", label: "Email verified" },
-  { key: "wallet", label: "Wallet ready" },
+  { key: "connect", label: "Connect wallet" },
+  { key: "prove", label: "Prove ownership" },
   { key: "ready", label: "Authenticated" },
 ];
 
@@ -33,8 +35,9 @@ function Onboarding() {
   const { redirect: redirectTo } = Route.useSearch();
   const router = useRouter();
   const { session, loading, walletAddress, signOut } = useSession();
-  const [step, setStep] = useState<Step>("anonymous");
-  const [email, setEmail] = useState("");
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  const [step, setStep] = useState<Step>("connect");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,36 +49,51 @@ function Onboarding() {
   }, [session, redirectTo, router]);
 
   async function run() {
+    if (!address) return;
     setError(null);
     setBusy(true);
     try {
-      // [1] Circle emails an OTP; its modal collects the code and yields the Circle session.
-      const deviceId = await getDeviceId();
-      const login = await startEmailLogin({ data: { deviceId, email: email.trim() } });
-      const circle: CircleSession = await runEmailOtp(login);
-      setStep("email");
+      // [1] Server-issued stateless nonce, bound to this address.
+      const { nonce } = await getLoginNonce({ data: { address } });
+      setStep("prove");
 
-      // [2] Bridge: verify the token server-side. First login comes back as a PIN+wallet
-      // challenge; run it (Circle's PIN UI), then complete again with a wallet in place.
-      let result = await completeCircleLogin({ data: { userToken: circle.userToken } });
-      if (result.kind === "challenge") {
-        await executeChallenge(result.challengeId, circle);
-        setStep("wallet");
-        result = await completeCircleLogin({ data: { userToken: circle.userToken } });
-      }
-      if (result.kind !== "session") throw new Error("wallet creation did not complete — try again");
+      // [2] Standard SIWE message; the wallet shows a structured sign-in prompt.
+      const message = createSiweMessage({
+        address,
+        chainId: arcTestnet.id,
+        domain: window.location.host,
+        nonce,
+        uri: window.location.origin,
+        version: "1",
+        statement: "Sign in to Prime Compute",
+      });
+      const signature = await signMessageAsync({ message });
 
-      // [3] The app session.
+      // [3] Verify server-side and mint the app session.
       setStep("verifying");
-      await supabaseBrowser.auth.setSession({ access_token: result.access_token, refresh_token: result.refresh_token });
+      const session = await completeSiweLogin({ data: { message, signature } });
+      await supabaseBrowser.auth.setSession(session);
       setStep("ready");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "sign-in failed");
+      const rejected = e instanceof Error && /User rejected|denied/i.test(e.message);
+      setError(
+        rejected
+          ? "signature request declined — try again when you're ready"
+          : e instanceof Error
+            ? e.message
+            : JSON.stringify(e),
+      );
       setStep("error");
     } finally {
       setBusy(false);
     }
   }
+
+  // Auto-trigger the proof once a wallet connects (and only while signed out).
+  useEffect(() => {
+    if (isConnected && address && !session && !busy && step === "connect") void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, address, session]);
 
   if (loading) return <Centered>Loading…</Centered>;
   if (session && redirectTo) return <Centered>Redirecting…</Centered>;
@@ -111,7 +129,7 @@ function Onboarding() {
       <div className="w-full max-w-md rounded-xl border border-input bg-card p-8">
         <h1 className="text-2xl font-semibold text-foreground">Welcome to Prime Compute</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sign in with your email. Circle custodies your wallet; a PIN approves every action.
+          Sign in with your wallet. Your address is your identity; a signature proves it.
         </p>
 
         <ol className="mt-6 flex items-center justify-between text-xs">
@@ -132,21 +150,17 @@ function Onboarding() {
           })}
         </ol>
 
-        <div className="mt-8 flex flex-col gap-3">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground"
-          />
-          <button
-            disabled={busy || !/^\S+@\S+\.\S+$/.test(email.trim())}
-            onClick={run}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {busy ? "Working…" : "Continue with email"}
-          </button>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <ConnectButton showBalance={false} chainStatus="icon" />
+          {isConnected && step === "error" && (
+            <button
+              onClick={run}
+              className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Try signing in again
+            </button>
+          )}
+          {busy && <p className="text-xs text-muted-foreground">Check your wallet…</p>}
         </div>
 
         {error && (
@@ -158,10 +172,9 @@ function Onboarding() {
 }
 
 function currentIndex(step: Step): number {
-  if (step === "anonymous" || step === "error") return 0;
-  if (step === "email") return 1;
-  if (step === "wallet" || step === "verifying") return 2;
-  return 3; // ready
+  if (step === "connect" || step === "error") return 0;
+  if (step === "prove" || step === "verifying") return 1;
+  return 2; // ready
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
