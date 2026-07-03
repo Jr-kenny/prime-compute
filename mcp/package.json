@@ -1,8 +1,18 @@
 {
   "name": "@prime-compute/mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Model Context Protocol server for the Prime Compute marketplace: discover, rent, provide, and pay for compute over the agent API.",
   "license": "MIT",
+  "author": "Jr-kenny",
+  "homepage": "https://github.com/Jr-kenny/prime-compute/tree/main/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jr-kenny/prime-compute.git",
+    "directory": "mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/Jr-kenny/prime-compute/issues"
+  },
   "type": "module",
   "bin": {
     "prime-compute-mcp": "dist/index.js"

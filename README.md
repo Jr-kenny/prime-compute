@@ -117,7 +117,7 @@ rent compute or list a server to provide it. Authenticate with `Authorization: B
 
 ## MCP server
 
-`mcp/` (`@prime-compute/mcp`, on npm) is a Model Context Protocol server that wraps the agent API as
+`mcp/` ([`@prime-compute/mcp`](https://www.npmjs.com/package/@prime-compute/mcp) on npm) is a Model Context Protocol server that wraps the agent API as
 tools, so an LLM agent can find, rent, provide, and pay for compute directly. It ships as a single
 self-contained Node binary, so any MCP client can spawn it over `npx` with no Bun or repo checkout.
 There is no human in the loop: on first run it provisions its own agent identity and Arc wallet,

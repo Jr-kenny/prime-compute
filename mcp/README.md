@@ -1,5 +1,7 @@
 # @prime-compute/mcp
 
+[![npm](https://img.shields.io/npm/v/@prime-compute/mcp)](https://www.npmjs.com/package/@prime-compute/mcp)
+
 A [Model Context Protocol](https://modelcontextprotocol.io) server for the Prime Compute
 marketplace. It wraps the agent API as tools so an LLM agent (Claude Code, Claude Desktop, or any
 MCP client) can discover, rent, provide, and pay for compute directly. It speaks stdio and ships as
