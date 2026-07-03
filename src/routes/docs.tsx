@@ -15,11 +15,13 @@ export const Route = createFileRoute("/docs")({
 
 const sections = [
   { id: "start", title: "Getting started" },
+  { id: "list", title: "List a service" },
+  { id: "rent", title: "Rent a service" },
   { id: "pricing", title: "How pricing works" },
   { id: "broker", title: "The AI broker" },
   { id: "settlement", title: "Streaming payments" },
-  { id: "reputation", title: "Reputation & Compute Score" },
-  { id: "api", title: "API reference" },
+  { id: "types", title: "Service types" },
+  { id: "api", title: "API & MCP reference" },
 ];
 
 function Docs() {
@@ -48,54 +50,60 @@ function Docs() {
 
         <article className="prose prose-invert max-w-none space-y-12">
           <Section id="start" title="Getting started">
-            <p>Prime Compute is an open marketplace for renting computing power. Anyone with idle hardware can register as a provider, and anyone with a workload can submit a rent and pay only for the milliseconds they consume.</p>
-            <p>There are two starting paths: <strong>browse compute</strong> if you need to rent some, or <strong>list your server</strong> if you have hardware sitting idle. Both flows take under three minutes.</p>
+            <p>Prime Compute is an open marketplace for renting real services: GPU, CPU, and full servers, plus storage, VPN, and workers. Connect a wallet to sign in (RainbowKit + SIWE). Signing in provisions a spend wallet the platform custodies for you: fund it with USDC and it pays for rents automatically as they stream. From there you can rent a service or list one of your own.</p>
+          </Section>
+
+          <Section id="list" title="List a service">
+            <p>Listing means running your own service endpoint and registering it so the broker can route renters to you.</p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Run your service behind a public HTTPS endpoint. For compute this is an x402 seller that charges per unit (use the provider server template in <code>services/</code> as a starting point); the endpoint is where renters and the meter reach you.</li>
+              <li>Pick a per-unit price. You keep every payment: settlement lands directly in the wallet your endpoint signs with. Prime Compute never holds your earnings.</li>
+              <li>Register the service: on <a href="/register">List a server</a>, or for agents <code>POST /api/v1/providers</code> with your alias, endpoint URL, region, price, and type-specific specs.</li>
+              <li>Stay online. The broker only routes to reachable, healthy endpoints; your Compute Score reflects real behavior.</li>
+            </ol>
+          </Section>
+
+          <Section id="rent" title="Rent a service">
+            <p>Renting gives you real credentials to a real service.</p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Fund your spend wallet with USDC (the wallet panel shows your address and a faucet).</li>
+              <li>Rent: pick a listing on the <a href="/marketplace">marketplace</a>, or for agents <code>POST /api/v1/rents</code>. The broker matches you a provider and the lease goes live.</li>
+              <li>Use what you get. The connect payload depends on the type: SSH host + credentials for compute, a WireGuard profile for VPN, a bucket URL + keys for storage, a submit URL + token for a worker. Connect to the provider directly with those, exactly as you would any real server or service.</li>
+              <li>Pay as it runs. The meter streams USDC per unit from your spend wallet; you only pay for what actually runs, and stopping the lease stops the charges.</li>
+            </ol>
           </Section>
 
           <Section id="pricing" title="How pricing works">
-            <p>Every provider sets its own per-second rate in USDC. When a consumer submits a rent, the broker picks the cheapest matching provider that still clears the consumer's quality bar (Compute Score, latency, region).</p>
-            <p>Settlement is streamed per millisecond. If a 1-hour rent lists at <code>$0.0000098/s</code>, you'd pay roughly <code>$0.035</code> for the hour — but if you cancel after 12 minutes, you only pay for those 12 minutes. The unused allocation refunds back to your wallet immediately.</p>
+            <p>Every service is priced per unit and metered as it runs. Time-based services (GPU, CPU, full servers, workers) are priced per second, so we also show an exact per-day figure. Volume services show an honest per-unit rate with an example: VPN is per GB (shown as a cost per 100 GB), storage is per GB-hour (shown as a cost per GB-day). A "charge" is one unit at the listed price; your budget is a count of units, so you always know the ceiling.</p>
           </Section>
 
           <Section id="broker" title="The AI broker">
-            <p>The broker is the routing layer between consumers and providers. It is not a chatbot. It has no personality and runs no reasoning loops you can talk to. It is plumbing.</p>
-            <p>Its job is to:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>Discover</strong> providers in the on-chain registry that match your rent's hardware, region, and budget.</li>
-              <li><strong>Rank</strong> them by Compute Score, predicted completion probability, latency, and price.</li>
-              <li><strong>Route</strong> the workload, opening a streaming payment channel to the winning provider. For oversized rents it splits the workload across multiple providers.</li>
-              <li><strong>Monitor</strong> heartbeat, output quality, and latency drift while the rent runs.</li>
-              <li><strong>Migrate</strong> the rent to another provider if the current one degrades or goes offline. The payment stream follows the rent.</li>
-              <li><strong>Verify</strong> delivered work against the provider's claimed hardware and flag mismatches on its reputation record.</li>
-              <li><strong>Settle</strong> by closing the payment channel the instant the rent finishes, is cancelled, or fails.</li>
-            </ul>
+            <p>An AI broker matches each rent to a provider by reasoning over the live listings against what you asked for. It is soul-driven, not a hardcoded score: its behavior comes from a policy it reasons from, with a deterministic fallback so a model outage never blocks a rent.</p>
           </Section>
 
           <Section id="settlement" title="Streaming payments">
-            <p>Payments are streamed via Circle-backed nanopayment rails. The meter ticks per millisecond while a rent is running and freezes the moment you pause, cancel, or the provider drops the heartbeat. Providers eat the loss for undelivered compute; consumers never pay for time they didn't use.</p>
-            <p>There is no monthly bill and no holds on your card. You fund a USDC balance, and the streamed spend draws against it in real time.</p>
+            <p>Payments settle per unit over x402 on Arc. Each unit is one micro-payment from your custodied spend wallet to the provider's endpoint, recorded as a charge. There is no upfront lump sum and no lock-in: an idle lease accrues nothing, and cancelling stops the stream immediately.</p>
           </Section>
 
-          <Section id="reputation" title="Reputation & Compute Score">
-            <p>Every provider has a <strong>Compute Score</strong> from 0 to 100, computed from observed uptime, benchmark results, completed-rent ratio, cancellation rate, latency, network throughput, and verified hardware claims. The score is on-chain and the broker weights it heavily when ranking matches.</p>
-            <p>Faking specs or accepting rents you can't finish costs you score immediately, and consumers can filter for a minimum score on the marketplace. There's no review system to game; the score is derived from measured behavior.</p>
+          <Section id="types" title="Service types">
+            <p>Six service types, each with its own specs and connect payload:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>GPU / CPU / Full Server</strong> — time-metered compute; connect over SSH.</li>
+              <li><strong>Worker</strong> — time-metered job runner; connect via a submit URL + token.</li>
+              <li><strong>Storage</strong> — GB-hour metered; connect via a bucket URL + access keys.</li>
+              <li><strong>VPN</strong> — GB metered; connect by loading the returned WireGuard profile.</li>
+            </ul>
           </Section>
 
-          <Section id="api" title="API reference">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-border rounded-md">
-                <thead className="bg-card/50">
-                  <tr><th className="text-left p-3">Endpoint</th><th className="text-left p-3">Method</th><th className="text-left p-3">Purpose</th></tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  <tr><td className="p-3 font-mono text-xs">/v1/providers</td><td className="p-3">GET</td><td className="p-3">List providers in the registry</td></tr>
-                  <tr><td className="p-3 font-mono text-xs">/v1/rents</td><td className="p-3">POST</td><td className="p-3">Submit a rent with requirements + budget</td></tr>
-                  <tr><td className="p-3 font-mono text-xs">/v1/rents/:id</td><td className="p-3">GET</td><td className="p-3">Fetch live status, spend, and provider</td></tr>
-                  <tr><td className="p-3 font-mono text-xs">/v1/rents/:id/cancel</td><td className="p-3">POST</td><td className="p-3">Stop the rent and freeze the stream</td></tr>
-                  <tr><td className="p-3 font-mono text-xs">/v1/streams/:id</td><td className="p-3">GET</td><td className="p-3">Read current settled vs streamed amounts</td></tr>
-                </tbody>
-              </table>
-            </div>
+          <Section id="api" title="API & MCP reference">
+            <p>Autonomous agents are first-class. Register once, then rent and list machine-to-machine.</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><code>POST /api/v1/agents</code> — self-register, returns an API key + a funded-capable wallet.</li>
+              <li><code>GET /api/v1/providers</code> — list the marketplace. <code>POST /api/v1/providers</code> — list your own service.</li>
+              <li><code>POST /api/v1/rents</code> — rent. <code>GET /api/v1/rents/:id</code> — status. <code>POST /api/v1/rents/:id/cancel</code> — stop.</li>
+              <li><code>GET /api/v1/wallet</code> — your wallet address + balance. <code>POST /api/v1/wallet</code> — withdraw USDC to an address.</li>
+            </ul>
+            <p>Over MCP the same actions are tools: <code>discover_providers</code>, <code>rent_compute</code>, <code>rent_status</code>, <code>register_server</code>, <code>wallet_balance</code>, <code>withdraw_funds</code>.</p>
           </Section>
         </article>
       </div>
