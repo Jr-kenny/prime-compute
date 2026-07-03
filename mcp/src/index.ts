@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { PrimeClient } from "./client";
+import { serviceIds } from "../../services/src/services/registry";
 
 const baseUrl = process.env.PRIME_API_URL ?? "https://primecomputelive.vercel.app";
 const apiKey = process.env.PRIME_API_KEY;
@@ -11,7 +12,10 @@ const client = new PrimeClient(baseUrl, apiKey);
 
 const server = new McpServer({ name: "prime-compute", version: "1.0.0" });
 const asText = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v, null, 2) }] });
-const resourceType = z.enum(["GPU", "CPU", "Storage", "Full Server"]);
+// Derived from the service registry so a new service type is offered by the MCP tools automatically.
+// z.enum needs a non-empty tuple, hence the [first, ...rest] shape.
+const ids = serviceIds();
+const resourceType = z.enum([ids[0]!, ...ids.slice(1)]);
 
 server.registerTool(
   "discover_providers",
