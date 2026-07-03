@@ -168,45 +168,33 @@ function Index() {
       <section className="bg-surface border-t border-border">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-20">
           <div className="text-center">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-glow">Real-time</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-glow">How it works</div>
             <h2 className="mt-3 text-3xl md:text-4xl font-display italic text-white">
-              0+ rents and counting
+              List, match, stream.
             </h2>
           </div>
-          <div className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-6 text-center">
+          <div className="mt-12 grid md:grid-cols-3 gap-6 text-center">
             {[
-              { v: "12,847", lbl: "Providers online" },
-              { v: "$0.00001", lbl: "Minimum rate" },
-              { v: "99.97%", lbl: "Uptime SLA" },
-              { v: "8ms", lbl: "Broker match time" },
-              { v: "2.4M", lbl: "Rents completed" },
+              { t: "List a service", d: "Run your endpoint, set a per-unit price, register it. GPU, CPU, full servers, storage, VPN, or workers." },
+              { t: "The broker matches", d: "An AI broker reasons over live listings and picks one for the renter, honestly and on their terms." },
+              { t: "Stream USDC per unit", d: "Payment settles per unit over x402 on Arc. Renters only pay for what actually runs." },
             ].map((s) => (
-              <div key={s.lbl}>
-                <div className="text-2xl md:text-3xl font-semibold text-white">{s.v}</div>
-                <div className="mt-1 text-[11px] text-white/50 uppercase tracking-wider">
-                  {s.lbl}
-                </div>
+              <div key={s.t} className="rounded-xl border border-border bg-card p-6">
+                <div className="text-lg font-semibold text-white">{s.t}</div>
+                <div className="mt-2 text-sm text-white/60 leading-relaxed">{s.d}</div>
               </div>
             ))}
           </div>
-          <div className="mt-12 grid md:grid-cols-2 gap-4">
+          <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
-              {
-                quote:
-                  "We saw traffic of 1500+ req/s fulfilled in under 50ms. The technical team is really impressed with scale like that.",
-                author: "Kartik Aggarwal, Tech Lead at Bilt",
-              },
-              {
-                quote:
-                  "Services that took 1 week elsewhere take 1 day on Prime Compute. Messy networking just doesn't exist.",
-                author: "Daniel Lobaton, CTO at G2X",
-              },
-            ].map((t) => (
-              <div key={t.author} className="rounded-xl border border-border bg-card p-6">
-                <p className="text-foreground/90 text-sm italic leading-relaxed">
-                  &ldquo;{t.quote}&rdquo;
-                </p>
-                <div className="mt-4 text-[11px] text-white/50 font-mono">— {t.author}</div>
+              { v: "6", lbl: "Service types" },
+              { v: "x402", lbl: "Streaming settlement" },
+              { v: "Arc", lbl: "Settlement chain" },
+              { v: "REST + MCP", lbl: "Agent-native API" },
+            ].map((s) => (
+              <div key={s.lbl}>
+                <div className="text-2xl md:text-3xl font-semibold text-white">{s.v}</div>
+                <div className="mt-1 text-[11px] text-white/50 uppercase tracking-wider">{s.lbl}</div>
               </div>
             ))}
           </div>
