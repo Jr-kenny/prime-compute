@@ -66,7 +66,7 @@ export function RentSheet({ provider, onClose }: { provider: Provider | null; on
         data: {
           accessToken: data.session.access_token,
           name,
-          spec: { resourceType: provider.resourceType, region: provider.region },
+          spec: { resourceType: provider.resourceType, region: provider.region, preferredProviderId: provider.id },
           estimatedUsage: duration * 60,
         },
       });
@@ -132,7 +132,7 @@ export function RentSheet({ provider, onClose }: { provider: Provider | null; on
                 disabled={submitting || !name}
                 className="w-full bg-primary text-primary-foreground"
               >
-                {submitting ? "Routing through broker…" : "Submit rent"}
+                {submitting ? `Starting on ${provider.alias}…` : "Submit rent"}
               </Button>
             </SheetFooter>
           </div>

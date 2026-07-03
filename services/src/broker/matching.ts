@@ -38,6 +38,19 @@ export async function matchProviders(
     rationale = `model rank failed (${err instanceof Error ? err.message : "unknown"}); fell back to deterministic scorer`;
   }
 
+  // Honor a renter-pinned provider ("Rent from X"): if it survived the hard filters (still
+  // online and meets the spec), move it to the front so provisioning starts there. If it dropped
+  // out (offline, or no longer qualifies), we silently fall back to the ranked top. The migration
+  // path re-derives candidates minus the providers already used, so a pinned provider that later
+  // degrades hands off normally rather than getting re-pinned.
+  if (spec.preferredProviderId) {
+    const pinned = ranked.find((p) => p.id === spec.preferredProviderId);
+    if (pinned) {
+      ranked = [pinned, ...ranked.filter((p) => p.id !== pinned.id)];
+      rationale = `pinned to ${pinned.alias} at the renter's request`;
+    }
+  }
+
   return {
     candidates: ranked.map((p, i) => ({ providerId: p.id, rank: i })),
     chosen: ranked[0] ?? null,

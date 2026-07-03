@@ -16,14 +16,18 @@ const TERMINAL: RentStatus[] = ["completed", "cancelled", "failed"];
 export function rentPhase(rent: Rent, provider: Provider | undefined): RentPhase {
   const terminal = TERMINAL.includes(rent.status);
   switch (rent.status) {
-    case "queued":
+    case "queued": {
+      const pinned = !!rent.spec.preferredProviderId;
       return {
         phase: "queued",
-        title: "Waiting for a provider",
-        description: "The broker is matching your rent to a provider. Billing starts once it's running.",
+        title: pinned ? "Getting your provider ready" : "Waiting for a provider",
+        description: pinned
+          ? `Starting your rental on ${provider?.alias ?? "your provider"}. Billing starts once it's running.`
+          : "The broker is matching your rent to a provider. Billing starts once it's running.",
         canConnect: false,
         terminal: false,
       };
+    }
     case "running":
       return {
         phase: "running",

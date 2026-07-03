@@ -36,6 +36,22 @@ test("matchProviders returns chosen null when nothing matches", async () => {
   expect(result.candidates).toEqual([]);
 });
 
+test("a renter-pinned provider is chosen over the higher-ranked default", async () => {
+  const reg = await seed();
+  const a = (await reg.listProviders({})).find((p) => p.alias === "A")!;
+  const result = await matchProviders(reg, { resourceType: "GPU", region: null, preferredProviderId: a.id }, deterministicRank);
+  expect(result.chosen?.alias).toBe("A"); // A wins despite B ranking higher, because the renter picked it
+  expect(result.candidates.map((c) => c.providerId)[0]).toBe(a.id); // and it sits at the front
+  expect(result.rationale).toMatch(/pinned to A/);
+});
+
+test("a pinned provider that dropped out (offline) falls back to the ranked top", async () => {
+  const reg = await seed();
+  const c = (await reg.listProviders({})).find((p) => p.alias === "C")!; // offline
+  const result = await matchProviders(reg, { resourceType: "GPU", region: null, preferredProviderId: c.id }, deterministicRank);
+  expect(result.chosen?.alias).toBe("B"); // C never made the filter, so the broker's top pick stands
+});
+
 test("a throwing rank strategy falls back to the deterministic scorer", async () => {
   const reg = await seed();
   const boom = async () => { throw new Error("model down"); };

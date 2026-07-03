@@ -39,6 +39,9 @@ export type RentSpec = {
   resourceType: ResourceType;
   region: string | null;
   requiredTrustTier?: Tier; // default Community (open); the gate applies the default
+  // When the renter picked a specific provider ("Rent from X"), we start there and let the
+  // broker's migration path take over only if it later degrades. Unset = broker picks by score.
+  preferredProviderId?: string | null;
 };
 
 export type Rent = {
