@@ -3,14 +3,14 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import type { Request, Response, NextFunction } from "express";
 import { createProviderApp, type PaymentRequest } from "./server";
-import { SimulatedExecutor } from "./executor";
+import { makeSimulatedExecutor } from "./executor";
 
 const facilitatorUrl = process.env.X402_FACILITATOR_URL ?? "https://gateway-api-testnet.circle.com";
 const meta = { alias: "test-node", resourceType: "GPU" as const, region: "US-East", specs: { gpu: "H100" } };
 
 function boot() {
   const app = createProviderApp({
-    executor: new SimulatedExecutor({ hasGpu: true }),
+    executor: makeSimulatedExecutor("GPU"),
     sellerAddress: "0x000000000000000000000000000000000000dEaD",
     price: "$0.0001",
     facilitatorUrl,
@@ -55,7 +55,7 @@ test("/health returns provider metadata without payment", async () => {
   const body = await res.json();
   expect(body).toMatchObject({
     ok: true,
-    kind: "simulated",
+    kind: "simulated-compute",
     price: "$0.0001",
     alias: "test-node",
     resourceType: "GPU",
@@ -72,7 +72,7 @@ test("/compute without payment is rejected with 402", async () => {
 
 test("/health shows the listed price only; /compute is paywalled at that price", async () => {
   const app = createProviderApp({
-    executor: new SimulatedExecutor({ hasGpu: true }), sellerAddress: "0xseller", price: "$0.0001",
+    executor: makeSimulatedExecutor("GPU"), sellerAddress: "0xseller", price: "$0.0001",
     facilitatorUrl, meta,
   });
   const server = app.listen(0);
@@ -88,11 +88,45 @@ test("onPayment fires with the atomic amount of each confirmed payment", async (
   const seen: bigint[] = [];
   const res = await computeWithFakePayment(
     {
-      executor: new SimulatedExecutor({ hasGpu: true }), sellerAddress: "0xseller", price: "$0.0001",
+      executor: makeSimulatedExecutor("GPU"), sellerAddress: "0xseller", price: "$0.0001",
       facilitatorUrl, meta, onPayment: (atomic) => { seen.push(atomic); },
     },
     { verified: true, payer: "0xbuyer", amount: "100", network: "eip155:5042002" },
   );
   expect(res.status).toBe(200);
   expect(seen).toEqual([100n]);
+});
+
+const vpnMeta = { alias: "vpn-1", resourceType: "VPN", region: "EU", specs: {} };
+
+function bootVpn() {
+  const app = createProviderApp({
+    executor: makeSimulatedExecutor("VPN"),
+    sellerAddress: "0xseller", price: "$0.01", facilitatorUrl,
+    meta: vpnMeta,
+    requireOverride: (_req, _res, next) => next(), // bypass the paywall in the test
+  });
+  const server = app.listen(0);
+  const port = (server.address() as AddressInfo).port;
+  return { server, base: `http://localhost:${port}` };
+}
+
+test("serves the descriptor path (/vpn) and reports usage unpaywalled", async () => {
+  const { server, base } = bootVpn();
+  open = server;
+  const hit = await fetch(`${base}/vpn?session=s1`);
+  expect(hit.status).toBe(200);
+  const usage = await fetch(`${base}/usage?session=s1`);
+  expect(usage.status).toBe(200);
+  const body = await usage.json();
+  expect(body.units).toBeGreaterThanOrEqual(1);
+});
+
+test("health reports the service type", async () => {
+  const { server, base } = bootVpn();
+  open = server;
+  const res = await fetch(`${base}/health`);
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.resourceType).toBe("VPN");
 });
