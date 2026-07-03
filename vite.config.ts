@@ -12,12 +12,19 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 // browser shim), which Vite applies to every environment, so the nitro/Cloudflare SSR bundle
 // fails with "node:buffer is not exported by .../shims/buffer". We scope the whole plugin to
 // the client environment: applyToEnvironment keeps its resolve/transform hooks off the SSR
-// pipeline, and the config output (aliases, Buffer/global/process injection, optimizeDeps)
-// is moved under environments.client so the server keeps resolving the real node builtins.
+// pipeline, and the config output (Buffer/global/process injection, optimizeDeps) is moved
+// under environments.client so the server keeps resolving the real node builtins.
+// The aliases need special handling: Vite only honors resolve.alias at the ROOT config level
+// (per-environment alias is silently ignored), so putting them under environments.client
+// makes the client resolve `buffer` to Vite's empty browser-external stub and the Circle SDK
+// dies at import with "Cannot read properties of undefined (reading 'from')". Instead we
+// capture the plugin's alias map and replay it through a client-only resolveId hook, which
+// IS environment-scoped.
 const clientOnlyNodePolyfills = (): PluginOption[] => {
   const plugins = [
     nodePolyfills({ globals: { Buffer: true, global: true, process: true }, protocolImports: true }),
   ].flat() as Plugin[];
+  const aliasMap: Record<string, string> = {};
   for (const plugin of plugins) {
     plugin.applyToEnvironment = (environment) => environment.name === "client";
     const originalConfig = plugin.config;
@@ -29,13 +36,26 @@ const clientOnlyNodePolyfills = (): PluginOption[] => {
         const result = await handler.call(this, userConfig, env);
         if (!result) return result;
         const { resolve, optimizeDeps, build, ...rest } = result as UserConfig;
+        Object.assign(aliasMap, (resolve?.alias as Record<string, string>) ?? {});
         return {
           ...rest,
-          environments: { client: { resolve, optimizeDeps, build } },
+          environments: { client: { optimizeDeps, build } },
         };
       };
     }
   }
+  plugins.push({
+    name: "client-node-polyfill-resolver",
+    enforce: "pre",
+    applyToEnvironment: (environment) => environment.name === "client",
+    resolveId: {
+      async handler(id, importer, options) {
+        const target = aliasMap[id];
+        if (!target) return;
+        return this.resolve(target, importer, { ...options, skipSelf: true });
+      },
+    },
+  });
   return plugins;
 };
 
