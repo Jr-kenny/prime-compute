@@ -1,0 +1,16 @@
+<svg width="240" height="56" viewBox="0 0 240 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Prime Compute wordmark + the Lumen lantern mark -->
+  <rect width="56" height="56" rx="13" fill="#0a0e1c"/>
+  <rect x="0.5" y="0.5" width="55" height="55" rx="12.5" stroke="#3a5ba8" stroke-opacity="0.4"/>
+  <circle cx="28" cy="30" r="17" fill="#ff963c" fill-opacity="0.18"/>
+  <circle cx="28" cy="30" r="11" fill="#ff963c" fill-opacity="0.22"/>
+  <path d="M28 8 v5" stroke="#caa15a" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="28" cy="14.5" r="2.6" fill="none" stroke="#caa15a" stroke-width="2.2"/>
+  <path d="M19 39 q-1.8 -17 9 -20 q10.8 3 9 20 z" fill="#16203c" stroke="#3a5ba8" stroke-width="1.8"/>
+  <circle cx="28" cy="31.5" r="7" fill="#ffd98a"/>
+  <circle cx="28" cy="31.5" r="3" fill="#fff3d0"/>
+  <rect x="21" y="40.5" width="14" height="3.5" rx="1.75" fill="#caa15a"/>
+  <!-- wordmark -->
+  <text x="72" y="27" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="700" fill="#f5f7fb">Prime</text>
+  <text x="72" y="47" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="700" fill="#7fb0ff">Compute</text>
+</svg>

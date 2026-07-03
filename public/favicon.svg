@@ -1,0 +1,18 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Prime Compute / Lumen: the lantern. Proof carried as light against the dark. -->
+  <rect width="64" height="64" rx="14" fill="#0a0e1c"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke="#3a5ba8" stroke-opacity="0.4"/>
+  <!-- warm glow -->
+  <circle cx="32" cy="34" r="20" fill="#ff963c" fill-opacity="0.18"/>
+  <circle cx="32" cy="34" r="13" fill="#ff963c" fill-opacity="0.22"/>
+  <!-- lantern top bar + ring -->
+  <path d="M32 9 v6" stroke="#caa15a" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="32" cy="17" r="3" fill="none" stroke="#caa15a" stroke-width="2.5"/>
+  <!-- lantern body -->
+  <path d="M22 44 q-2 -20 10 -23 q12 3 10 23 z" fill="#16203c" stroke="#3a5ba8" stroke-width="2"/>
+  <!-- inner light -->
+  <circle cx="32" cy="36" r="8" fill="#ffd98a"/>
+  <circle cx="32" cy="36" r="3.5" fill="#fff3d0"/>
+  <!-- base -->
+  <rect x="24" y="46" width="16" height="4" rx="2" fill="#caa15a"/>
+</svg>
