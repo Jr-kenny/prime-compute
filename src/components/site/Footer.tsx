@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Boxes } from "lucide-react";
+import { LanternMark } from "./LanternMark";
 
 export function Footer() {
   return (
@@ -7,7 +7,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 flex flex-wrap items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-glow ring-1 ring-primary/30">
-            <Boxes className="h-4 w-4" />
+            <LanternMark className="h-4 w-4" />
           </span>
           <span className="font-semibold text-foreground">
             Prime <span className="text-glow">Compute</span>

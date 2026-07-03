@@ -1,6 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  Boxes,
   LayoutDashboard,
   Store,
   Server,
@@ -10,6 +9,7 @@ import {
   ChevronsUpDown,
   MoreVertical,
 } from "lucide-react";
+import { LanternMark } from "./LanternMark";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,7 +38,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <Link to="/" className="flex items-center gap-2 group">
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-glow ring-1 ring-primary/30 group-hover:ring-primary/60 transition">
-        <Boxes className="h-4 w-4" />
+        <LanternMark className="h-4 w-4" />
       </span>
       {!compact && (
         <span className="font-semibold tracking-tight text-white">
@@ -61,7 +61,7 @@ export function Sidebar({ onOpenLumen }: { onOpenLumen?: () => void }) {
     <aside className="hidden md:flex w-60 shrink-0 flex-col sticky top-0 h-screen border-r border-sidebar-border bg-sidebar">
       <Link to="/" className="h-16 flex items-center gap-2.5 px-4 border-b border-sidebar-border group">
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-glow ring-1 ring-primary/30 group-hover:ring-primary/60 transition">
-          <Boxes className="h-4 w-4" />
+          <LanternMark className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold tracking-tight text-white truncate">
