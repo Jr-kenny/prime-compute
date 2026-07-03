@@ -42,6 +42,10 @@ services/node_modules
 # Superpowers brainstorming companion (local ephemeral artifacts)
 .superpowers/
 
+# Internal planning + ops docs: kept locally, not part of the team-facing repo
+docs/superpowers/
+docs/WORKER_DEPLOY.md
+
 # Scaffolding tool metadata (not used by the app)
 .kimchi/
 .lovable/

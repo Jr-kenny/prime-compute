@@ -1,4 +1,4 @@
-# Render blueprint for the metering worker (see docs/WORKER_DEPLOY.md).
+# Render blueprint for the metering worker.
 # The free plan spins down after ~15 min idle: point a free pinger
 # (cron-job.org / UptimeRobot) at /health every ~10 min to keep it warm.
 # Metering is restart-safe, so a spin-down pauses billing, never corrupts it.
