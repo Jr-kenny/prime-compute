@@ -48,3 +48,29 @@ services:
         sync: false
       - key: WALLET_BACKEND
         sync: false
+
+  # The always-on x402 seller a lease actually pays. Without a reachable provider the
+  # worker meters against localhost and charges nothing; this gives it a real endpoint
+  # that stays up when your laptop is off. Same Bun image as the worker, different command.
+  - type: web
+    name: prime-provider
+    runtime: docker
+    plan: free
+    dockerfilePath: ./services/Dockerfile.provider
+    dockerContext: ./services
+    healthCheckPath: /health
+    envVars:
+      # PROVIDER_PRICE matches the registered provider's price_per_charge so the amount
+      # the seller demands lines up with what the worker funded into Gateway.
+      - key: PROVIDER_PRICE
+        value: "$0.000006"
+      - key: PROVIDER_RESOURCE_TYPE
+        value: GPU
+      - key: PROVIDER_ALIAS
+        value: mine-1
+      - key: PROVIDER_REGION
+        value: US-East
+      # The only thing you fill in: the seller wallet (same as services/.env). It only
+      # receives USDC, it pays no gas to receive.
+      - key: PROVIDER_WALLET_PRIVATE_KEY
+        sync: false
