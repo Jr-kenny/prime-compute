@@ -1,0 +1,15 @@
+# The always-on x402 seller (scripts/run-provider.ts). Same Bun image as the worker's
+# Dockerfile; only the command differs. Deploy on Render as a Docker web service with
+# root directory `services` and Dockerfile path `Dockerfile.provider`. Render injects
+# PORT and run-provider now binds to it.
+FROM oven/bun:1-slim
+
+WORKDIR /app
+
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+COPY . .
+
+ENV NODE_ENV=production
+CMD ["bun", "run", "scripts/run-provider.ts"]
