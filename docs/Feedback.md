@@ -330,4 +330,30 @@ verify failure return a structured error code + human message through the callba
 modal), and document the OTP/deviceToken expiry and retry semantics. This one is a big part of why I moved
 off the user-controlled Web SDK.
 
+## Contract execution fails at submit while balance reads succeed, when the entity secret drifts
+
+Area: SDK (developer-controlled wallets) + Gateway - 2026-07-04
+
+Spent a real chunk of a debugging session on a lease that suspended "on balance" while the wallet held
+9 USDC. The wallet's Gateway balance was 0 and `ensureFunded` was trying to `approve`+`deposit` into the
+Gateway. Read paths all worked: `POST /v1/balances` returned fine, `estimateContractExecutionFee` on the
+`approve` validated clean. But the deployed worker's `createContractExecutionTransaction` threw at submit
+and left NO transaction in the wallet's history, so from the outside it was indistinguishable from "never
+ran". Root cause was env drift: the deployed `CIRCLE_ENTITY_SECRET` wasn't the one registered for that
+`CIRCLE_API_KEY`. Two asks: (1) make `createContractExecutionTransaction` fail with a structured error that
+names the entity-secret/API-key mismatch specifically, instead of a generic throw, and (2) when a submit is
+rejected, still record a FAILED transaction row so history reflects the attempt. Balance reads succeeding
+while writes silently fail is the worst possible split for debugging a payments outage.
+
+## `estimateContractExecutionFee` reverts for a deposit that needs a prior approve, with no hint why
+
+Area: SDK (developer-controlled wallets) - 2026-07-04
+
+Estimating the Gateway `deposit(address,uint256)` in isolation returns "Estimate fee execution reverted."
+with no detail. The revert is correct-ish (the deposit does a `transferFrom` that needs the `approve` to have
+set allowance first), but the estimator runs the call standalone so it always reverts pre-approve. That made
+the estimate look like proof the deposit call was malformed when it was actually fine end to end. Either let
+the estimate accept a pending-allowance/simulated-approve context, or return the revert reason string so it's
+obvious it's an allowance issue and not a bad signature/params.
+
 <!-- Add new entries above this line as I hit them during implementation. -->

@@ -51,7 +51,12 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
     try {
       const maxUnits = budget(rent, deps.defaultMaxUnits);
       const settlement = await deps.settlementFor(rent, maxUnits);
-      await provisionLease(rent.id, { registry, settlement, rank: deps.rank, maxUnits });
+      const res = await provisionLease(rent.id, { registry, settlement, rank: deps.rank, maxUnits });
+      // A suspend/fail carries the real cause (a funding/gateway error, an unmatched spec). It used
+      // to be swallowed here, so an outage looked like silence in the logs; surface it.
+      if (res.status === "suspended" || res.status === "failed") {
+        console.error(`[worker] provision ${rent.id} -> ${res.status}: ${res.reason}`);
+      }
     } catch (e) {
       console.error(`[worker] provision ${rent.id} failed:`, e instanceof Error ? e.message : e);
     }

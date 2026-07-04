@@ -49,8 +49,12 @@ export function rentPhase(rent: Rent, provider: Provider | undefined): RentPhase
     case "suspended":
       return {
         phase: "suspended",
-        title: "Paused on balance",
-        description: "Your spend wallet ran low, so billing stalled. Top up your wallet to resume.",
+        title: "Paused",
+        // The worker records why it suspended (a funding/gateway error, a spend cap, a lost
+        // provider). Show that truth when we have it; only fall back to the balance guess when we don't.
+        description: rent.statusReason
+          ? `Billing paused: ${rent.statusReason}`
+          : "Billing paused. Check your spend wallet and resume from the dashboard.",
         canConnect: false,
         terminal: false,
       };

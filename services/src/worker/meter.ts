@@ -48,8 +48,9 @@ export async function provisionLease(rentId: string, deps: ProvisionDeps): Promi
   try {
     if (minAtomic > 0n) await settlement.ensureFunded(minAtomic);
   } catch (e) {
-    await registry.updateRent(rentId, { status: "suspended" });
-    return { status: "suspended", reason: e instanceof Error ? e.message : "funding failed" };
+    const reason = e instanceof Error ? e.message : "funding failed";
+    await registry.updateRent(rentId, { status: "suspended", statusReason: reason });
+    return { status: "suspended", reason };
   }
 
   await registry.updateRent(rentId, {
@@ -57,6 +58,7 @@ export async function provisionLease(rentId: string, deps: ProvisionDeps): Promi
     providerId: match.chosen.id,
     startedAt: isoNow(),
     leaseAccessToken: crypto.randomUUID(),
+    statusReason: null,
   });
   return { status: "running", reason: "provisioned" };
 }
@@ -104,7 +106,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
 
   const provider = rent.providerId ? await registry.getProvider(rent.providerId) : null;
   if (!provider) {
-    await registry.updateRent(rentId, { status: "suspended" });
+    await registry.updateRent(rentId, { status: "suspended", statusReason: "the lease's provider is no longer registered" });
     return { charged: false, status: "suspended", reason: "no provider" };
   }
 
@@ -153,7 +155,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
       lh?.monitor.observe({ ok: true }); // a paid hit is a healthy sample; clears the failure streak
     } catch (e) {
       if (e instanceof SpendCapError) {
-        await registry.updateRent(rentId, { status: "suspended" });
+        await registry.updateRent(rentId, { status: "suspended", statusReason: e.message });
         return { charged: chargedAny, status: "suspended", reason: e.message };
       }
       // A failed hit is a health sample too. Once the streak crosses the monitor's threshold the

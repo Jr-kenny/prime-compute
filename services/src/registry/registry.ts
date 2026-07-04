@@ -23,7 +23,7 @@ export type NewRent = {
 };
 
 export type RentPatch = Partial<
-  Pick<Rent, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt" | "lastChargedAt" | "leaseAccessToken" | "feesSweptAt">
+  Pick<Rent, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt" | "lastChargedAt" | "leaseAccessToken" | "feesSweptAt" | "statusReason">
 >;
 
 export type ProviderFilter = {

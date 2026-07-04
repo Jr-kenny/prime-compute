@@ -61,6 +61,7 @@ export type Rent = {
   lastChargedAt: string | null; // when the meter last charged this lease (resumability)
   leaseAccessToken: string | null; // shown to the user as the connect credential
   feesSweptAt: string | null; // when outstanding platform fees were collected after the rent ended
+  statusReason: string | null; // why a non-happy status happened (e.g. the funding error behind a suspend)
 };
 
 export type RentDecision = {

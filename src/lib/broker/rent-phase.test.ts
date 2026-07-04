@@ -43,11 +43,17 @@ test("running cannot connect without a token yet", () => {
   expect(p.canConnect).toBe(false);
 });
 
-test("suspended is non-terminal and points at the wallet", () => {
+test("suspended without a recorded reason falls back to the wallet pointer", () => {
   const p = rentPhase(rent({ status: "suspended" }), provider);
   expect(p.phase).toBe("suspended");
   expect(p.terminal).toBe(false);
-  expect(p.description.toLowerCase()).toContain("top up");
+  expect(p.description.toLowerCase()).toContain("spend wallet");
+});
+
+test("suspended surfaces the real reason the worker recorded", () => {
+  const p = rentPhase(rent({ status: "suspended", statusReason: "contract execution approve DENIED" }), provider);
+  expect(p.phase).toBe("suspended");
+  expect(p.description).toContain("contract execution approve DENIED");
 });
 
 test("paused is handled (non-terminal, no connect)", () => {

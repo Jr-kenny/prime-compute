@@ -11,6 +11,7 @@ function rent(userId: string): Rent {
     autonomyArmed: false, status: "queued", providerId: null, totalCost: 0, createdAt: "",
     startedAt: null, endedAt: null, lastChargedAt: null, leaseAccessToken: null,
   feesSweptAt: null,
+  statusReason: null,
   };
 }
 

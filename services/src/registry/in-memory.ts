@@ -58,6 +58,7 @@ export class InMemoryRegistry implements Registry {
       lastChargedAt: null,
       leaseAccessToken: null,
       feesSweptAt: null,
+      statusReason: null,
     };
     this.rents.set(rent.id, rent);
     return rent;
