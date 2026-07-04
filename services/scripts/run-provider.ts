@@ -9,7 +9,9 @@ const key = process.env.PROVIDER_WALLET_PRIVATE_KEY as `0x${string}` | undefined
 if (!key) throw new Error("Set PROVIDER_WALLET_PRIVATE_KEY in services/.env");
 
 const sellerAddress = privateKeyToAccount(key).address;
-const port = Number(process.env.PROVIDER_PORT ?? 4001);
+// Render (and most hosts) inject $PORT; honor it first so this same script is the always-on
+// provider in the cloud, and fall back to PROVIDER_PORT/4001 for local runs.
+const port = Number(process.env.PORT ?? process.env.PROVIDER_PORT ?? 4001);
 const price = process.env.PROVIDER_PRICE ?? "$0.0001";
 const resourceType = (process.env.PROVIDER_RESOURCE_TYPE ?? "GPU") as ResourceType;
 const facilitatorUrl = process.env.X402_FACILITATOR_URL ?? "https://gateway-api-testnet.circle.com";
