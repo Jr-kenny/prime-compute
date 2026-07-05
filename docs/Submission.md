@@ -6,8 +6,9 @@ Prime Compute is a marketplace for renting idle compute (GPUs, CPUs, whole serve
 by the second of actual use, settled in USDC on Arc. An AI broker called Lumen sits in the middle:
 you tell it what you need, and it finds the providers that can run it, ranks them, opens a
 streaming payment channel, watches the rent while it's live, and moves or cancels it if the
-provider degrades. You only pay for compute you actually consumed, and the payment stops when the
-rent does.
+provider degrades. A rent runs continuously and meters real USDC until you stop it; you can set an
+optional spend or time cap and it stops on its own when it hits the limit. Either way you only pay
+for compute you actually consumed.
 
 ## The problem
 
@@ -43,8 +44,11 @@ Lumen is what makes the streaming rail worth having. It's a soul-driven agent: i
 written soul and a written policy, and the only hardcoded parts are the money guardrails it can't
 override (trust tier, spend caps, budget). It ranks providers by reasoning over their price,
 compute score, latency, and region, and if the model call fails it falls back to a deterministic
-scorer. A broker that can re-route a payment stream the instant a provider goes bad is what makes
-pay-per-second safe for the renter. Full mechanics in [Lumen/broker.md](Lumen/broker.md).
+scorer. It also carries platform knowledge and a personality, so a renter can talk to it in plain
+language, ask what it's doing and why, and have it route the conversation to the right action
+rather than just handing back a ranked list. A broker that can re-route a payment stream the instant
+a provider goes bad is what makes pay-per-second safe for the renter. Full mechanics in
+[Lumen/broker.md](Lumen/broker.md).
 
 ## Autonomous agents as first-class users
 
@@ -61,8 +65,27 @@ without a human in the loop. See the API and MCP sections in the [README](../REA
 - The marketplace UI reads and writes through a real registry.
 - The broker makes real ranking and matching decisions from the soul/policy runtime.
 - Settlement is USDC on Arc testnet: deposits, batched charges, reconciliation, withdrawals.
+- Unspent Circle Gateway float is reclaimable straight back to the user's spend wallet, surfaced in
+  the wallet UI, the agent API, and the MCP server, so deposited USDC that never got spent is never
+  stranded in the settlement layer.
 - An always-on metering worker streams charges for live rents whether or not a browser is open, and
   it's resumable, so a restart never double-charges or skips (see [WORKER_DEPLOY.md](WORKER_DEPLOY.md)).
+
+## Traction
+
+As of the latest snapshot (2026-07-05 UTC), on Arc testnet: 12,697 nanopayments streamed via Circle
+Gateway (metered micro-charges, each carrying a Gateway transfer id, not an L1 tx hash), 0.076 USDC
+of real volume across 75 rents (61 live, 8 completed), 26 users on 2 providers. The point isn't the
+dollar figure, it's the throughput: thousands of streaming micropayments running on working
+end-to-end infrastructure rather than a handful of big transactions.
+
+Arc is public, so you can verify the flow yourself on the explorer, independent of anything we
+report:
+
+- Payer (per-user spend wallet): `0xaf70175E779786Cf7C08f2ba6d985eD6297e80Fc`
+- Payee (first-party provider): `0x6d7050ed44993c6a55e30b342ade8d42193d5a92`
+
+Live traction goes to the mentors through `arc-canteen update traction` as the numbers move.
 
 ## Developer-experience feedback
 
