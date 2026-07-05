@@ -33,6 +33,13 @@ test("running with a token and a provider can connect", () => {
   expect(p.terminal).toBe(false);
 });
 
+test("running copy says it runs until stopped, and names a cap when set", () => {
+  const uncapped = rentPhase(rent({ status: "running", leaseAccessToken: "tok" }), provider);
+  expect(uncapped.description.toLowerCase()).toContain("until you stop");
+  const spendCapped = rentPhase(rent({ status: "running", leaseAccessToken: "tok", maxSpendAtomic: 500000 }), provider);
+  expect(spendCapped.description).toContain("0.50"); // $0.50 spend cap surfaced
+});
+
 test("running cannot connect when the provider is gone", () => {
   const p = rentPhase(rent({ status: "running", leaseAccessToken: "tok" }), undefined);
   expect(p.canConnect).toBe(false); // rent still shown, just not connectable

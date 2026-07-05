@@ -28,16 +28,25 @@ export function rentPhase(rent: Rent, provider: Provider | undefined): RentPhase
         terminal: false,
       };
     }
-    case "running":
+    case "running": {
+      // A continuous lease bills until the user stops it; surface any cap they set so they
+      // know when it will stop on its own.
+      const cap =
+        rent.maxSpendAtomic != null
+          ? ` Stops at $${(rent.maxSpendAtomic / 1_000_000).toFixed(2)} spent.`
+          : rent.expiresAt != null
+            ? ` Stops at ${new Date(rent.expiresAt).toLocaleString()}.`
+            : "";
       return {
         phase: "running",
         title: "Running",
         description: provider
-          ? "Your lease is live and metering real USDC as it runs."
+          ? `Your lease is live and metering real USDC. It runs until you stop it.${cap}`
           : "Your lease is live, but its provider is unavailable right now.",
         canConnect: !!rent.leaseAccessToken && !!provider,
         terminal: false,
       };
+    }
     case "paused":
       return {
         phase: "paused",
