@@ -17,6 +17,7 @@
     "provider": "bun run scripts/run-provider.ts",
     "worker": "bun run src/worker/index.ts",
     "seed:provider": "bun run scripts/seed-provider.ts",
+    "traction": "bun run scripts/traction.ts",
     "provider:roundtrip": "bun run scripts/provider-roundtrip.ts",
     "settlement:roundtrip": "bun run scripts/settlement-roundtrip.ts",
     "broker:roundtrip": "bun run scripts/broker-roundtrip.ts",
