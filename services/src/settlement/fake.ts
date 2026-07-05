@@ -5,6 +5,9 @@ export type FakeOptions = {
   pricePerChargeAtomic: bigint;
   capAtomic: bigint;
   buyerAddress?: string;
+  // Continuous-rental test hooks. `fundsRemaining` is the EOA ceiling: each ensureFunded that
+  // needs a deposit draws from it, and once it can't cover the shortfall it throws (empty wallet).
+  fundsRemaining?: bigint;
 };
 
 // Deterministic, no network. Enforces the same spend guard as the real adapter so
@@ -14,13 +17,22 @@ export class FakeSettlementAdapter implements SettlementAdapter {
   private spent = 0n;
   private seq = 0;
   private refs = new Set<string>();
+  fundCalls = 0;
+  private funded = 0n;
 
-  constructor(private opts: FakeOptions) {
+  constructor(public opts: FakeOptions) {
     this.buyerAddress = opts.buyerAddress ?? "0xFAKEBUYER";
   }
 
-  async ensureFunded(_minAtomic: bigint): Promise<{ deposited: boolean }> {
-    return { deposited: false };
+  async ensureFunded(minAtomic: bigint): Promise<{ deposited: boolean; depositTxHash?: string }> {
+    this.fundCalls++;
+    if (this.opts.fundsRemaining === undefined) return { deposited: false };
+    if (this.funded >= minAtomic) return { deposited: false };
+    const shortfall = minAtomic - this.funded;
+    if (shortfall > this.opts.fundsRemaining) throw new Error("insufficient EOA balance for top-up");
+    this.opts.fundsRemaining -= shortfall;
+    this.funded += shortfall;
+    return { deposited: true, depositTxHash: `fake-deposit-${this.fundCalls}` };
   }
 
   async payForCompute(_url: string): Promise<PaidCompute> {
