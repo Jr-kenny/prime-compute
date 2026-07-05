@@ -26,4 +26,5 @@ export class PrimeClient {
   }
   walletBalance() { return this.call("/api/v1/wallet", "GET"); }
   withdraw(toAddress: string, amount: string) { return this.call("/api/v1/wallet", "POST", { toAddress, amount }); }
+  reclaim() { return this.call("/api/v1/wallet/reclaim", "POST", {}); }
 }

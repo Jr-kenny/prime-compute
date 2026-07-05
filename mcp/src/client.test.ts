@@ -26,3 +26,12 @@ test("walletBalance GETs /api/v1/wallet", async () => {
   expect(calls[0].url).toBe("http://api/api/v1/wallet");
   expect(calls[0].method).toBe("GET");
 });
+
+test("reclaim POSTs /api/v1/wallet/reclaim with the bearer key", async () => {
+  const calls: any[] = [];
+  const c = new PrimeClient("http://api", "pc_key", stubFetch(calls) as any);
+  await c.reclaim();
+  expect(calls[0].url).toBe("http://api/api/v1/wallet/reclaim");
+  expect(calls[0].method).toBe("POST");
+  expect(calls[0].auth).toBe("Bearer pc_key");
+});

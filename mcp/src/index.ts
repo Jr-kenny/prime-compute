@@ -88,4 +88,10 @@ server.registerTool(
   async (a) => asText(await client.withdraw(a.toAddress, a.amount)),
 );
 
+server.registerTool(
+  "reclaim",
+  { description: "Reclaim your unused prepaid Gateway float back into your agent wallet", inputSchema: {} },
+  async () => asText(await client.reclaim()),
+);
+
 await server.connect(new StdioServerTransport());
