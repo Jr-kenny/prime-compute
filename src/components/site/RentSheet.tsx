@@ -18,6 +18,8 @@ export function RentSheet({ provider, onClose }: { provider: Provider | null; on
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [duration, setDuration] = useState(15);
+  const [limitKind, setLimitKind] = useState<"none" | "spend" | "time">("none");
+  const [limitValue, setLimitValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [rentId, setRentId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -62,12 +64,18 @@ export function RentSheet({ provider, onClose }: { provider: Provider | null; on
     }
     setSubmitting(true);
     try {
+      const maxSpendAtomic =
+        limitKind === "spend" && Number(limitValue) > 0 ? Math.round(Number(limitValue) * 1_000_000) : null;
+      const expiresAt =
+        limitKind === "time" && Number(limitValue) > 0 ? new Date(Date.now() + Number(limitValue) * 3_600_000).toISOString() : null;
       const created = await createRent({
         data: {
           accessToken: data.session.access_token,
           name,
           spec: { resourceType: provider.resourceType, region: provider.region, preferredProviderId: provider.id },
-          estimatedUsage: duration * 60,
+          estimatedUsage: duration * 60, // advisory: sizes the buffer + estimate, not a hard stop
+          maxSpendAtomic,
+          expiresAt,
         },
       });
       queryClient.setQueryData(["rent", created.id], created); // render instantly, don't wait a poll
@@ -125,6 +133,35 @@ export function RentSheet({ provider, onClose }: { provider: Provider | null; on
               <div className="mt-1 text-[11px] text-muted-foreground">
                 at {rateDisplay(provider.resourceType, provider.pricePerCharge).streaming} ({rateDisplay(provider.resourceType, provider.pricePerCharge).human}) · metered per unit, only pay for what runs
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Spending limit</Label>
+              <p className="text-xs text-muted-foreground">
+                This rental runs until you stop it. Set an optional limit and it stops on its own.
+              </p>
+              <div className="flex gap-2">
+                {(["none", "spend", "time"] as const).map((k) => (
+                  <Button
+                    key={k}
+                    type="button"
+                    variant={limitKind === k ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLimitKind(k)}
+                    className="flex-1"
+                  >
+                    {k === "none" ? "No limit" : k === "spend" ? "Max spend" : "Max time"}
+                  </Button>
+                ))}
+              </div>
+              {limitKind !== "none" && (
+                <Input
+                  value={limitValue}
+                  onChange={(e) => setLimitValue(e.target.value)}
+                  placeholder={limitKind === "spend" ? "USDC, e.g. 0.50" : "hours, e.g. 2"}
+                  className="bg-card border-border font-mono"
+                  inputMode="decimal"
+                />
+              )}
             </div>
             <SheetFooter>
               <Button
