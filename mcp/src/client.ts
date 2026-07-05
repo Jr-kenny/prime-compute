@@ -17,7 +17,7 @@ export class PrimeClient {
   }
 
   discoverProviders() { return this.call("/api/v1/providers", "GET"); }
-  rentCompute(input: { name: string; resourceType: string; region?: string; estimatedUsage?: number }) {
+  rentCompute(input: { name: string; resourceType: string; region?: string; estimatedUsage?: number; maxSpendUsdc?: string; durationMs?: number }) {
     return this.call("/api/v1/rents", "POST", input);
   }
   rentStatus(id: string) { return this.call(`/api/v1/rents/${id}`, "GET"); }

@@ -40,8 +40,12 @@ server.registerTool(
 server.registerTool(
   "rent_compute",
   {
-    description: "Rent compute; returns a queued lease that the worker provisions and meters",
-    inputSchema: { name: z.string(), resourceType, region: z.string().optional(), estimatedUsage: z.number().optional() },
+    description: "Rent compute; returns a queued lease that the worker provisions and meters. The lease runs continuously until you stop it, or until an optional cap is hit.",
+    inputSchema: {
+      name: z.string(), resourceType, region: z.string().optional(), estimatedUsage: z.number().optional(),
+      maxSpendUsdc: z.string().optional().describe("Optional: stop the lease after this much USDC is charged, e.g. \"0.50\""),
+      durationMs: z.number().optional().describe("Optional: stop the lease this many milliseconds from now"),
+    },
   },
   async (a) => asText(await client.rentCompute(a)),
 );

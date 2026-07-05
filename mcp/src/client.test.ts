@@ -19,6 +19,15 @@ test("rentCompute POSTs to /api/v1/rents with the bearer key", async () => {
   expect(JSON.parse(calls[0].body)).toEqual({ name: "j", resourceType: "GPU" });
 });
 
+test("rentCompute forwards optional spend/time caps", async () => {
+  const calls: any[] = [];
+  const c = new PrimeClient("http://api", "pc_key", stubFetch(calls) as any);
+  await c.rentCompute({ name: "x", resourceType: "GPU", maxSpendUsdc: "0.5", durationMs: 3600000 });
+  const body = JSON.parse(calls[0].body);
+  expect(body.maxSpendUsdc).toBe("0.5");
+  expect(body.durationMs).toBe(3600000);
+});
+
 test("walletBalance GETs /api/v1/wallet", async () => {
   const calls: any[] = [];
   const c = new PrimeClient("http://api", "pc_key", stubFetch(calls) as any);
