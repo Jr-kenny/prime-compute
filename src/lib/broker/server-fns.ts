@@ -147,13 +147,39 @@ export const brokerChat = createServerFn({ method: "POST", strict: { output: fal
 
     // Identity-bound context, only when a token actually verifies.
     let signedIn = false;
-    let rentSummary: { count: number; rents: { name: string; status: string }[] } | undefined;
+    let rentSummary:
+      | {
+          count: number;
+          walletAddress: string;
+          rents: {
+            name: string;
+            status: string;
+            resourceType: string;
+            region: string | null;
+            providerId: string | null;
+            totalCost: number;
+            createdAt: string;
+          }[];
+        }
+      | undefined;
     if (data.accessToken) {
       try {
         const user = await requireUser(data.accessToken);
         const rents = await registry.listRents({ userId: user.id });
         signedIn = true;
-        rentSummary = { count: rents.length, rents: rents.map((r) => ({ name: r.name, status: r.status })) };
+        rentSummary = {
+          count: rents.length,
+          walletAddress: user.walletAddress,
+          rents: rents.map((r) => ({
+            name: r.name,
+            status: r.status,
+            resourceType: r.spec.resourceType,
+            region: r.spec.region,
+            providerId: r.providerId,
+            totalCost: r.totalCost,
+            createdAt: r.createdAt,
+          })),
+        };
       } catch {
         signedIn = false; // invalid/expired token → treat as signed-out, never break the chat
       }

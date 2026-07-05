@@ -74,7 +74,7 @@ export function LumenOverlay({
       id: "intro",
       role: "lumen",
       kind: "text",
-      text: "Hi there! 👋\nI'm Lumen — your AI assistant for prime compute.",
+      text: "Hi there! 👋\nI'm Lumen — your AI assistant for Prime Compute.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -180,7 +180,7 @@ export function LumenOverlay({
               </span>
               <div>
                 <div className="text-sm font-semibold text-white">Lumen</div>
-                <div className="text-[10px] text-white/50">AI broker</div>
+                <div className="text-[10px] text-white/50">AI assistant</div>
               </div>
             </div>
             <div className="flex items-center gap-3">
