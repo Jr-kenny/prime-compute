@@ -55,6 +55,30 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect(more.status).toBe("running");
 });
 
+test("an empty EOA suspends with a stamp, and a refunded tick resumes and clears it", async () => {
+  const { reg, rent } = await seed();
+  // EOA holds 150: enough for the initial 1-unit buffer (100), not enough for the next refill.
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 150n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 1 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 1, nowMs: () => clock };
+
+  const a1 = await meterTick(rent.id, deps); // spends the buffer
+  expect(a1.status).toBe("running");
+  clock += 1001;
+  const a2 = await meterTick(rent.id, deps); // refill needs 100, only 50 left -> suspend
+  expect(a2.status).toBe("suspended");
+  expect((await reg.getRent(rent.id))?.suspendedAt).toBeTruthy();
+
+  // Refund the EOA and flip the lease back to running (what a refund + the worker do), then tick.
+  settlement.opts.fundsRemaining = 1_000_000n;
+  await reg.updateRent(rent.id, { status: "running", statusReason: null });
+  clock += 2000;
+  const b = await meterTick(rent.id, deps);
+  expect(b.status).toBe("running");
+  expect((await reg.getRent(rent.id))?.suspendedAt).toBeNull();
+});
+
 test("meterTick completes a lease at its expires_at time", async () => {
   const { reg } = await seed();
   const start = 1_000_000;

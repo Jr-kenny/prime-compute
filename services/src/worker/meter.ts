@@ -200,13 +200,15 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
 
   if (lh && degradedReason) {
     const reason = await resolveDegradation(rentId, rent, provider, lh, degradedReason, deps);
-    await registry.updateRent(rentId, { totalCost: await registry.rentCost(rentId), lastChargedAt: new Date(clock()).toISOString() });
+    await registry.updateRent(rentId, { totalCost: await registry.rentCost(rentId), lastChargedAt: new Date(clock()).toISOString(), suspendedAt: null });
     return { charged: chargedAny, status: "running", reason };
   }
 
+  // A healthy running tick clears any prior balance-suspend stamp so the grace timer resets.
   await registry.updateRent(rentId, {
     totalCost: await registry.rentCost(rentId),
     lastChargedAt: new Date(clock()).toISOString(),
+    suspendedAt: null,
   });
   return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
 }
