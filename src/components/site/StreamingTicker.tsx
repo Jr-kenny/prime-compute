@@ -1,39 +1,34 @@
 import { useEffect, useRef, useState } from "react";
+import { streamingValue } from "./streaming-value";
 
 type Props = {
   ratePerSecond: number;
-  startedAt?: number;
+  // The real charged-so-far (USDC) and when it was observed. The ticker shows this baseline plus a
+  // small, bounded forward creep so it stays honest between polls. Pass the query's dataUpdatedAt as
+  // baselineAt so every refetch re-anchors it.
+  baselineValue: number;
+  baselineAt: number;
   className?: string;
   decimals?: number;
   paused?: boolean;
 };
 
-export function StreamingTicker({ ratePerSecond, startedAt = Date.now(), className, decimals = 6, paused }: Props) {
-  const [value, setValue] = useState(() => ((Date.now() - startedAt) / 1000) * ratePerSecond);
+export function StreamingTicker({ ratePerSecond, baselineValue, baselineAt, className, decimals = 6, paused }: Props) {
+  const [, force] = useState(0);
   const raf = useRef<number | null>(null);
-  const start = useRef(startedAt);
-  const pausedAccumRef = useRef(0);
-  const pauseStart = useRef<number | null>(null);
 
   useEffect(() => {
     function tick() {
-      if (paused) {
-        if (pauseStart.current == null) pauseStart.current = Date.now();
-      } else {
-        if (pauseStart.current != null) {
-          pausedAccumRef.current += Date.now() - pauseStart.current;
-          pauseStart.current = null;
-        }
-        const elapsed = (Date.now() - start.current - pausedAccumRef.current) / 1000;
-        setValue(elapsed * ratePerSecond);
-      }
+      force((v) => v + 1);
       raf.current = requestAnimationFrame(tick);
     }
     raf.current = requestAnimationFrame(tick);
     return () => {
       if (raf.current) cancelAnimationFrame(raf.current);
     };
-  }, [ratePerSecond, paused]);
+  }, []);
+
+  const value = streamingValue(baselineValue, baselineAt, ratePerSecond, Date.now(), paused);
 
   return (
     <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>

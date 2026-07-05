@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StreamingTicker, ElapsedTimer } from "@/components/site/StreamingTicker";
 import { WalletBalance } from "@/components/site/WalletBalance";
 import { WalletSheet } from "@/components/site/WalletSheet";
@@ -36,10 +37,15 @@ function Dashboard() {
   const [selectedRentId, setSelectedRentId] = useState<string | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
 
-  const { data: rents = [] } = useQuery({
+  const { data: rents = [], isLoading: rentsLoading, dataUpdatedAt: rentsUpdatedAt } = useQuery({
     queryKey: ["rents", "mine", accessToken],
     queryFn: () => listMyRents({ data: { accessToken: accessToken! } }),
     enabled: !!accessToken,
+    // Live: poll while anything is active (metering moves the numbers), stop when everything is terminal.
+    refetchInterval: (query) => {
+      const rs = (query.state.data as Rent[] | undefined) ?? [];
+      return rs.some((r) => r.status === "running" || r.status === "queued" || r.status === "suspended") ? 2500 : false;
+    },
   });
   const { data: providers = [] } = useQuery({
     queryKey: ["providers"],
@@ -84,7 +90,11 @@ function Dashboard() {
             </TabsList>
 
             <TabsContent value="active" className="mt-6 grid gap-4 lg:grid-cols-2">
-              {activeRents.map((r) => (
+              {rentsLoading &&
+                Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-28 w-full rounded-xl" />
+                ))}
+              {!rentsLoading && activeRents.map((r) => (
                 <OperationalTile
                   key={r.id}
                   title={r.name}
@@ -96,7 +106,7 @@ function Dashboard() {
                   onClick={() => setSelectedRentId(r.id)}
                 />
               ))}
-              {activeRents.length === 0 && (
+              {!rentsLoading && activeRents.length === 0 && (
                 <div className="col-span-full glass-card p-10 text-center text-muted-foreground">
                   No active rents. Head to the marketplace to rent some compute.
                 </div>
@@ -174,6 +184,7 @@ function Dashboard() {
       <RentDetailSheet
         rent={selectedRent}
         provider={selectedRent?.providerId ? providersById[selectedRent.providerId] : undefined}
+        baselineAt={rentsUpdatedAt}
         onClose={() => setSelectedRentId(null)}
       />
 
@@ -185,10 +196,12 @@ function Dashboard() {
 function RentDetailSheet({
   rent,
   provider,
+  baselineAt,
   onClose,
 }: {
   rent: Rent | null;
   provider: Provider | undefined;
+  baselineAt: number;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -230,7 +243,8 @@ function RentDetailSheet({
                 </div>
                 <StreamingTicker
                   ratePerSecond={provider?.pricePerCharge ?? 0}
-                  startedAt={startedAtMs}
+                  baselineValue={rent.totalCost / 1_000_000}
+                  baselineAt={baselineAt}
                   paused={rent.status !== "running"}
                   className="text-2xl font-semibold text-foreground"
                 />

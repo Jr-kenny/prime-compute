@@ -41,7 +41,7 @@ function ProviderDash() {
   });
 
   const serverIds = myServers.map((s) => s.id);
-  const { data: rentsByProvider = {} } = useQuery({
+  const { data: rentsByProvider = {}, dataUpdatedAt: rentsUpdatedAt } = useQuery({
     queryKey: ["rents", "forProviders", serverIds],
     queryFn: async () => {
       const lists = await Promise.all(
@@ -50,6 +50,12 @@ function ProviderDash() {
       return Object.fromEntries(serverIds.map((id, i) => [id, lists[i]]));
     },
     enabled: serverIds.length > 0,
+    // Live: while any server is serving a rent, poll so the earning number and count move.
+    refetchInterval: (query) => {
+      const map = (query.state.data as Record<string, Rent[]> | undefined) ?? {};
+      const anyLive = Object.values(map).flat().some((r) => r.status === "running" || r.status === "queued" || r.status === "suspended");
+      return anyLive ? 2500 : false;
+    },
   });
 
   const allRents = Object.values(rentsByProvider).flat();
@@ -155,6 +161,7 @@ function ProviderDash() {
       <ServerDetailSheet
         server={selectedServer}
         rents={selectedServer ? rentsByProvider[selectedServer.id] ?? [] : []}
+        baselineAt={rentsUpdatedAt}
         online={selectedServer ? isOnline(selectedServer) : false}
         onOnlineChange={(v) =>
           selectedServer && setOnlineByServer((m) => ({ ...m, [selectedServer.id]: v }))
@@ -168,12 +175,14 @@ function ProviderDash() {
 function ServerDetailSheet({
   server,
   rents,
+  baselineAt,
   online,
   onOnlineChange,
   onClose,
 }: {
   server: Provider | null;
   rents: Rent[];
+  baselineAt: number;
   online: boolean;
   onOnlineChange: (v: boolean) => void;
   onClose: () => void;
@@ -224,7 +233,8 @@ function ServerDetailSheet({
                     </div>
                     <StreamingTicker
                       ratePerSecond={server.pricePerCharge}
-                      startedAt={runningRent.startedAt ? new Date(runningRent.startedAt).getTime() : Date.now()}
+                      baselineValue={runningRent.totalCost / 1_000_000}
+                      baselineAt={baselineAt}
                       className="text-lg font-semibold text-foreground"
                     />
                   </div>
