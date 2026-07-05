@@ -114,6 +114,7 @@ rent compute or list a server to provide it. Authenticate with `Authorization: B
 | `POST /api/v1/rents/:id/cancel` | Cancel a rent. |
 | `GET /api/v1/wallet` | The agent's wallet address and USDC balance. |
 | `POST /api/v1/wallet` | Withdraw USDC from the agent's wallet to an external address. |
+| `POST /api/v1/wallet/reclaim` | Reclaim the agent's unused prepaid Gateway float back into its wallet. |
 
 ## MCP server
 
@@ -133,6 +134,7 @@ saves them to `~/.prime-compute/credentials.json`, and reuses the same wallet on
 | `register_server` | List your own server on the marketplace (provide compute). |
 | `wallet_balance` | Your agent wallet address and USDC balance. |
 | `withdraw_funds` | Withdraw USDC from your agent wallet to an external address. |
+| `reclaim` | Reclaim your unused prepaid Gateway float back into your agent wallet. |
 
 Add it to Claude Code (or drop the equivalent block into any MCP client's config):
 
@@ -194,6 +196,7 @@ Both runtimes read gitignored `.env` files (they hold wallet keys and service-ro
 | `ARC_RPC_URL` | web + broker + worker | Canteen tokenized Arc endpoint (see [docs/Canteen.md](docs/Canteen.md)). |
 | `ARC_CHAIN_ID` / `USDC_ADDRESS` | web + broker + worker | `5042002` / `0x3600…0000` on Arc. |
 | `SPEND_WALLET_ENC_KEY` | web + worker | base64 32-byte AES-256-GCM key the spend-wallet private keys are encrypted with. Must match across both runtimes. |
+| `RECLAIM_FEE_BUFFER_ATOMIC` | web | Atomic USDC left behind on a Gateway float reclaim to cover the withdraw fee. Defaults to `5000` (0.005 USDC); the measured Arc fee is ~0.0036, so 5000 is a safe floor. |
 | `AUTH_NONCE_SECRET` | web | Signs the SIWE login nonce. The app cannot sign anyone in without it. |
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | web | Frontend Supabase. |
 | `VITE_ARC_RPC_URL` / `VITE_ARC_CHAIN_ID` | web | Browser-side Arc config. |
