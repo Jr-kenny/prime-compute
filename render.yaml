@@ -18,6 +18,10 @@ services:
         value: "600"
       - key: WORKER_LEASE_CAP_ATOMIC
         value: "1000000"
+      - key: WORKER_TOPUP_UNITS
+        value: "300"
+      - key: WORKER_SUSPEND_GRACE_MS
+        value: "3600000"
       # Secrets: sync:false means Render prompts for the value on first deploy.
       # Use the same values as the web app's env (root .env).
       - key: SUPABASE_URL
