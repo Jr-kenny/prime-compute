@@ -114,6 +114,18 @@ export function registryContract(
       expect(updated.providerId).toBe(provider.id);
     }, T);
 
+    test("continuous-rental fields default null and round-trip through create/patch", async () => {
+      const created = await reg.createRent({
+        name: "caps", owner: { kind: "user", id: "u-caps", walletAddress: "0x0" },
+        spec: { resourceType: "GPU", region: null }, maxSpendAtomic: 5000, expiresAt: "2030-01-01T00:00:00.000Z",
+      });
+      expect(created.maxSpendAtomic).toBe(5000);
+      expect(created.expiresAt).toBe("2030-01-01T00:00:00.000Z");
+      expect(created.suspendedAt).toBeNull();
+      const suspended = await reg.updateRent(created.id, { suspendedAt: "2030-01-02T00:00:00.000Z" });
+      expect(suspended.suspendedAt).toBe("2030-01-02T00:00:00.000Z");
+    }, T);
+
     test("creates and lists an agent-owned rent", async () => {
       const rent = await reg.createRent({
         name: "agent-rent",
