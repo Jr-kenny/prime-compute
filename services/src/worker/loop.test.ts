@@ -5,6 +5,42 @@ import { FakeSettlementAdapter } from "../settlement/fake";
 import { defaultTrust } from "../trust/trust";
 import { workerPass } from "./loop";
 
+test("a pass meters running leases concurrently, so one slow lease doesn't serialize the fleet", async () => {
+  const reg = new InMemoryRegistry();
+  await reg.registerProvider({
+    alias: "p1", ownerWallet: "0xseller", endpointUrl: "http://localhost:1", resourceType: "GPU",
+    region: "US-East", specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001,
+    computeScore: 90, avgLatencyMs: 5,
+  });
+  const providerId = (await reg.listProviders())[0]!.id;
+
+  // Five leases already running, each paying through a settlement whose pay() takes a beat.
+  for (let i = 0; i < 5; i++) {
+    const r = await reg.createRent({ name: `lease-${i}`, owner: { kind: "user", id: `u${i}`, walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
+    await reg.updateRent(r.id, { status: "running", providerId, startedAt: new Date().toISOString() });
+  }
+
+  // Instrumented settlement: track how many pay() calls overlap. Sequential => always 1.
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const settlement = {
+    buyerAddress: "0xbuyer",
+    async ensureFunded() { return { deposited: false }; },
+    async payForCompute() {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((res) => setTimeout(res, 5));
+      inFlight--;
+      return { amountAtomic: 100n, settlementRef: "ref", data: {}, status: 200 };
+    },
+    async reconcile(ref: string) { return { ref, status: "completed" as const, settled: true }; },
+  };
+
+  await workerPass({ registry: reg, settlementFor: async () => settlement, tickMs: 1000, defaultMaxUnits: 100, nowMs: () => 5 });
+
+  expect(maxInFlight).toBeGreaterThan(1); // leases metered in parallel, not one-at-a-time
+});
+
 test("a queued lease provisions then charges continuously across passes, past its estimatedUsage", async () => {
   const reg = new InMemoryRegistry();
   await reg.registerProvider({

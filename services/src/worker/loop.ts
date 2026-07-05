@@ -23,6 +23,7 @@ export type WorkerDeps = {
   maxMigrations?: number;
   topupUnits?: number;      // float buffer size in units (default = each lease's estimate)
   suspendGraceMs?: number;  // terminate a balance-suspended lease after this long (0/unset = never)
+  concurrency?: number;     // how many running leases to meter at once per pass (default 10)
 };
 
 // Reads the provider's unpaywalled per-session usage so volume services (VPN, storage) can bill the
@@ -64,7 +65,14 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
     }
   }
 
-  for (const rent of await registry.listRents({ status: "running" })) {
+  // Meter running leases with bounded concurrency. Each lease pays from its own cached adapter and
+  // touches only its own rows, so they're independent; running one-at-a-time made a pass as slow as
+  // the whole fleet's I/O put together (an HTTP pay() hop plus DB round-trips per lease), which under
+  // load left each lease metered only once every couple of minutes. Fanning out a bounded batch at a
+  // time keeps the pass near real time so the elapsed-time meter bills ~one unit per second per lease.
+  const runningLeases = await registry.listRents({ status: "running" });
+  const concurrency = Math.max(1, deps.concurrency ?? 10);
+  const meterOne = async (rent: Rent) => {
     try {
       const maxUnits = budget(rent, deps.defaultMaxUnits);
       const settlement = await deps.settlementFor(rent, maxUnits);
@@ -78,6 +86,9 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
     } catch (e) {
       console.error(`[worker] tick ${rent.id} failed:`, e instanceof Error ? e.message : e);
     }
+  };
+  for (let i = 0; i < runningLeases.length; i += concurrency) {
+    await Promise.all(runningLeases.slice(i, i + concurrency).map(meterOne));
   }
 
   // Terminate leases that have sat suspended for balance past the grace window.

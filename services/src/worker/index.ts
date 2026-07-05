@@ -26,6 +26,7 @@ const LEASE_CAP_ATOMIC = BigInt(process.env.WORKER_LEASE_CAP_ATOMIC ?? "1000000"
 // lease left suspended for balance is terminated after the grace window.
 const TOPUP_UNITS = Number(process.env.WORKER_TOPUP_UNITS ?? "300"); // buffer size (deposit chunk)
 const SUSPEND_GRACE_MS = Number(process.env.WORKER_SUSPEND_GRACE_MS ?? String(60 * 60 * 1000)); // 1h
+const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? "10"); // running leases metered at once
 
 const registry = new SupabaseRegistry(cfg.supabase.url, cfg.supabase.serviceRoleKey);
 const admin = createClient(cfg.supabase.url, cfg.supabase.serviceRoleKey, { auth: { persistSession: false } });
@@ -87,7 +88,7 @@ const deps: WorkerDeps = {
   registry, settlementFor, rank, tickMs: TICK_MS, defaultMaxUnits: DEFAULT_MAX_UNITS,
   feeBps: Number(process.env.PLATFORM_FEE_BPS ?? "0"),
   health, degradation, maxMigrations: Number(process.env.WORKER_MAX_MIGRATIONS ?? "3"),
-  topupUnits: TOPUP_UNITS, suspendGraceMs: SUSPEND_GRACE_MS,
+  topupUnits: TOPUP_UNITS, suspendGraceMs: SUSPEND_GRACE_MS, concurrency: CONCURRENCY,
 };
 
 let running = false;
