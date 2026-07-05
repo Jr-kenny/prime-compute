@@ -6,7 +6,7 @@ import { rateDisplay } from "@/lib/pricing/rate";
 import { isFirstParty } from "@/lib/marketplace/first-party";
 import type { Provider } from "@services/domain";
 
-export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider) => void }) {
+export function ProviderCard({ p, rentCount, onRent }: { p: Provider; rentCount?: number; onRent?: (p: Provider) => void }) {
   const gpu = p.specs.gpu as string | undefined;
   const vramGb = p.specs.vramGb as number | undefined;
   const cpuCores = p.specs.cpuCores as number | undefined;
@@ -70,7 +70,7 @@ export function ProviderCard({ p, onRent }: { p: Provider; onRent?: (p: Provider
         </div>
         <div className="flex gap-1">
           <Pill>{uptimePct.toFixed(2)}%</Pill>
-          <Pill>{p.trust.signals.successfulRentals.toLocaleString()} rents</Pill>
+          <Pill>{(rentCount ?? 0).toLocaleString()} rents</Pill>
           <Pill>{p.avgLatencyMs.toFixed(1)}ms</Pill>
         </div>
       </div>

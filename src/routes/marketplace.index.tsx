@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Search, Filter as FilterIcon } from "lucide-react";
 import confetti from "canvas-confetti";
 import { ProviderCard } from "@/components/site/ProviderCard";
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/sheet";
 import type { Provider, ResourceType } from "@services/domain";
 import { serviceIds } from "@services/services/registry";
-import { listProviders, createRent } from "@/lib/broker/server-fns";
+import { listProviders, createRent, getRentCountsByProvider } from "@/lib/broker/server-fns";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 export const Route = createFileRoute("/marketplace/")({
@@ -32,6 +33,11 @@ const allTypes: ResourceType[] = serviceIds();
 
 function MarketplaceIndex() {
   const providers = Route.useLoaderData();
+  const { data: rentCounts = {} } = useQuery({
+    queryKey: ["rentCounts"],
+    queryFn: () => getRentCountsByProvider(),
+    refetchInterval: 5000, // live: reflect new rents against each provider
+  });
   const [q, setQ] = useState("");
   const [types, setTypes] = useState<ResourceType[]>(serviceIds());
   const [minScore, setMinScore] = useState(0);
@@ -121,7 +127,7 @@ function MarketplaceIndex() {
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.map((p) => (
-                <ProviderCard key={p.id} p={p} onRent={(prov) => setRentFor(prov)} />
+                <ProviderCard key={p.id} p={p} rentCount={rentCounts[p.id]} onRent={(prov) => setRentFor(prov)} />
               ))}
               {filtered.length === 0 && (
                 <div className="col-span-full glass-card p-10 text-center text-muted-foreground">

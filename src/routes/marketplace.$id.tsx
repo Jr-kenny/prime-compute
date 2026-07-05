@@ -77,7 +77,7 @@ function ProviderDetail() {
           <Stat label="Rate" value={rateDisplay(p.resourceType, p.pricePerCharge).streaming} />
           <Stat label="Est." value={rateDisplay(p.resourceType, p.pricePerCharge).human} />
           <Stat label="Uptime" value={`${uptimePct.toFixed(2)}%`} />
-          <Stat label="Rents completed" value={p.trust.signals.successfulRentals.toLocaleString()} />
+          <Stat label="Rents" value={rents.length.toLocaleString()} />
           <Stat label="Avg latency" value={`${p.avgLatencyMs.toFixed(1)}ms`} />
         </div>
       </div>

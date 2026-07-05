@@ -8,6 +8,7 @@ import type { Principal, Rent, RentSpec } from "@services/domain";
 import {
   createRentFor, listRentsFor, getRentFor, cancelRentFor, registerProviderFor, listMyProvidersFor,
 } from "@/lib/marketplace/service";
+import { tallyRentsByProvider } from "@/lib/marketplace/rent-counts";
 
 // Humans are just one principal type; resolve the session to a Principal and use the shared service.
 function userPrincipal(user: { id: string; walletAddress: string }): Principal {
@@ -30,6 +31,12 @@ export const listProviders = createServerFn({ method: "GET", strict: { output: f
 export const getProviderById = createServerFn({ method: "GET", strict: { output: false } })
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => getRegistry().getProvider(data.id));
+
+// Public: how many rents each provider has served, as a { providerId: count } map. Only the tally
+// crosses the wire, never anyone's rent rows, so this is safe to call unauthenticated like listProviders.
+export const getRentCountsByProvider = createServerFn({ method: "GET" }).handler(async () => {
+  return tallyRentsByProvider(await getRegistry().listRents());
+});
 
 export const listMyRents = createServerFn({ method: "GET" })
   .validator((d: { accessToken: string }) => d)
