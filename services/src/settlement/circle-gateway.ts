@@ -7,6 +7,7 @@ import { gatewayPay } from "./gateway-pay";
 
 const GATEWAY_API = "https://gateway-api-testnet.circle.com/v1";
 const GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+const GATEWAY_MINTER = "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B";
 const ARC_TESTNET_CHAIN_ID = 5042002;
 
 export type CircleExecApi = CircleSignerApi & {
@@ -119,4 +120,29 @@ export class CircleGatewaySettlementAdapter implements SettlementAdapter {
     }
     throw new Error(`contract execution ${signature} timed out`);
   }
+}
+
+// Execute gatewayMint(attestation, signature) on the Arc minter through Circle contract execution,
+// polled to completion. Same shape as the adapter's private exec, but standalone so the reclaim path
+// can mint an attestation without an adapter instance. Circle pays gas in USDC on Arc.
+export async function mintViaCircle(
+  client: CircleExecApi, walletId: string, attestation: string, signature: string, opts: { pollMs?: number } = {},
+): Promise<string> {
+  const created = await client.createContractExecutionTransaction({
+    walletId, contractAddress: GATEWAY_MINTER,
+    abiFunctionSignature: "gatewayMint(bytes,bytes)", abiParameters: [attestation, signature],
+    fee: { type: "level", config: { feeLevel: "MEDIUM" } },
+  });
+  const id = created.data?.id;
+  if (!id) throw new Error(`gatewayMint exec gave no id: ${JSON.stringify(created.data)}`);
+  const pollMs = opts.pollMs ?? 2_000;
+  for (let i = 0; i < 60; i++) {
+    const tx = (await client.getTransaction({ id })).data?.transaction;
+    if (tx?.state === "COMPLETE" || tx?.state === "CONFIRMED") return tx.txHash ?? id;
+    if (tx?.state === "FAILED" || tx?.state === "CANCELLED" || tx?.state === "DENIED") {
+      throw new Error(`gatewayMint ${tx.state}: ${tx?.errorReason ?? ""}`);
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  throw new Error("gatewayMint timed out");
 }

@@ -1,6 +1,6 @@
 // services/src/settlement/circle-gateway.test.ts
 import { test, expect } from "bun:test";
-import { CircleGatewaySettlementAdapter, type CircleGatewayOptions } from "./circle-gateway";
+import { CircleGatewaySettlementAdapter, mintViaCircle, type CircleGatewayOptions, type CircleExecApi } from "./circle-gateway";
 import { SpendCapError } from "./spend-policy";
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64");
@@ -76,4 +76,23 @@ test("ensureFunded is a no-op when the gateway balance covers the minimum", asyn
   const r = await adapter.ensureFunded(500n);
   expect(r.deposited).toBe(false);
   expect(client.executions.length).toBe(0);
+});
+
+test("mintViaCircle contract-executes gatewayMint and polls to a tx hash", async () => {
+  const client = stubCircle();
+  const hash = await mintViaCircle(client as unknown as CircleExecApi, "wallet-1", "0xatt", "0xgwsig", { pollMs: 1 });
+  expect(client.executions.length).toBe(1);
+  expect(client.executions[0]?.abiFunctionSignature).toBe("gatewayMint(bytes,bytes)");
+  expect(client.executions[0]?.abiParameters).toEqual(["0xatt", "0xgwsig"]);
+  expect(client.executions[0]?.contractAddress).toBe("0x0022222ABE238Cc2C7Bb1f21003F0a260052475B");
+  expect(hash).toBe("0xhash");
+});
+
+test("mintViaCircle throws when the mint transaction fails", async () => {
+  const client = {
+    async signTypedData() { return { data: { signature: "0x" } }; },
+    async createContractExecutionTransaction() { return { data: { id: "tx1" } }; },
+    async getTransaction() { return { data: { transaction: { state: "FAILED", errorReason: "revert" } } }; },
+  } as unknown as CircleExecApi;
+  await expect(mintViaCircle(client, "wallet-1", "0xatt", "0xgwsig", { pollMs: 1 })).rejects.toThrow(/gatewayMint FAILED/);
 });
