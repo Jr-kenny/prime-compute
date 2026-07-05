@@ -20,10 +20,12 @@ export type NewRent = {
   spec: RentSpec;
   estimatedUsage?: number | null;
   autonomyArmed?: boolean;
+  maxSpendAtomic?: number | null;
+  expiresAt?: string | null;
 };
 
 export type RentPatch = Partial<
-  Pick<Rent, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt" | "lastChargedAt" | "leaseAccessToken" | "feesSweptAt" | "statusReason">
+  Pick<Rent, "status" | "providerId" | "totalCost" | "startedAt" | "endedAt" | "lastChargedAt" | "leaseAccessToken" | "feesSweptAt" | "statusReason" | "maxSpendAtomic" | "expiresAt" | "suspendedAt">
 >;
 
 export type ProviderFilter = {

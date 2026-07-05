@@ -62,6 +62,11 @@ export type Rent = {
   leaseAccessToken: string | null; // shown to the user as the connect credential
   feesSweptAt: string | null; // when outstanding platform fees were collected after the rent ended
   statusReason: string | null; // why a non-happy status happened (e.g. the funding error behind a suspend)
+  // Optional caps on a continuous lease (null = no cap). A set cap completes the lease.
+  maxSpendAtomic: number | null; // stop after this many atomic USDC charged
+  expiresAt: string | null;      // ISO; stop at this wall-clock time
+  // Set when a lease is suspended for an empty wallet; drives the grace-then-terminate timer.
+  suspendedAt: string | null;
 };
 
 export type RentDecision = {
