@@ -8,7 +8,6 @@ import { gatewayPay } from "./gateway-pay";
 const GATEWAY_API = "https://gateway-api-testnet.circle.com/v1";
 const GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
 const ARC_TESTNET_CHAIN_ID = 5042002;
-const ARC_GATEWAY_DOMAIN = 26;
 
 export type CircleExecApi = CircleSignerApi & {
   createContractExecutionTransaction(input: {
@@ -94,16 +93,9 @@ export class CircleGatewaySettlementAdapter implements SettlementAdapter {
   }
 
   private async gatewayBalance(): Promise<bigint> {
-    const res = await this.fetchImpl(`${this.api}/balances`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: "USDC", sources: [{ depositor: this.buyerAddress, domain: ARC_GATEWAY_DOMAIN }] }),
-    });
-    if (!res.ok) throw new Error(`gateway balances failed (${res.status})`);
-    const data = (await res.json()) as { balances?: { balance?: string }[] };
-    const balance = data.balances?.[0]?.balance;
-    if (balance === undefined) throw new Error("gateway returned no balance for the depositor");
-    return BigInt(Math.round(Number(balance) * 1_000_000));
+    const { getGatewayBalance } = await import("./gateway-balance");
+    const { availableAtomic } = await getGatewayBalance(this.buyerAddress, { api: this.api, fetchImpl: this.fetchImpl });
+    return availableAtomic;
   }
 
   // One contract call through Circle, polled to completion. Circle pays gas in USDC on Arc.
