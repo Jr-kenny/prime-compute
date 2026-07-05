@@ -77,13 +77,15 @@ export const registerProvider = createServerFn({ method: "POST", strict: false }
   });
 
 export const createRent = createServerFn({ method: "POST" })
-  .validator((d: { accessToken: string; name: string; spec: RentSpec; estimatedUsage?: number | null }) => d)
+  .validator((d: { accessToken: string; name: string; spec: RentSpec; estimatedUsage?: number | null; maxSpendAtomic?: number | null; expiresAt?: string | null }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
     return createRentFor(getRegistry(), userPrincipal(user), {
       name: data.name,
       spec: data.spec,
       estimatedUsage: data.estimatedUsage ?? null,
+      maxSpendAtomic: data.maxSpendAtomic ?? null,
+      expiresAt: data.expiresAt ?? null,
     });
   });
 
