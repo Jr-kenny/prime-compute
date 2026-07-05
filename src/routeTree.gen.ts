@@ -23,6 +23,7 @@ import { Route as ApiV1WalletRouteImport } from './routes/api.v1.wallet'
 import { Route as ApiV1RentsRouteImport } from './routes/api.v1.rents'
 import { Route as ApiV1ProvidersRouteImport } from './routes/api.v1.providers'
 import { Route as ApiV1AgentsRouteImport } from './routes/api.v1.agents'
+import { Route as ApiV1WalletReclaimRouteImport } from './routes/api.v1.wallet.reclaim'
 import { Route as ApiV1RentsIdRouteImport } from './routes/api.v1.rents.$id'
 import { Route as ApiV1ProvidersMineRouteImport } from './routes/api.v1.providers.mine'
 import { Route as ApiV1RentsIdCancelRouteImport } from './routes/api.v1.rents.$id.cancel'
@@ -97,6 +98,11 @@ const ApiV1AgentsRoute = ApiV1AgentsRouteImport.update({
   path: '/api/v1/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1WalletReclaimRoute = ApiV1WalletReclaimRouteImport.update({
+  id: '/reclaim',
+  path: '/reclaim',
+  getParentRoute: () => ApiV1WalletRoute,
+} as any)
 const ApiV1RentsIdRoute = ApiV1RentsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -127,9 +133,10 @@ export interface FileRoutesByFullPath {
   '/api/v1/agents': typeof ApiV1AgentsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRouteWithChildren
   '/api/v1/rents': typeof ApiV1RentsRouteWithChildren
-  '/api/v1/wallet': typeof ApiV1WalletRoute
+  '/api/v1/wallet': typeof ApiV1WalletRouteWithChildren
   '/api/v1/providers/mine': typeof ApiV1ProvidersMineRoute
   '/api/v1/rents/$id': typeof ApiV1RentsIdRouteWithChildren
+  '/api/v1/wallet/reclaim': typeof ApiV1WalletReclaimRoute
   '/api/v1/rents/$id/cancel': typeof ApiV1RentsIdCancelRoute
 }
 export interface FileRoutesByTo {
@@ -145,9 +152,10 @@ export interface FileRoutesByTo {
   '/api/v1/agents': typeof ApiV1AgentsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRouteWithChildren
   '/api/v1/rents': typeof ApiV1RentsRouteWithChildren
-  '/api/v1/wallet': typeof ApiV1WalletRoute
+  '/api/v1/wallet': typeof ApiV1WalletRouteWithChildren
   '/api/v1/providers/mine': typeof ApiV1ProvidersMineRoute
   '/api/v1/rents/$id': typeof ApiV1RentsIdRouteWithChildren
+  '/api/v1/wallet/reclaim': typeof ApiV1WalletReclaimRoute
   '/api/v1/rents/$id/cancel': typeof ApiV1RentsIdCancelRoute
 }
 export interface FileRoutesById {
@@ -165,9 +173,10 @@ export interface FileRoutesById {
   '/api/v1/agents': typeof ApiV1AgentsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRouteWithChildren
   '/api/v1/rents': typeof ApiV1RentsRouteWithChildren
-  '/api/v1/wallet': typeof ApiV1WalletRoute
+  '/api/v1/wallet': typeof ApiV1WalletRouteWithChildren
   '/api/v1/providers/mine': typeof ApiV1ProvidersMineRoute
   '/api/v1/rents/$id': typeof ApiV1RentsIdRouteWithChildren
+  '/api/v1/wallet/reclaim': typeof ApiV1WalletReclaimRoute
   '/api/v1/rents/$id/cancel': typeof ApiV1RentsIdCancelRoute
 }
 export interface FileRouteTypes {
@@ -189,6 +198,7 @@ export interface FileRouteTypes {
     | '/api/v1/wallet'
     | '/api/v1/providers/mine'
     | '/api/v1/rents/$id'
+    | '/api/v1/wallet/reclaim'
     | '/api/v1/rents/$id/cancel'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/api/v1/wallet'
     | '/api/v1/providers/mine'
     | '/api/v1/rents/$id'
+    | '/api/v1/wallet/reclaim'
     | '/api/v1/rents/$id/cancel'
   id:
     | '__root__'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/api/v1/wallet'
     | '/api/v1/providers/mine'
     | '/api/v1/rents/$id'
+    | '/api/v1/wallet/reclaim'
     | '/api/v1/rents/$id/cancel'
   fileRoutesById: FileRoutesById
 }
@@ -241,7 +253,7 @@ export interface RootRouteChildren {
   ApiV1AgentsRoute: typeof ApiV1AgentsRoute
   ApiV1ProvidersRoute: typeof ApiV1ProvidersRouteWithChildren
   ApiV1RentsRoute: typeof ApiV1RentsRouteWithChildren
-  ApiV1WalletRoute: typeof ApiV1WalletRoute
+  ApiV1WalletRoute: typeof ApiV1WalletRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -344,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1AgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/wallet/reclaim': {
+      id: '/api/v1/wallet/reclaim'
+      path: '/reclaim'
+      fullPath: '/api/v1/wallet/reclaim'
+      preLoaderRoute: typeof ApiV1WalletReclaimRouteImport
+      parentRoute: typeof ApiV1WalletRoute
+    }
     '/api/v1/rents/$id': {
       id: '/api/v1/rents/$id'
       path: '/$id'
@@ -418,6 +437,18 @@ const ApiV1RentsRouteWithChildren = ApiV1RentsRoute._addFileChildren(
   ApiV1RentsRouteChildren,
 )
 
+interface ApiV1WalletRouteChildren {
+  ApiV1WalletReclaimRoute: typeof ApiV1WalletReclaimRoute
+}
+
+const ApiV1WalletRouteChildren: ApiV1WalletRouteChildren = {
+  ApiV1WalletReclaimRoute: ApiV1WalletReclaimRoute,
+}
+
+const ApiV1WalletRouteWithChildren = ApiV1WalletRoute._addFileChildren(
+  ApiV1WalletRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
@@ -430,7 +461,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1AgentsRoute: ApiV1AgentsRoute,
   ApiV1ProvidersRoute: ApiV1ProvidersRouteWithChildren,
   ApiV1RentsRoute: ApiV1RentsRouteWithChildren,
-  ApiV1WalletRoute: ApiV1WalletRoute,
+  ApiV1WalletRoute: ApiV1WalletRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

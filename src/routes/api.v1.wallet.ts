@@ -18,7 +18,14 @@ export const Route = createFileRoute("/api/v1/wallet")({
         } catch {
           // balance is best-effort; the address is what the agent needs to fund
         }
-        return json({ address, balanceAtomic });
+        let gatewayAtomic: string | null = null;
+        try {
+          const { getGatewayBalance } = await import("@services/settlement/gateway-balance");
+          gatewayAtomic = (await getGatewayBalance(address)).availableAtomic.toString();
+        } catch {
+          // float is best-effort too; absent when the agent has never deposited
+        }
+        return json({ address, balanceAtomic, gatewayAtomic });
       },
 
       // Withdraw USDC from the agent's custodied wallet to an external address. Mirrors the user's
