@@ -114,6 +114,16 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   // deposits chunked (not per tick) and stateless, so a restart resumes correctly. If the EOA
   // can't cover the refill the wallet is dry: suspend and stamp suspended_at for the grace timer.
   const priceAtomic = BigInt(Math.round(provider.pricePerCharge * 1_000_000));
+
+  // Optional spend cap: stop before a charge that would push total spend over it.
+  if (rent.maxSpendAtomic != null) {
+    const spent = await registry.rentCost(rentId);
+    if (spent + Number(priceAtomic) > rent.maxSpendAtomic) {
+      await registry.updateRent(rentId, { status: "completed", totalCost: spent, endedAt: isoNow(), statusReason: `reached spend cap of ${rent.maxSpendAtomic} atomic` });
+      return { charged: false, status: "completed", reason: "spend cap reached" };
+    }
+  }
+
   const topupUnits = deps.topupUnits ?? maxUnits;
   if (topupUnits > 0 && priceAtomic > 0n) {
     const charged = (await registry.listCharges(rentId)).length;

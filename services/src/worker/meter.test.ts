@@ -55,6 +55,22 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect(more.status).toBe("running");
 });
 
+test("meterTick completes a lease when its max-spend cap is reached", async () => {
+  const { reg } = await seed();
+  const rent = await reg.createRent({ name: "capped", owner: { kind: "user", id: "u2", walletAddress: "0x0" },
+    spec: { resourceType: "GPU", region: null }, maxSpendAtomic: 250 }); // cap at 250 atomic, price 100/unit
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 100 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 100, nowMs: () => clock };
+  for (let i = 0; i < 5; i++) { await meterTick(rent.id, deps); clock += 1001; }
+  const r = await reg.getRent(rent.id);
+  expect(r?.status).toBe("completed");
+  // 100 + 100 = 200 <= 250; a third would hit 300 > 250, so it stops at 2 charges.
+  expect((await reg.listCharges(rent.id)).length).toBe(2);
+  expect(r?.statusReason).toContain("spend cap");
+});
+
 test("meterTick tops up the float in chunks, not every tick", async () => {
   const { reg, rent } = await seed();
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 1_000_000n });
