@@ -16,6 +16,15 @@ test("createRentFor + listRentsFor scope to the principal", async () => {
   expect(await listRentsFor(reg, other)).toEqual([]);
 });
 
+test("createRentFor forwards optional spend/time caps to the registry", async () => {
+  const reg = new InMemoryRegistry();
+  const rent = await createRentFor(reg, agent, {
+    name: "capped", spec: { resourceType: "GPU", region: null }, maxSpendAtomic: 5000, expiresAt: "2030-01-01T00:00:00.000Z",
+  });
+  expect(rent.maxSpendAtomic).toBe(5000);
+  expect(rent.expiresAt).toBe("2030-01-01T00:00:00.000Z");
+});
+
 test("getRentFor / cancelRentFor enforce ownership", async () => {
   const reg = new InMemoryRegistry();
   const rent = await createRentFor(reg, agent, { name: "j", spec: { resourceType: "GPU", region: null } });

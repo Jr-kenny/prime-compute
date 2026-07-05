@@ -4,12 +4,25 @@ import type { Principal, Rent, Provider, RentSpec } from "@services/domain";
 import { canCancel } from "@services/rent-transitions";
 import { walletProviderFor, liveWalletDeps } from "./wallet";
 
-export type NewRentInput = { name: string; spec: RentSpec; estimatedUsage?: number | null };
+export type NewRentInput = {
+  name: string;
+  spec: RentSpec;
+  estimatedUsage?: number | null;
+  maxSpendAtomic?: number | null;
+  expiresAt?: string | null;
+};
 // Provider input minus the fields the service derives (ownerWallet from the principal).
 export type NewProviderInput = Omit<NewProvider, "ownerWallet">;
 
 export function createRentFor(reg: Registry, principal: Principal, input: NewRentInput): Promise<Rent> {
-  return reg.createRent({ name: input.name, owner: principal, spec: input.spec, estimatedUsage: input.estimatedUsage ?? null });
+  return reg.createRent({
+    name: input.name,
+    owner: principal,
+    spec: input.spec,
+    estimatedUsage: input.estimatedUsage ?? null,
+    maxSpendAtomic: input.maxSpendAtomic ?? null,
+    expiresAt: input.expiresAt ?? null,
+  });
 }
 
 export function listRentsFor(reg: Registry, principal: Principal): Promise<Rent[]> {
