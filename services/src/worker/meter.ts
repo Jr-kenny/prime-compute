@@ -101,11 +101,6 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     return { charged: false, status: "running", reason: "not yet" };
   }
 
-  if ((await registry.listCharges(rentId)).length >= maxUnits) {
-    await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow() });
-    return { charged: false, status: "completed", reason: "budget reached" };
-  }
-
   const provider = rent.providerId ? await registry.getProvider(rent.providerId) : null;
   if (!provider) {
     await registry.updateRent(rentId, { status: "suspended", statusReason: "the lease's provider is no longer registered" });
@@ -136,10 +131,6 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   const toCharge = Math.min(pending, perTickCap);
   for (let i = 0; i < toCharge; i++) {
     const charges = await registry.listCharges(rentId);
-    if (charges.length >= maxUnits) {
-      await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow() });
-      return { charged: chargedAny, status: "completed", reason: "budget reached" };
-    }
     try {
       const paid = await settlement.payForCompute(url);
       const paidAtomic = Number(paid.amountAtomic);

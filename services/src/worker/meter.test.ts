@@ -47,13 +47,24 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect(b.charged).toBe(false);
   expect((await reg.listCharges(rent.id)).length).toBe(1);
 
-  // Advance past the tick window twice more -> 3 charges, then completes at the budget.
+  // Advance past the tick window twice more -> 3 charges, and it keeps running (continuous).
   clock += 1001; await meterTick(rent.id, deps);
   clock += 1001; await meterTick(rent.id, deps);
   expect((await reg.listCharges(rent.id)).length).toBe(3);
-  clock += 1001; const done = await meterTick(rent.id, deps);
-  expect(done.status).toBe("completed");
-  expect((await reg.getRent(rent.id))?.status).toBe("completed");
+  clock += 1001; const more = await meterTick(rent.id, deps);
+  expect(more.status).toBe("running");
+});
+
+test("meterTick keeps charging past the estimate (continuous)", async () => {
+  const { reg, rent } = await seed(); // estimatedUsage 3
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, topupUnits: 3 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 3, nowMs: () => clock };
+  for (let i = 0; i < 5; i++) { await meterTick(rent.id, deps); clock += 1001; }
+  const r = await reg.getRent(rent.id);
+  expect(r?.status).toBe("running");
+  expect((await reg.listCharges(rent.id)).length).toBe(5); // past the estimate of 3
 });
 
 test("provisionLease funds only a buffer chunk, not the whole estimate", async () => {

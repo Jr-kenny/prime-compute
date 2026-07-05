@@ -5,7 +5,7 @@ import { FakeSettlementAdapter } from "../settlement/fake";
 import { defaultTrust } from "../trust/trust";
 import { workerPass } from "./loop";
 
-test("a queued lease provisions then charges across passes, completing at its estimatedUsage", async () => {
+test("a queued lease provisions then charges continuously across passes, past its estimatedUsage", async () => {
   const reg = new InMemoryRegistry();
   await reg.registerProvider({
     alias: "p1", ownerWallet: "0xseller", endpointUrl: "http://localhost:1", resourceType: "GPU",
@@ -28,9 +28,9 @@ test("a queued lease provisions then charges across passes, completing at its es
   clock += 1001;
   await workerPass(deps); // second unit
   clock += 1001;
-  await workerPass(deps); // budget reached -> completed
+  await workerPass(deps); // third unit -> keeps running (continuous, no hard stop at the estimate)
 
   const rents = await reg.listRents({ userId: "u1" });
-  expect(rents[0]?.status).toBe("completed");
-  expect((await reg.listCharges(rents[0]!.id)).length).toBe(2);
+  expect(rents[0]?.status).toBe("running");
+  expect((await reg.listCharges(rents[0]!.id)).length).toBe(3);
 });
