@@ -2,13 +2,20 @@ import { registryContract } from "./contract";
 import { SupabaseRegistry } from "./supabase";
 import { loadConfig } from "../config";
 
-const cfg = loadConfig();
+// This contract test DELETES every row in charges/rents/providers/etc before it runs, so it must
+// never touch a real database. It deliberately does NOT use the app's SUPABASE_URL (which normally
+// points at production). Instead it requires a separate, throwaway test project via TEST_SUPABASE_URL
+// + TEST_SUPABASE_SERVICE_ROLE_KEY. Without those, it skips, so a plain `bun test` can't wipe prod.
+const url = process.env.TEST_SUPABASE_URL;
+const serviceRoleKey = process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
+const prodUrl = loadConfig().supabase?.url;
 
-if (!cfg.supabase) {
-  // No Supabase configured — skip the integration contract (unit suite stays green).
-  console.log("[supabase.test] SUPABASE_* not set; skipping integration contract.");
+if (!url || !serviceRoleKey) {
+  console.log("[supabase.test] TEST_SUPABASE_URL/TEST_SUPABASE_SERVICE_ROLE_KEY not set; skipping destructive integration contract.");
+} else if (prodUrl && url === prodUrl) {
+  // Someone pointed the test DB at the app's real DB. Refuse rather than delete live data.
+  throw new Error("[supabase.test] TEST_SUPABASE_URL must be a throwaway DB, not the app's SUPABASE_URL. Refusing to run the destructive contract against production.");
 } else {
-  const { url, serviceRoleKey } = cfg.supabase;
   registryContract("SupabaseRegistry", async () => {
     const reg = new SupabaseRegistry(url, serviceRoleKey);
     // Reset tables so each contract test starts from empty (child rows first).
