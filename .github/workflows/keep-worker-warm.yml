@@ -1,8 +1,10 @@
-# Render's free tier spins the metering worker down after ~15 min idle.
-# Metering is restart-safe so a nap never corrupts billing, but a warm worker
-# keeps charges streaming on time. GitHub cron is best-effort (runs can lag or
-# drop under load), which is fine here: the next ping wakes the worker anyway.
-name: keep worker warm
+# Render's free tier spins both the metering worker and the first-party provider
+# down after ~15 min idle. Metering is restart-safe so a nap never corrupts
+# billing, but a cold provider takes ~50s to wake, long enough that a tick's
+# payment call times out and records nothing (the lease looks stuck at $0). So
+# keep BOTH warm. GitHub cron is best-effort (runs can lag or drop under load),
+# which is fine here: the next ping wakes them anyway.
+name: keep services warm
 
 on:
   schedule:
@@ -16,3 +18,6 @@ jobs:
       - name: ping worker health
         run: |
           curl -sS --max-time 60 --retry 2 https://primecompute-worker.onrender.com/health
+      - name: ping provider health
+        run: |
+          curl -sS --max-time 60 --retry 2 https://prime-compute-provider.onrender.com/health
