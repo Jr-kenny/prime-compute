@@ -55,6 +55,22 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect(more.status).toBe("running");
 });
 
+test("meterTick completes a lease at its expires_at time", async () => {
+  const { reg } = await seed();
+  const start = 1_000_000;
+  const rent = await reg.createRent({ name: "timed", owner: { kind: "user", id: "u3", walletAddress: "0x0" },
+    spec: { resourceType: "GPU", region: null }, expiresAt: new Date(start + 1500).toISOString() });
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 100 });
+  let clock = start;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 100, nowMs: () => clock };
+  const r1 = await meterTick(rent.id, deps); expect(r1.status).toBe("running"); clock += 1000;
+  const r2 = await meterTick(rent.id, deps); expect(r2.status).toBe("running"); clock += 1000; // 1_002_000 >= 1_001_500 expiry
+  const r3 = await meterTick(rent.id, deps);
+  expect(r3.status).toBe("completed");
+  expect((await reg.getRent(rent.id))?.statusReason).toContain("time");
+});
+
 test("meterTick completes a lease when its max-spend cap is reached", async () => {
   const { reg } = await seed();
   const rent = await reg.createRent({ name: "capped", owner: { kind: "user", id: "u2", walletAddress: "0x0" },

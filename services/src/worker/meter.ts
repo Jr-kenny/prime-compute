@@ -124,6 +124,12 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     }
   }
 
+  // Optional time cap: stop once we're at/past expires_at.
+  if (rent.expiresAt != null && clock() >= new Date(rent.expiresAt).getTime()) {
+    await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow(), statusReason: "reached time limit" });
+    return { charged: false, status: "completed", reason: "time cap reached" };
+  }
+
   const topupUnits = deps.topupUnits ?? maxUnits;
   if (topupUnits > 0 && priceAtomic > 0n) {
     const charged = (await registry.listCharges(rentId)).length;
