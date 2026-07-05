@@ -55,6 +55,28 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect(more.status).toBe("running");
 });
 
+test("a time lease bills for elapsed wall-clock, firing the nanopayments the time owes (not one per worker pass)", async () => {
+  const { reg, rent } = await seed(); // provider price 0.0001 -> 100 atomic/unit
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 100 });
+
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 100, nowMs: () => clock, perTickCap: 100 };
+
+  // First tick bootstraps one unit and stamps the billing watermark at "now".
+  await meterTick(rent.id, deps);
+  expect((await reg.listCharges(rent.id)).length).toBe(1);
+
+  // Under load the worker's next pass only reaches this lease 5s later. Five seconds of a
+  // per-second lease owes five nanopayments on this pass, not one.
+  clock += 5000;
+  await meterTick(rent.id, deps);
+
+  // 1 (bootstrap) + 5 (the elapsed catch-up) = 6 units * 100 atomic.
+  expect((await reg.listCharges(rent.id)).length).toBe(6);
+  expect(await reg.rentCost(rent.id)).toBe(600);
+});
+
 test("a lease suspended past the grace window is terminated", async () => {
   const { reg, rent } = await seed();
   const now = 5_000_000;

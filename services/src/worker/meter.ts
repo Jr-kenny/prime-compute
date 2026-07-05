@@ -144,26 +144,43 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     }
   }
 
-  // What a "unit" is comes from the descriptor. Time types owe one unit per tick (unchanged cadence);
-  // volume types (VPN, storage) owe however many whole units accrued at the provider since the last
-  // charge, read unpaywalled from /usage. An idle volume session owes nothing and is never charged.
+  // What a "unit" is comes from the descriptor. Volume types (VPN, storage) owe however many whole
+  // units accrued at the provider since the last charge, read unpaywalled from /usage. Time types
+  // owe one unit per tickMs of wall-clock elapsed since the last charge, NOT a flat one-per-tick:
+  // the worker pass can lag far behind tickMs under load, so a flat unit billed the same 1 unit for
+  // 1s or for 3min of real usage. Scaling by elapsed time makes the bill track reality no matter how
+  // often the loop reaches this lease. The first ever charge bootstraps a single unit (the lease
+  // just went live; there's no elapsed span to bill yet). `watermarkMs` is the billing high-water we
+  // advance from once the nanopayments land.
+  const now = clock();
   const d = descriptorFor(provider.resourceType);
   const perTickCap = deps.perTickCap ?? 10;
-  let pending = 1;
+  let pending: number;
+  let watermarkMs: number;
+  let bootstrap = false;
   if (d.metering === "volume") {
     const accrued = deps.readUsage
       ? await deps.readUsage(`${provider.endpointUrl}/usage?session=${rent.id}`)
       : 0;
     pending = Math.max(0, accrued - (await registry.listCharges(rentId)).length);
+    watermarkMs = now;
+  } else if (rent.lastChargedAt) {
+    watermarkMs = new Date(rent.lastChargedAt).getTime();
+    pending = Math.floor((now - watermarkMs) / tickMs);
+  } else {
+    watermarkMs = now;
+    pending = 1;
+    bootstrap = true;
   }
   if (pending === 0) {
-    await registry.updateRent(rentId, { lastChargedAt: new Date(clock()).toISOString() });
+    await registry.updateRent(rentId, { lastChargedAt: new Date(now).toISOString() });
     return { charged: false, status: "running", reason: "no units pending" };
   }
 
   const url = `${provider.endpointUrl}${d.path}?session=${rent.id}`;
   const lh = deps.health && deps.degradation ? deps.health.for(rentId, provider.id) : null;
   let chargedAny = false;
+  let chargedCount = 0;
   let degradedReason: string | null = null;
   const toCharge = Math.min(pending, perTickCap);
   for (let i = 0; i < toCharge; i++) {
@@ -182,6 +199,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
         authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
       });
       chargedAny = true;
+      chargedCount++;
       lh?.monitor.observe({ ok: true }); // a paid hit is a healthy sample; clears the failure streak
     } catch (e) {
       if (e instanceof SpendCapError) {
@@ -198,16 +216,25 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     }
   }
 
+  // Advance the billing watermark by exactly what we billed. On a healthy time tick that consumes
+  // `chargedCount` whole ticks, leaving any cap-limited remainder to bill next tick (so a slow pass
+  // catches up rather than dropping time). Bootstrap and volume are usage/now-driven, and when a
+  // pay() failed mid-loop (a stall or a degrading provider) we advance to `now` so the un-served gap
+  // isn't retroactively billed when the lease recovers: a stalled lease bills nothing for the stall.
+  const stalled = chargedCount < toCharge;
+  const newWatermarkMs =
+    d.metering === "volume" || bootstrap || stalled ? now : watermarkMs + chargedCount * tickMs;
+
   if (lh && degradedReason) {
     const reason = await resolveDegradation(rentId, rent, provider, lh, degradedReason, deps);
-    await registry.updateRent(rentId, { totalCost: await registry.rentCost(rentId), lastChargedAt: new Date(clock()).toISOString(), suspendedAt: null });
+    await registry.updateRent(rentId, { totalCost: await registry.rentCost(rentId), lastChargedAt: new Date(newWatermarkMs).toISOString(), suspendedAt: null });
     return { charged: chargedAny, status: "running", reason };
   }
 
   // A healthy running tick clears any prior balance-suspend stamp so the grace timer resets.
   await registry.updateRent(rentId, {
     totalCost: await registry.rentCost(rentId),
-    lastChargedAt: new Date(clock()).toISOString(),
+    lastChargedAt: new Date(newWatermarkMs).toISOString(),
     suspendedAt: null,
   });
   return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
