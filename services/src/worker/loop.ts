@@ -5,7 +5,7 @@ import type { RankStrategy } from "../broker/matching";
 import type { DegradationDeps } from "../broker/degradation";
 import type { SettlementFactory } from "./settlement-factory";
 import type { LeaseHealthTracker } from "./lease-health";
-import { provisionLease, meterTick } from "./meter";
+import { provisionLease, meterTick, sweepSuspended } from "./meter";
 
 export type WorkerDeps = {
   registry: Registry;
@@ -21,6 +21,8 @@ export type WorkerDeps = {
   health?: LeaseHealthTracker;
   degradation?: DegradationDeps;
   maxMigrations?: number;
+  topupUnits?: number;      // float buffer size in units (default = each lease's estimate)
+  suspendGraceMs?: number;  // terminate a balance-suspended lease after this long (0/unset = never)
 };
 
 // Reads the provider's unpaywalled per-session usage so volume services (VPN, storage) can bill the
@@ -51,7 +53,7 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
     try {
       const maxUnits = budget(rent, deps.defaultMaxUnits);
       const settlement = await deps.settlementFor(rent, maxUnits);
-      const res = await provisionLease(rent.id, { registry, settlement, rank: deps.rank, maxUnits });
+      const res = await provisionLease(rent.id, { registry, settlement, rank: deps.rank, maxUnits, topupUnits: deps.topupUnits });
       // A suspend/fail carries the real cause (a funding/gateway error, an unmatched spec). It used
       // to be swallowed here, so an outage looked like silence in the logs; surface it.
       if (res.status === "suspended" || res.status === "failed") {
@@ -67,7 +69,7 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
       const maxUnits = budget(rent, deps.defaultMaxUnits);
       const settlement = await deps.settlementFor(rent, maxUnits);
       const res = await meterTick(rent.id, {
-        registry, settlement, tickMs: deps.tickMs, maxUnits, nowMs: deps.nowMs, feeBps: deps.feeBps, perTickCap: deps.perTickCap, readUsage,
+        registry, settlement, tickMs: deps.tickMs, maxUnits, topupUnits: deps.topupUnits, nowMs: deps.nowMs, feeBps: deps.feeBps, perTickCap: deps.perTickCap, readUsage,
         health: deps.health, degradation: deps.degradation, rank: deps.rank, maxMigrations: deps.maxMigrations,
       });
       // A lease that left the running state won't be ticked again, so drop its ephemeral health
@@ -75,6 +77,17 @@ export async function workerPass(deps: WorkerDeps): Promise<void> {
       if (res.status !== "running") deps.health?.clear(rent.id);
     } catch (e) {
       console.error(`[worker] tick ${rent.id} failed:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  // Terminate leases that have sat suspended for balance past the grace window.
+  if (deps.suspendGraceMs && deps.suspendGraceMs > 0) {
+    for (const rent of await registry.listRents({ status: "suspended" })) {
+      try {
+        await sweepSuspended(rent.id, { registry, graceMs: deps.suspendGraceMs, nowMs: deps.nowMs });
+      } catch (e) {
+        console.error(`[worker] sweep ${rent.id} failed:`, e instanceof Error ? e.message : e);
+      }
     }
   }
 }

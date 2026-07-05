@@ -213,6 +213,24 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
 }
 
+export type SweepDeps = { registry: Registry; graceMs: number; nowMs?: () => number };
+
+// A lease suspended for balance whose suspended_at is older than the grace window is terminated
+// (completed with a reason) so dead leases don't linger. Only acts on balance-suspends: those carry
+// a suspended_at stamp. A refund that flipped the lease back to running cleared the stamp already.
+export async function sweepSuspended(rentId: string, deps: SweepDeps): Promise<{ status: RentStatus | "missing" }> {
+  const clock = deps.nowMs ?? Date.now;
+  const rent = await deps.registry.getRent(rentId);
+  if (!rent) return { status: "missing" };
+  if (rent.status !== "suspended" || !rent.suspendedAt) return { status: rent.status };
+  if (clock() - new Date(rent.suspendedAt).getTime() < deps.graceMs) return { status: "suspended" };
+  await deps.registry.updateRent(rentId, {
+    status: "completed", totalCost: await deps.registry.rentCost(rentId), endedAt: isoNow(),
+    statusReason: "ended after balance stayed low past the grace window",
+  });
+  return { status: "completed" };
+}
+
 // The current provider degraded. Ask the broker soul (deterministic fallback when the model is
 // down) to migrate or hold, honoring the already-used set so we never hand back to a provider that
 // already failed this lease. Migrate re-points the lease and starts a fresh health leg; hold keeps

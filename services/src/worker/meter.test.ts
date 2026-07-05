@@ -3,7 +3,7 @@ import { test, expect } from "bun:test";
 import { InMemoryRegistry } from "../registry/in-memory";
 import { FakeSettlementAdapter } from "../settlement/fake";
 import { defaultTrust } from "../trust/trust";
-import { provisionLease, meterTick } from "./meter";
+import { provisionLease, meterTick, sweepSuspended } from "./meter";
 import { LeaseHealthTracker } from "./lease-health";
 import type { DegradationDeps } from "../broker/degradation";
 import type { Soul, Policy } from "../runtime/types";
@@ -53,6 +53,17 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect((await reg.listCharges(rent.id)).length).toBe(3);
   clock += 1001; const more = await meterTick(rent.id, deps);
   expect(more.status).toBe("running");
+});
+
+test("a lease suspended past the grace window is terminated", async () => {
+  const { reg, rent } = await seed();
+  const now = 5_000_000;
+  await reg.updateRent(rent.id, { status: "suspended", statusReason: "insufficient EOA balance for top-up", suspendedAt: new Date(now - 4000).toISOString() });
+  const within = await sweepSuspended(rent.id, { registry: reg, graceMs: 5000, nowMs: () => now });
+  expect(within.status).toBe("suspended"); // 4s < 5s grace
+  const later = await sweepSuspended(rent.id, { registry: reg, graceMs: 5000, nowMs: () => now + 2000 });
+  expect(later.status).toBe("completed"); // 6s >= 5s grace
+  expect((await reg.getRent(rent.id))?.statusReason).toContain("balance stayed low");
 });
 
 test("an empty EOA suspends with a stamp, and a refunded tick resumes and clears it", async () => {
