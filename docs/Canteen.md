@@ -11,7 +11,7 @@ env var, `ARC_RPC_URL`, and everything Arc-facing reads from it.
 Canteen's own setup is the source of truth, but it's three commands:
 
 ```bash
-uv tool install arc-canteen          # install the CLI (uv)
+uv tool install git+https://github.com/the-canteen-dev/ARC-cli.git   # install the CLI (uv)
 arc-canteen login                    # log in and sync your Arc context
 arc-canteen rpc eth_chainId          # sanity check: returns 0x4cef52 (5042002)
 ```
@@ -56,41 +56,3 @@ bun run integration:roundtrip     # full provider -> broker -> settlement loop
 If the Canteen token expires, re-run `arc-canteen login` and update `ARC_RPC_URL` in both files.
 Nothing else in the app has to change, which was the whole idea: keep the host's RPC to exactly
 one seam so swapping it in or out is a one-line move.
-
-## Posting traction to Canteen
-
-Traction goes to the host through the same CLI, not a Discord post. The command is
-`arc-canteen update traction` (and `arc-canteen update product` for build progress); past updates
-are visible with `arc-canteen ls traction`. It's a manual snapshot each time, so the way you show
-growth is to post an update now, keep posting as the numbers move, and post a final one before the
-deadline. The CLI keeps the history and draws the trend on their side.
-
-To get honest numbers to paste in, there's a one-liner that reads them straight from the ledger:
-
-```bash
-cd services
-bun run traction
-```
-
-That prints volume, nanopayment count, rents, and users, plus a paste-ready line. It's read-only
-(a `traction_summary()` DB function, service-role only), safe to run anytime, even while the meter
-is live.
-
-A note on how to frame it so it stays honest:
-
-- The headline is **volume streamed** and **nanopayments** (the count of metered charges). That's
-  the real, novel bit: thousands of streaming micropayments, not a handful of big transactions.
-- Call them "nanopayments streamed via Circle Gateway on Arc," **not** "on-chain transactions."
-  Each charge carries a Circle Gateway transfer id (a UUID), not an Arc L1 tx hash; Gateway settles
-  them, so the on-chain footprint is the Gateway settlement layer, not one L1 tx per charge.
-- Don't claim completed rents while the count is zero, and be plain that the user count is small
-  early on (mostly our own testing). The strength is throughput and working end-to-end infra.
-
-## Letting them verify on-chain
-
-The CLI update is a manual snapshot, but Arc is public, so the organizers can watch all future
-flow themselves. Share these and they can follow the real USDC movement on the Arc explorer
-independent of anything we post:
-
-- Payer (per-user spend wallet): `0xaf70175E779786Cf7C08f2ba6d985eD6297e80Fc`
-- Payee (first-party provider): `0x6d7050ed44993c6a55e30b342ade8d42193d5a92`
