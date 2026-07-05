@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StreamingTicker, ElapsedTimer } from "@/components/site/StreamingTicker";
+import { ElapsedTimer } from "@/components/site/ElapsedTimer";
+import { useRealtimeRents } from "@/lib/broker/use-realtime-rents";
 import { WalletBalance } from "@/components/site/WalletBalance";
 import { WalletSheet } from "@/components/site/WalletSheet";
 import { useSession } from "@/lib/auth/session";
@@ -37,16 +38,18 @@ function Dashboard() {
   const [selectedRentId, setSelectedRentId] = useState<string | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
 
-  const { data: rents = [], isLoading: rentsLoading, dataUpdatedAt: rentsUpdatedAt } = useQuery({
+  const { data: rents = [], isLoading: rentsLoading } = useQuery({
     queryKey: ["rents", "mine", accessToken],
     queryFn: () => listMyRents({ data: { accessToken: accessToken! } }),
     enabled: !!accessToken,
-    // Live: poll while anything is active (metering moves the numbers), stop when everything is terminal.
+    // Realtime (below) pushes the instant a rent changes; this is just a safety net in case the
+    // socket drops, so we still reconcile occasionally while something is active.
     refetchInterval: (query) => {
       const rs = (query.state.data as Rent[] | undefined) ?? [];
-      return rs.some((r) => r.status === "running" || r.status === "queued" || r.status === "suspended") ? 2500 : false;
+      return rs.some((r) => r.status === "running" || r.status === "queued" || r.status === "suspended") ? 20000 : false;
     },
   });
+  useRealtimeRents(session?.user?.id, accessToken);
   const { data: providers = [] } = useQuery({
     queryKey: ["providers"],
     queryFn: () => listProviders(),
@@ -184,7 +187,6 @@ function Dashboard() {
       <RentDetailSheet
         rent={selectedRent}
         provider={selectedRent?.providerId ? providersById[selectedRent.providerId] : undefined}
-        baselineAt={rentsUpdatedAt}
         onClose={() => setSelectedRentId(null)}
       />
 
@@ -196,12 +198,10 @@ function Dashboard() {
 function RentDetailSheet({
   rent,
   provider,
-  baselineAt,
   onClose,
 }: {
   rent: Rent | null;
   provider: Provider | undefined;
-  baselineAt: number;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -251,16 +251,6 @@ function RentDetailSheet({
                   <ElapsedTimer startedAt={startedAtMs} paused={rent.status !== "running"} />
                 </div>
               </div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Streaming spend{" "}
-              <StreamingTicker
-                ratePerSecond={provider?.pricePerCharge ?? 0}
-                baselineValue={rent.totalCost / 1_000_000}
-                baselineAt={baselineAt}
-                paused={rent.status !== "running"}
-                className="font-mono text-foreground"
-              />
             </div>
             {rent.status === "running" && rent.leaseAccessToken && (
               <div className="glass-card p-4 space-y-2">

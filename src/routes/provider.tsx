@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ComputeScoreRing } from "@/components/site/ComputeScoreRing";
-import { StreamingTicker } from "@/components/site/StreamingTicker";
 import { useSession } from "@/lib/auth/session";
 import { listMyProviders, listProviderRents } from "@/lib/broker/server-fns";
 import type { Provider, Rent } from "@services/domain";
@@ -41,7 +40,7 @@ function ProviderDash() {
   });
 
   const serverIds = myServers.map((s) => s.id);
-  const { data: rentsByProvider = {}, dataUpdatedAt: rentsUpdatedAt } = useQuery({
+  const { data: rentsByProvider = {} } = useQuery({
     queryKey: ["rents", "forProviders", serverIds],
     queryFn: async () => {
       const lists = await Promise.all(
@@ -161,7 +160,6 @@ function ProviderDash() {
       <ServerDetailSheet
         server={selectedServer}
         rents={selectedServer ? rentsByProvider[selectedServer.id] ?? [] : []}
-        baselineAt={rentsUpdatedAt}
         online={selectedServer ? isOnline(selectedServer) : false}
         onOnlineChange={(v) =>
           selectedServer && setOnlineByServer((m) => ({ ...m, [selectedServer.id]: v }))
@@ -175,14 +173,12 @@ function ProviderDash() {
 function ServerDetailSheet({
   server,
   rents,
-  baselineAt,
   online,
   onOnlineChange,
   onClose,
 }: {
   server: Provider | null;
   rents: Rent[];
-  baselineAt: number;
   online: boolean;
   onOnlineChange: (v: boolean) => void;
   onClose: () => void;
@@ -231,12 +227,9 @@ function ServerDetailSheet({
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       Earning
                     </div>
-                    <StreamingTicker
-                      ratePerSecond={server.pricePerCharge}
-                      baselineValue={runningRent.totalCost / 1_000_000}
-                      baselineAt={baselineAt}
-                      className="text-lg font-semibold text-foreground"
-                    />
+                    <span className="text-lg font-semibold text-foreground font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      ${(runningRent.totalCost / 1_000_000).toFixed(6)}
+                    </span>
                   </div>
                   <div className="text-xs text-muted-foreground">${server.pricePerCharge.toFixed(7)}/s</div>
                 </div>
