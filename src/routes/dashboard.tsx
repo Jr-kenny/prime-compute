@@ -239,15 +239,11 @@ function RentDetailSheet({
             <div className="glass-card p-4 flex items-end justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Streaming spend
+                  Charged so far
                 </div>
-                <StreamingTicker
-                  ratePerSecond={provider?.pricePerCharge ?? 0}
-                  baselineValue={rent.totalCost / 1_000_000}
-                  baselineAt={baselineAt}
-                  paused={rent.status !== "running"}
-                  className="text-2xl font-semibold text-foreground"
-                />
+                <div className="text-2xl font-semibold text-foreground font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  ${(rent.totalCost / 1_000_000).toFixed(6)}
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Elapsed</div>
@@ -255,6 +251,16 @@ function RentDetailSheet({
                   <ElapsedTimer startedAt={startedAtMs} paused={rent.status !== "running"} />
                 </div>
               </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Streaming spend{" "}
+              <StreamingTicker
+                ratePerSecond={provider?.pricePerCharge ?? 0}
+                baselineValue={rent.totalCost / 1_000_000}
+                baselineAt={baselineAt}
+                paused={rent.status !== "running"}
+                className="font-mono text-foreground"
+              />
             </div>
             {rent.status === "running" && rent.leaseAccessToken && (
               <div className="glass-card p-4 space-y-2">
@@ -271,10 +277,6 @@ function RentDetailSheet({
                 </div>
               </div>
             )}
-            <div className="text-xs text-muted-foreground">
-              Charged so far{" "}
-              <span className="font-mono text-foreground">${(rent.totalCost / 1_000_000).toFixed(6)}</span>
-            </div>
             <div className="flex gap-2">
               {canPause(rent) && (
                 <Button variant="ghost" className="flex-1 border border-border" disabled={mutating} onClick={() => mutate(pauseRent)}>
