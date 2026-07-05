@@ -19,6 +19,17 @@ test("parseRentBody rejects a missing name and non-string region", () => {
   expect(parseRentBody({ name: "j", resourceType: "GPU", region: 5 }).ok).toBe(false);
 });
 
+test("parseRentBody accepts optional maxSpendUsdc and durationMs", () => {
+  const ok = parseRentBody({ name: "x", resourceType: "GPU", maxSpendUsdc: "0.5", durationMs: 7200000 });
+  expect(ok.ok).toBe(true);
+  if (ok.ok) {
+    expect(ok.value.maxSpendUsdc).toBe("0.5");
+    expect(ok.value.durationMs).toBe(7200000);
+  }
+  expect(parseRentBody({ name: "x", resourceType: "GPU", maxSpendUsdc: "-1" }).ok).toBe(false);
+  expect(parseRentBody({ name: "x", resourceType: "GPU", durationMs: 0 }).ok).toBe(false);
+});
+
 test("parseProviderBody accepts a valid body", () => {
   const r = parseProviderBody({
     alias: "a1", endpointUrl: "https://gpu.example.com", resourceType: "CPU",

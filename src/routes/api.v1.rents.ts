@@ -25,6 +25,8 @@ export const Route = createFileRoute("/api/v1/rents")({
           name: parsed.value.name,
           spec: { resourceType: parsed.value.resourceType, region: parsed.value.region },
           estimatedUsage: parsed.value.estimatedUsage,
+          maxSpendAtomic: parsed.value.maxSpendUsdc ? Math.round(Number(parsed.value.maxSpendUsdc) * 1_000_000) : null,
+          expiresAt: parsed.value.durationMs ? new Date(Date.now() + parsed.value.durationMs).toISOString() : null,
         });
         return json(rent, 201); // queued; the metering worker provisions + meters it
       },

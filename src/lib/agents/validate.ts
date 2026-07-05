@@ -22,6 +22,9 @@ export type RentBody = {
   resourceType: ResourceType;
   region: string | null;
   estimatedUsage: number | null;
+  // Optional caps: the lease runs continuously until one of these (or the agent) stops it.
+  maxSpendUsdc?: string;
+  durationMs?: number;
 };
 
 export function parseRentBody(b: unknown): Parsed<RentBody> {
@@ -32,6 +35,21 @@ export function parseRentBody(b: unknown): Parsed<RentBody> {
   if (o.estimatedUsage !== undefined && o.estimatedUsage !== null && !Number.isFinite(o.estimatedUsage)) {
     return fail("estimatedUsage must be a number");
   }
+  // A USDC decimal string (up to 6 dp, the atomic precision) so the agent controls it exactly.
+  let maxSpendUsdc: string | undefined;
+  if (o.maxSpendUsdc !== undefined) {
+    if (typeof o.maxSpendUsdc !== "string" || !/^\d+(\.\d{1,6})?$/.test(o.maxSpendUsdc) || Number(o.maxSpendUsdc) <= 0) {
+      return fail("maxSpendUsdc must be a positive USDC decimal string");
+    }
+    maxSpendUsdc = o.maxSpendUsdc;
+  }
+  let durationMs: number | undefined;
+  if (o.durationMs !== undefined) {
+    if (typeof o.durationMs !== "number" || !Number.isFinite(o.durationMs) || o.durationMs <= 0) {
+      return fail("durationMs must be a positive number");
+    }
+    durationMs = o.durationMs;
+  }
   return {
     ok: true,
     value: {
@@ -39,6 +57,8 @@ export function parseRentBody(b: unknown): Parsed<RentBody> {
       resourceType: o.resourceType,
       region: (o.region as string | undefined) ?? null,
       estimatedUsage: typeof o.estimatedUsage === "number" ? o.estimatedUsage : null,
+      maxSpendUsdc,
+      durationMs,
     },
   };
 }
