@@ -22,6 +22,10 @@ if (!encKey) throw new Error("worker needs SPEND_WALLET_ENC_KEY");
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? "1000");
 const DEFAULT_MAX_UNITS = Number(process.env.WORKER_DEFAULT_MAX_UNITS ?? "600"); // ~10 min at 1/s
 const LEASE_CAP_ATOMIC = BigInt(process.env.WORKER_LEASE_CAP_ATOMIC ?? "1000000"); // 1 USDC backstop
+// Continuous rental: the Gateway float is a rolling buffer refilled from the EOA in chunks, and a
+// lease left suspended for balance is terminated after the grace window.
+const TOPUP_UNITS = Number(process.env.WORKER_TOPUP_UNITS ?? "300"); // buffer size (deposit chunk)
+const SUSPEND_GRACE_MS = Number(process.env.WORKER_SUSPEND_GRACE_MS ?? String(60 * 60 * 1000)); // 1h
 
 const registry = new SupabaseRegistry(cfg.supabase.url, cfg.supabase.serviceRoleKey);
 const admin = createClient(cfg.supabase.url, cfg.supabase.serviceRoleKey, { auth: { persistSession: false } });
@@ -83,6 +87,7 @@ const deps: WorkerDeps = {
   registry, settlementFor, rank, tickMs: TICK_MS, defaultMaxUnits: DEFAULT_MAX_UNITS,
   feeBps: Number(process.env.PLATFORM_FEE_BPS ?? "0"),
   health, degradation, maxMigrations: Number(process.env.WORKER_MAX_MIGRATIONS ?? "3"),
+  topupUnits: TOPUP_UNITS, suspendGraceMs: SUSPEND_GRACE_MS,
 };
 
 let running = false;
