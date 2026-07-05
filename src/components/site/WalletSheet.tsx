@@ -5,8 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSession } from "@/lib/auth/session";
-import { getSpendWalletBalance, withdrawFromSpendWallet } from "@/lib/wallet/server-fns";
+import { getSpendWalletBalance, withdrawFromSpendWallet, getGatewayBalanceFn, reclaimGatewayFloat } from "@/lib/wallet/server-fns";
 import { listMySpend } from "@/lib/wallet/history-fns";
 import { erc20Abi, parseUnits, formatUnits } from "viem";
 import { useAccount, useWriteContract, useReadContract } from "wagmi";
@@ -46,7 +45,6 @@ export function WalletSheet({
   onClose: () => void;
   accessToken: string | undefined;
 }) {
-  const { walletAddress } = useSession(); // the connected external wallet = identity + funding source
   const { data } = useQuery({
     queryKey: ["spend-wallet", accessToken],
     queryFn: () => getSpendWalletBalance({ data: { accessToken: accessToken! } }),
@@ -81,12 +79,9 @@ export function WalletSheet({
               hint="streams your rentals"
               address={data?.address ?? "…"}
             />
-            <AddressRow
-              label="Your wallet"
-              hint="identity + funding source"
-              address={walletAddress ?? "…"}
-            />
           </div>
+
+          <GatewayFloatCard accessToken={accessToken} />
 
           <div className="glass-card p-5 space-y-1.5">
             <h3 className="font-semibold text-sm">Deposit</h3>
@@ -217,6 +212,63 @@ function FundSpendWalletFlow({ spendWalletAddress }: { spendWalletAddress: strin
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* The Gateway float: the prepaid balance rentals stream against. Deposits into it are one-way
+   today, so unused float would be stranded; this reads it and reclaims it back to the spend wallet.
+   Warns first if a lease is running, since auto-topup would just re-fund a reclaimed buffer. */
+function GatewayFloatCard({ accessToken }: { accessToken: string | undefined }) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const { data } = useQuery({
+    queryKey: ["gateway-float", accessToken],
+    queryFn: () => getGatewayBalanceFn({ data: { accessToken: accessToken! } }),
+    enabled: !!accessToken,
+    refetchInterval: 5000,
+  });
+
+  async function reclaim() {
+    if (!accessToken) return;
+    if (
+      (data?.activeLeaseCount ?? 0) > 0 &&
+      !confirm(
+        "You have a running rental. Reclaiming won't stop it (it just re-funds itself); cancel the rental to actually stop spending. Reclaim anyway?",
+      )
+    )
+      return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await reclaimGatewayFloat({ data: { accessToken } });
+      setMsg(r.txHash ? `Reclaimed $${(Number(r.amountAtomic) / 1_000_000).toFixed(6)} (tx ${r.txHash.slice(0, 10)}…)` : "Nothing to reclaim");
+      await queryClient.invalidateQueries({ queryKey: ["gateway-float"] });
+      await queryClient.invalidateQueries({ queryKey: ["spend-wallet"] });
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "reclaim failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="glass-card p-5 space-y-2">
+      <h3 className="font-semibold text-sm">Gateway float</h3>
+      <p className="text-xs text-muted-foreground">
+        Prepaid balance your rentals stream against. Reclaim what's unused back to your spend wallet.
+      </p>
+      <div className="text-lg font-mono">${data?.formatted ?? "…"} USDC</div>
+      <Button
+        variant="ghost"
+        className="w-full border border-border"
+        disabled={busy || !accessToken}
+        onClick={reclaim}
+      >
+        {busy ? "Reclaiming…" : "Reclaim to wallet"}
+      </Button>
+      {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
     </div>
   );
 }
