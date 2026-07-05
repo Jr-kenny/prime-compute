@@ -21,6 +21,9 @@ function rentWithStatus(status: RentStatus): Rent {
     leaseAccessToken: null,
   feesSweptAt: null,
   statusReason: null,
+  maxSpendAtomic: null,
+  expiresAt: null,
+  suspendedAt: null,
   };
 }
 

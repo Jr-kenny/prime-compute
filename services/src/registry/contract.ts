@@ -120,10 +120,11 @@ export function registryContract(
         spec: { resourceType: "GPU", region: null }, maxSpendAtomic: 5000, expiresAt: "2030-01-01T00:00:00.000Z",
       });
       expect(created.maxSpendAtomic).toBe(5000);
-      expect(created.expiresAt).toBe("2030-01-01T00:00:00.000Z");
+      // timestamptz round-trips as +00:00 not Z on Postgres, so compare by instant, not string.
+      expect(new Date(created.expiresAt!).getTime()).toBe(new Date("2030-01-01T00:00:00.000Z").getTime());
       expect(created.suspendedAt).toBeNull();
       const suspended = await reg.updateRent(created.id, { suspendedAt: "2030-01-02T00:00:00.000Z" });
-      expect(suspended.suspendedAt).toBe("2030-01-02T00:00:00.000Z");
+      expect(new Date(suspended.suspendedAt!).getTime()).toBe(new Date("2030-01-02T00:00:00.000Z").getTime());
     }, T);
 
     test("creates and lists an agent-owned rent", async () => {

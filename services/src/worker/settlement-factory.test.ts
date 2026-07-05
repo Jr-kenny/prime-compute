@@ -12,6 +12,9 @@ function rent(userId: string): Rent {
     startedAt: null, endedAt: null, lastChargedAt: null, leaseAccessToken: null,
   feesSweptAt: null,
   statusReason: null,
+  maxSpendAtomic: null,
+  expiresAt: null,
+  suspendedAt: null,
   };
 }
 
