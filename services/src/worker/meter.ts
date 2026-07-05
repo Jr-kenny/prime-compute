@@ -17,7 +17,8 @@ export type ProvisionDeps = {
   registry: Registry;
   settlement: SettlementAdapter;
   rank?: RankStrategy;
-  maxUnits: number; // budget bound (estimatedUsage or a default)
+  maxUnits: number;    // advisory estimate (display/buffer basis), no longer a hard stop
+  topupUnits?: number; // buffer chunk deposited at provision + on low-water (default = maxUnits)
 };
 
 export type ProvisionResult = { status: RentStatus; reason: string };
@@ -44,7 +45,8 @@ export async function provisionLease(rentId: string, deps: ProvisionDeps): Promi
     rentId, candidates: match.candidates, chosenProviderId: match.chosen.id, rationale: match.rationale,
   });
 
-  const minAtomic = BigInt(maxUnits) * BigInt(Math.round(match.chosen.pricePerCharge * 1_000_000));
+  const chunkUnits = deps.topupUnits ?? maxUnits;
+  const minAtomic = BigInt(chunkUnits) * BigInt(Math.round(match.chosen.pricePerCharge * 1_000_000));
   try {
     if (minAtomic > 0n) await settlement.ensureFunded(minAtomic);
   } catch (e) {

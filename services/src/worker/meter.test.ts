@@ -56,6 +56,17 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect((await reg.getRent(rent.id))?.status).toBe("completed");
 });
 
+test("provisionLease funds only a buffer chunk, not the whole estimate", async () => {
+  const { reg, rent } = await seed(); // estimatedUsage 3, provider price 0.0001 -> 100 atomic/unit
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 1_000_000n });
+  // topupUnits 2 => buffer = 2 * 100 = 200 atomic, regardless of maxUnits/estimate.
+  const res = await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, topupUnits: 2 });
+  expect(res.status).toBe("running");
+  expect(settlement.fundCalls).toBe(1);
+  // exactly 200 drawn from the EOA (the buffer), not 300 (the estimate).
+  expect(settlement.opts.fundsRemaining).toBe(999_800n);
+});
+
 test("meterTick suspends on a spend-cap stop", async () => {
   const { reg, rent } = await seed();
   // cap below one charge -> FakeSettlementAdapter throws SpendCapError on payForCompute.
