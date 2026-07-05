@@ -55,6 +55,19 @@ test("meterTick charges one unit and stamps lastChargedAt, completing at the bud
   expect(more.status).toBe("running");
 });
 
+test("meterTick tops up the float in chunks, not every tick", async () => {
+  const { reg, rent } = await seed();
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, topupUnits: 3 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 3, topupUnits: 3, nowMs: () => clock };
+  for (let i = 0; i < 6; i++) { await meterTick(rent.id, deps); clock += 1001; }
+  // 6 charges with a 3-unit buffer => a top-up roughly every 3 charges, far fewer deposits than ticks.
+  expect(settlement.deposits).toBeGreaterThan(1); // provision + at least one mid-stream chunk
+  expect(settlement.deposits).toBeLessThan(6);
+  expect((await reg.listCharges(rent.id)).length).toBe(6);
+});
+
 test("meterTick keeps charging past the estimate (continuous)", async () => {
   const { reg, rent } = await seed(); // estimatedUsage 3
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
