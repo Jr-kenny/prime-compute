@@ -2,8 +2,17 @@ import { test, expect, afterEach } from "bun:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import type { Request, Response, NextFunction } from "express";
-import { createProviderApp, type PaymentRequest } from "./server";
+import { createProviderApp, priceTimes, type PaymentRequest } from "./server";
 import { makeSimulatedExecutor } from "./executor";
+
+test("priceTimes scales a per-unit x402 price to a batch through atomic integers, exactly", () => {
+  expect(priceTimes("$0.0001", 1)).toBe("$0.0001");
+  expect(priceTimes("$0.0001", 6)).toBe("$0.0006");
+  expect(priceTimes("$0.0000060", 60)).toBe("$0.00036"); // no float drift at 6dp
+  expect(priceTimes("0.01", 3)).toBe("$0.03"); // dollar sign optional on input
+  expect(priceTimes("$1", 2)).toBe("$2");
+  expect(() => priceTimes("nonsense", 2)).toThrow(/unparseable/);
+});
 
 const facilitatorUrl = process.env.X402_FACILITATOR_URL ?? "https://gateway-api-testnet.circle.com";
 const meta = { alias: "test-node", resourceType: "GPU" as const, region: "US-East", specs: { gpu: "H100" } };

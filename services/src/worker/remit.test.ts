@@ -27,7 +27,7 @@ async function seeded() {
   });
   const rent = await reg.createRent({ name: "r", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
   for (const [seq, fee] of [1, 2, 3].entries()) {
-    await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq, amount: 100, feeAmount: fee, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+    await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq, units: 1, amount: 100, feeAmount: fee, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
   }
   return { reg, provider };
 }

@@ -40,9 +40,12 @@ export class FakeSettlementAdapter implements SettlementAdapter {
     return { deposited: true, depositTxHash: `fake-deposit-${this.deposits}` };
   }
 
-  async payForCompute(_url: string): Promise<PaidCompute> {
-    const nextAtomic = this.opts.pricePerChargeAtomic;
-    const decision = checkSpend({ nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic });
+  async payForCompute(url: string, maxAtomic?: bigint): Promise<PaidCompute> {
+    // A `units=N` URL is one batched payment worth N units, mirroring the provider's pricing.
+    const m = url.match(/[?&]units=(\d+)/);
+    const units = m ? BigInt(m[1]!) : 1n;
+    const nextAtomic = this.opts.pricePerChargeAtomic * units;
+    const decision = checkSpend({ nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic, maxPerChargeAtomic: maxAtomic });
     if (!decision.ok) throw new SpendCapError(decision.reason);
     this.spent += nextAtomic;
     if (this.opts.fundsRemaining !== undefined) this.balance -= nextAtomic; // drain the modeled float

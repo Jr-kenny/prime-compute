@@ -73,7 +73,11 @@ export type TickDeps = {
   topupUnits?: number;     // float buffer size; refilled from the EOA every topupUnits charges (default maxUnits)
   nowMs?: () => number;    // injectable clock (tests)
   feeBps?: number;         // platform fee in basis points; recorded as a receivable, never paid here
-  perTickCap?: number;     // max paid hits in one tick so a volume burst can't run away (default 10)
+  // Max units billed in one pass. Must stay <= the provider's maxUnitsPerCharge clamp (60): the
+  // provider silently clamps units=N, so a larger value records units the payment didn't buy. It
+  // must also exceed the worst-case pass latency in ticks, or a lagging lease can never catch up:
+  // at the old default of 10, a lease visited every 18s billed 10, fell 8 behind, forever.
+  perTickCap?: number;     // default 60, matching the provider clamp
   readUsage?: (url: string) => Promise<number>; // cumulative accrued units from the provider's /usage
   // Autonomous hand-off on degradation is opt-in: only when BOTH a health tracker and the broker's
   // degradation deps are wired does a failing provider trigger a migrate/hold. Absent them, a
@@ -144,8 +148,8 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   // advance from once the nanopayments land.
   const now = clock();
   const d = descriptorFor(provider.resourceType);
-  const perTickCap = deps.perTickCap ?? 10;
-  const chargedSoFar = await registry.countCharges(rentId);
+  const perTickCap = deps.perTickCap ?? 60;
+  const chargedSoFar = await registry.billedUnits(rentId);
   let pending: number;
   let watermarkMs: number;
   let bootstrap = false;
@@ -192,64 +196,72 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     }
   }
 
-  const url = `${provider.endpointUrl}${d.path}?session=${rent.id}`;
+  // ONE batched nanopayment covers all `toCharge` units owed this tick. The payment is still
+  // a single off-chain x402 authorization (Circle batches settlement on its side); pricing it
+  // at units * listed price is what lets one worker meter any number of leases in real time,
+  // where paying per unit made fleet throughput = lanes / pay-latency and every meter lagged.
+  // maxAtomic hands the guard this call's exact ceiling so an endpoint can't overbill a batch.
+  const url = `${provider.endpointUrl}${d.path}?session=${rent.id}&units=${toCharge}`;
   const lh = deps.health && deps.degradation ? deps.health.for(rentId, provider.id) : null;
   let chargedAny = false;
-  let chargedCount = 0;
+  let chargedUnits = 0;
   let degradedReason: string | null = null;
-  for (let i = 0; i < toCharge; i++) {
-    try {
-      const paid = await settlement.payForCompute(url);
-      const paidAtomic = Number(paid.amountAtomic);
-      // The platform fee is a RECEIVABLE the provider owes from this payment (they received
-      // gross; they remit fee from their Gateway earnings). Nothing extra leaves the renter,
-      // and no second payment happens here. fee_settlement_ref is stamped when a verified
-      // remittance covers this charge.
-      const feeAtomic = Math.floor((paidAtomic * (deps.feeBps ?? 0)) / 10_000);
-      await registry.recordCharge({
-        rentId, providerId: provider.id, seq: chargedSoFar + chargedCount,
-        amount: paidAtomic, feeAmount: feeAtomic, feeSettlementRef: null,
-        authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
-      });
-      chargedAny = true;
-      chargedCount++;
-      lh?.monitor.observe({ ok: true }); // a paid hit is a healthy sample; clears the failure streak
-    } catch (e) {
-      if (e instanceof SpendCapError) {
-        await registry.updateRent(rentId, { status: "suspended", statusReason: e.message });
-        return { charged: chargedAny, status: "suspended", reason: e.message };
-      }
-      // Before blaming the provider, check whose failure this was. A pay that failed because OUR
-      // float ran dry is a funding problem: probing ensureFunded either refills it (deposited =
-      // true -> retry next tick, no health penalty for the provider) or throws (the EOA is dry
-      // end-to-end -> balance-suspend with the grace stamp, same as the pre-loop refill path).
-      // Only a failure with a healthy float is a provider health sample; once the streak crosses
-      // the monitor's threshold we resolve a migrate/hold below instead of just retrying forever.
-      let fundingShaped = false;
-      try {
-        const probe = await settlement.ensureFunded(BigInt(Math.max(topupUnits, 1)) * priceAtomic);
-        fundingShaped = probe.deposited;
-      } catch (fundErr) {
-        const reason = fundErr instanceof Error ? fundErr.message : "top-up failed";
-        await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
-        return { charged: chargedAny, status: "suspended", reason };
-      }
-      if (!fundingShaped && lh) {
-        const h = lh.monitor.observe({ ok: false });
-        if (!h.healthy) degradedReason = h.reason;
-      }
-      break; // transient: stop this tick
+  // The ceiling is round(units * price), matching how the provider prices the batch: listings
+  // can price finer than one atomic unit (4.5 atomic/sec), so rounding per unit first would
+  // undercut the provider's honest ask and refuse the batch.
+  const batchCeilingAtomic = BigInt(Math.round(toCharge * provider.pricePerCharge * 1_000_000));
+  try {
+    const paid = await settlement.payForCompute(url, batchCeilingAtomic);
+    const paidAtomic = Number(paid.amountAtomic);
+    // The platform fee is a RECEIVABLE the provider owes from this payment (they received
+    // gross; they remit fee from their Gateway earnings). Nothing extra leaves the renter,
+    // and no second payment happens here. fee_settlement_ref is stamped when a verified
+    // remittance covers this charge.
+    const feeAtomic = Math.floor((paidAtomic * (deps.feeBps ?? 0)) / 10_000);
+    await registry.recordCharge({
+      rentId, providerId: provider.id, seq: chargedSoFar, units: toCharge,
+      amount: paidAtomic, feeAmount: feeAtomic, feeSettlementRef: null,
+      authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
+    });
+    chargedAny = true;
+    chargedUnits = toCharge;
+    lh?.monitor.observe({ ok: true }); // a paid hit is a healthy sample; clears the failure streak
+  } catch (e) {
+    if (e instanceof SpendCapError) {
+      await registry.updateRent(rentId, { status: "suspended", statusReason: e.message });
+      return { charged: false, status: "suspended", reason: e.message };
     }
+    // Before blaming the provider, check whose failure this was. A pay that failed because OUR
+    // float ran dry is a funding problem: probing ensureFunded either refills it (deposited =
+    // true -> retry next tick, no health penalty for the provider) or throws (the EOA is dry
+    // end-to-end -> balance-suspend with the grace stamp, same as the pre-loop refill path).
+    // Only a failure with a healthy float is a provider health sample; once the streak crosses
+    // the monitor's threshold we resolve a migrate/hold below instead of just retrying forever.
+    let fundingShaped = false;
+    try {
+      const probe = await settlement.ensureFunded(BigInt(Math.max(topupUnits, toCharge)) * priceAtomic);
+      fundingShaped = probe.deposited;
+    } catch (fundErr) {
+      const reason = fundErr instanceof Error ? fundErr.message : "top-up failed";
+      await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
+      return { charged: false, status: "suspended", reason };
+    }
+    if (!fundingShaped && lh) {
+      const h = lh.monitor.observe({ ok: false });
+      if (!h.healthy) degradedReason = h.reason;
+    }
+    // transient: nothing billed this tick; the watermark below advances to `now` so the
+    // un-served gap is never retroactively billed once the lease recovers.
   }
 
   // Advance the billing watermark by exactly what we billed. On a healthy time tick that consumes
-  // `chargedCount` whole ticks, leaving any cap-limited remainder to bill next tick (so a slow pass
+  // `chargedUnits` whole ticks, leaving any cap-limited remainder to bill next tick (so a slow pass
   // catches up rather than dropping time). Bootstrap and volume are usage/now-driven, and when a
   // pay() failed mid-loop (a stall or a degrading provider) we advance to `now` so the un-served gap
   // isn't retroactively billed when the lease recovers: a stalled lease bills nothing for the stall.
-  const stalled = chargedCount < toCharge;
+  const stalled = chargedUnits < toCharge;
   const newWatermarkMs =
-    d.metering === "volume" || bootstrap || stalled ? now : watermarkMs + chargedCount * tickMs;
+    d.metering === "volume" || bootstrap || stalled ? now : watermarkMs + chargedUnits * tickMs;
 
   if (lh && degradedReason) {
     const reason = await resolveDegradation(rentId, rent, provider, lh, degradedReason, deps);

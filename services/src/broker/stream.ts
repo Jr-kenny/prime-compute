@@ -61,7 +61,7 @@ export async function streamRent(
     await deps.registry.recordCharge({
       rentId: rent.id,
       providerId: provider.id,
-      seq: seq++,
+      seq: seq++, units: 1,
       amount: Number(paid.amountAtomic), feeAmount: 0, feeSettlementRef: null,
       authorizationRef: null,
       settled: false,

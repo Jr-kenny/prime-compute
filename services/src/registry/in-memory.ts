@@ -123,8 +123,8 @@ export class InMemoryRegistry implements Registry {
     return this.charges.filter((t) => t.rentId === rentId).sort((a, b) => a.seq - b.seq);
   }
 
-  async countCharges(rentId: string): Promise<number> {
-    return this.charges.filter((t) => t.rentId === rentId).length;
+  async billedUnits(rentId: string): Promise<number> {
+    return this.charges.filter((t) => t.rentId === rentId).reduce((s, t) => s + t.units, 0);
   }
 
   async listOutstandingFeeCharges(providerId: string): Promise<Charge[]> {

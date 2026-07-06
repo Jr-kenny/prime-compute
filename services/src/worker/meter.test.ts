@@ -68,13 +68,17 @@ test("a time lease bills for elapsed wall-clock, firing the nanopayments the tim
   expect((await reg.listCharges(rent.id)).length).toBe(1);
 
   // Under load the worker's next pass only reaches this lease 5s later. Five seconds of a
-  // per-second lease owes five nanopayments on this pass, not one.
+  // per-second lease owes five units on this pass, not one — carried by ONE batched payment.
   clock += 5000;
   await meterTick(rent.id, deps);
 
-  // 1 (bootstrap) + 5 (the elapsed catch-up) = 6 units * 100 atomic.
-  expect((await reg.listCharges(rent.id)).length).toBe(6);
+  // 1 (bootstrap) + 5 (the elapsed catch-up) = 6 units * 100 atomic, across 2 payments.
+  expect(await reg.billedUnits(rent.id)).toBe(6);
   expect(await reg.rentCost(rent.id)).toBe(600);
+  const charges = await reg.listCharges(rent.id);
+  expect(charges.length).toBe(2); // bootstrap + one batch, not five separate nanopayments
+  expect(charges[1]?.units).toBe(5);
+  expect(charges[1]?.seq).toBe(1); // contiguous: batch starts at the unit after bootstrap
 });
 
 test("a lease suspended past the grace window is terminated", async () => {
@@ -157,6 +161,36 @@ test("meterTick tops up the float in chunks, not every tick", async () => {
   expect((await reg.listCharges(rent.id)).length).toBe(6);
 });
 
+test("one batched nanopayment carries exactly the seconds owed, at exactly the listed price", async () => {
+  const { reg, rent } = await seed(); // price 0.0001 -> 100 atomic per second
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 100 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 100, nowMs: () => clock, perTickCap: 60 };
+
+  await meterTick(rent.id, deps); // bootstrap second
+  clock += 30_000;                // the worker is away for 30s of real usage
+  await meterTick(rent.id, deps);
+
+  // The renter owes exactly 31 seconds and pays exactly 31 * 100 atomic — via 2 payments,
+  // not 31. Same total, same provider earnings, meter keeps up at any fleet size.
+  expect(await reg.billedUnits(rent.id)).toBe(31);
+  expect(await reg.rentCost(rent.id)).toBe(3100);
+  expect((await reg.listCharges(rent.id)).length).toBe(2);
+});
+
+test("a provider demanding more than the batch is worth is refused at the signing seam", async () => {
+  const { reg, rent } = await seed(); // listed price 100 atomic/unit
+  // Endpoint answers the 402 dance asking DOUBLE the batch's worth. The per-call ceiling
+  // (units * listed price) must abort before anything is signed.
+  const greedy = new FakeSettlementAdapter({ pricePerChargeAtomic: 200n, capAtomic: 1_000_000n });
+  await reg.updateRent(rent.id, { status: "running", providerId: (await reg.listProviders())[0]!.id, startedAt: new Date().toISOString() });
+  const res = await meterTick(rent.id, { registry: reg, settlement: greedy, tickMs: 1000, maxUnits: 10, nowMs: () => 5 });
+  expect(res.charged).toBe(false);
+  expect(res.status).toBe("suspended"); // SpendCapError path: refused, nothing paid
+  expect(await reg.billedUnits(rent.id)).toBe(0);
+});
+
 test("a catch-up tick that jumps past the top-up boundary still refills the float", async () => {
   const { reg, rent } = await seed(); // price 100 atomic/unit
   // EOA rich, float buffer of 3 units. Old modulo trigger only refilled when the charge count sat
@@ -177,7 +211,8 @@ test("a catch-up tick that jumps past the top-up boundary still refills the floa
   expect(r.status).toBe("running");
   expect(r.charged).toBe(true);
   expect(settlement.deposits).toBeGreaterThan(depositsAfterBootstrap); // the boundary crossing refilled
-  expect((await reg.listCharges(rent.id)).length).toBe(9); // 1 bootstrap + 8 catch-up, none dropped
+  expect(await reg.billedUnits(rent.id)).toBe(9); // 1 bootstrap + 8 catch-up, none dropped
+  expect(await reg.rentCost(rent.id)).toBe(900);
 });
 
 test("a catch-up tick cannot bill past the spend cap", async () => {
@@ -330,7 +365,11 @@ test("charges pending whole units per tick for a volume service", async () => {
   const settlement = {
     buyerAddress: "0xbuyer",
     async ensureFunded() { return { deposited: false }; },
-    async payForCompute(_url: string) { calls.n++; return { amountAtomic: 20n, settlementRef: `ref-${calls.n}`, data: {}, status: 200 }; },
+    async payForCompute(url: string) {
+      calls.n++;
+      const units = BigInt(url.match(/[?&]units=(\d+)/)?.[1] ?? "1"); // one payment worth N units
+      return { amountAtomic: 20n * units, settlementRef: `ref-${calls.n}`, data: {}, status: 200 };
+    },
     async reconcile(ref: string) { return { ref, status: "completed", settled: true }; },
   };
 
@@ -340,14 +379,15 @@ test("charges pending whole units per tick for a volume service", async () => {
 
   const first = await meterTick(rent.id, deps);
   expect(first.charged).toBe(true);
-  expect(calls.n).toBe(3); // 3 GB -> 3 paid hits
-  expect((await reg.listCharges(rent.id)).length).toBe(3);
+  expect(calls.n).toBe(1); // 3 GB -> ONE batched payment worth 3 units
+  expect(await reg.billedUnits(rent.id)).toBe(3);
+  expect(await reg.rentCost(rent.id)).toBe(60); // 3 units * 20 atomic
 
   // Next tick, no new transfer accrued -> nothing pending, no charge.
   clock += 1001;
   const second = await meterTick(rent.id, deps);
   expect(second.charged).toBe(false);
-  expect(calls.n).toBe(3);
+  expect(calls.n).toBe(1); // still just the one payment; nothing new accrued
 });
 
 // --- degradation -> migration --------------------------------------------------------------

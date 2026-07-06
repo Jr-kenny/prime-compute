@@ -82,8 +82,9 @@ export type Charge = {
   id: string;
   rentId: string;
   providerId: string;
-  seq: number;
-  amount: number; // atomic USDC units (6 decimals), paid to the provider
+  seq: number; // the first usage-unit this charge covers (charges are contiguous: next seq = seq + units)
+  units: number; // how many usage-units this ONE payment covers (batched nanopayment; legacy rows are 1)
+  amount: number; // atomic USDC units (6 decimals), paid to the provider — units * unit price
   feeAmount: number; // atomic USDC for the platform on this charge (renter paid amount + feeAmount)
   feeSettlementRef: string | null; // the fee nano-payment's batch ref; null until it lands
   authorizationRef: string | null;

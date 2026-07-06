@@ -3,7 +3,7 @@ import { loadBrokerAgent } from "./agent";
 
 test("loads the shipped broker soul + platform policy", async () => {
   const { soul, policy } = await loadBrokerAgent();
-  expect(soul.name).toBe("Broker");
+  expect(soul.name).toBe("Lumen");
   expect(soul.schema).toBe("soul/v1");
   expect(soul.version).toBeTruthy();
   expect(policy.schema).toBe("policy/v1");

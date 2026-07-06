@@ -167,26 +167,29 @@ export function registryContract(
     test("recordCharge + rentCost sums consumed charges exactly", async () => {
       const provider = await reg.registerProvider(sampleProvider);
       const rent = await reg.createRent({ name: "j", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
-      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: "a0", settled: false, settlementRef: null });
-      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: "a1", settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, units: 1, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: "a0", settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, units: 1, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: "a1", settled: false, settlementRef: null });
       expect(await reg.rentCost(rent.id)).toBe(200);
       expect((await reg.listCharges(rent.id)).length).toBe(2);
     }, T);
 
-    test("countCharges is exact (metering derives seq and top-up boundaries from it)", async () => {
+    test("billedUnits sums units across charges, not rows (metering derives seq and boundaries from it)", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "count-p" });
       const rent = await reg.createRent({ name: "count-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
-      expect(await reg.countCharges(rent.id)).toBe(0);
-      for (let seq = 0; seq < 3; seq++) {
-        await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: `ref-${seq}` });
-      }
-      expect(await reg.countCharges(rent.id)).toBe(3);
+      expect(await reg.billedUnits(rent.id)).toBe(0);
+      // One single-unit charge, then one batched payment worth 5 units: 6 units across 2 rows.
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, units: 1, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: "ref-0" });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, units: 5, amount: 500, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: "ref-1" });
+      expect(await reg.billedUnits(rent.id)).toBe(6);
+      expect((await reg.listCharges(rent.id)).length).toBe(2);
+      expect((await reg.listCharges(rent.id))[1]?.units).toBe(5);
+      expect(await reg.rentCost(rent.id)).toBe(600);
     }, T);
 
     test("recordCharge persists feeAmount; rentCost is what the renter paid", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "fee-p" });
       const rent = await reg.createRent({ name: "fee-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
-      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 99, feeAmount: 1, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, units: 1, amount: 99, feeAmount: 1, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
       const [c] = await reg.listCharges(rent.id);
       expect(c?.feeAmount).toBe(1);
       expect(c?.feeSettlementRef).toBeNull();
@@ -205,7 +208,7 @@ export function registryContract(
     test("markChargeSettled flips a charge to settled", async () => {
       const provider = await reg.registerProvider(sampleProvider);
       const rent = await reg.createRent({ name: "j", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
-      const charge = await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: "ref-0" });
+      const charge = await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, units: 1, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: "ref-0" });
       await reg.markChargeSettled(charge.id);
       const charges = await reg.listCharges(rent.id);
       expect(charges[0]?.settled).toBe(true);
@@ -248,11 +251,11 @@ export function registryContract(
       });
       const rent = await reg.createRent({ name: "recv-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
       // seq 0: outstanding; seq 1: already stamped; seq 2: zero fee; seq 3: other provider.
-      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, amount: 100, feeAmount: 1, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
-      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, amount: 100, feeAmount: 2, feeSettlementRef: "0xdone", authorizationRef: null, settled: false, settlementRef: null });
-      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 2, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
-      await reg.recordCharge({ rentId: rent.id, providerId: other.id, seq: 3, amount: 100, feeAmount: 5, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
-      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 4, amount: 100, feeAmount: 3, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 0, units: 1, amount: 100, feeAmount: 1, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 1, units: 1, amount: 100, feeAmount: 2, feeSettlementRef: "0xdone", authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 2, units: 1, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: other.id, seq: 3, units: 1, amount: 100, feeAmount: 5, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
+      await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq: 4, units: 1, amount: 100, feeAmount: 3, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: null });
 
       const outstanding = await reg.listOutstandingFeeCharges(provider.id);
       expect(outstanding.map((c) => c.feeAmount)).toEqual([1, 3]); // oldest first, only unstamped fee > 0, only this provider

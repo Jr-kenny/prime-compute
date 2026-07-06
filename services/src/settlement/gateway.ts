@@ -21,6 +21,7 @@ export class GatewaySettlementAdapter implements SettlementAdapter {
   readonly buyerAddress: string;
   private spent = 0n;
   private lastAbortReason: string | null = null;
+  private callMaxAtomic: bigint | undefined; // per-call ceiling for the pay in flight (batch-scaled)
 
   constructor(private opts: GatewayAdapterOptions) {
     this.client = new GatewayClient({
@@ -34,7 +35,11 @@ export class GatewaySettlementAdapter implements SettlementAdapter {
     // pay() throw before any EIP-3009 authorization is signed.
     this.client.onBeforePaymentCreation(async (ctx) => {
       const nextAtomic = BigInt(ctx.selectedRequirements.amount);
-      const decision = checkSpend({ nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic, maxPerChargeAtomic: this.opts.maxPerChargeAtomic });
+      // The per-charge ceiling is the tighter of the adapter-wide one and this call's
+      // batch-scaled one (units * listed price), so a provider can't overbill a batch.
+      const ceilings = [this.opts.maxPerChargeAtomic, this.callMaxAtomic].filter((c): c is bigint => c !== undefined);
+      const maxPerChargeAtomic = ceilings.length ? ceilings.reduce((a, b) => (a < b ? a : b)) : undefined;
+      const decision = checkSpend({ nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic, maxPerChargeAtomic });
       if (!decision.ok) {
         this.lastAbortReason = decision.reason;
         return { abort: true, reason: decision.reason };
@@ -52,8 +57,9 @@ export class GatewaySettlementAdapter implements SettlementAdapter {
     return { deposited: true, depositTxHash: dep.depositTxHash };
   }
 
-  async payForCompute(url: string): Promise<PaidCompute> {
+  async payForCompute(url: string, maxAtomic?: bigint): Promise<PaidCompute> {
     this.lastAbortReason = null;
+    this.callMaxAtomic = maxAtomic;
     try {
       const res = await this.client.pay(url);
       this.spent += res.amount;
@@ -62,6 +68,8 @@ export class GatewaySettlementAdapter implements SettlementAdapter {
       // The guard hook makes pay() throw "Payment creation aborted: <reason>".
       if (this.lastAbortReason) throw new SpendCapError(this.lastAbortReason);
       throw err;
+    } finally {
+      this.callMaxAtomic = undefined;
     }
   }
 

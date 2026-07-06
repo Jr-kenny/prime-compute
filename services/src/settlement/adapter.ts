@@ -17,8 +17,10 @@ export interface SettlementAdapter {
   readonly buyerAddress: string;
   /** Ensure the Gateway balance can cover at least `minAtomic`; deposits if short. */
   ensureFunded(minAtomic: bigint): Promise<{ deposited: boolean; depositTxHash?: string }>;
-  /** Pay one charge for one unit of compute. Throws SpendCapError if the guard aborts. */
-  payForCompute(url: string): Promise<PaidCompute>;
+  /** Pay one x402 charge (which may cover several usage-units when the URL carries `units=N`).
+   * `maxAtomic` is this call's ceiling — the units-scaled listed price — so a provider can never
+   * bill more than what the batch is worth. Throws SpendCapError if the guard aborts. */
+  payForCompute(url: string, maxAtomic?: bigint): Promise<PaidCompute>;
   /** Check whether a settlement ref has landed on-chain. */
   reconcile(settlementRef: string): Promise<SettlementStatus>;
 }

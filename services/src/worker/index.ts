@@ -30,8 +30,11 @@ const SUSPEND_GRACE_MS = Number(process.env.WORKER_SUSPEND_GRACE_MS ?? String(60
 // second is one x402 round trip (~1-2s), so 10 lanes tops out near 5-10 payments/sec TOTAL and
 // a fleet of 30 per-second leases visibly lags its own meter. 40 lanes covers that fleet at
 // real-time cadence; PER_TICK_CAP bounds how many catch-up seconds one lease can bill per pass.
+// It must beat the worst-case pass latency in seconds or a lagging lease falls behind forever
+// (at 10, a lease visited every 18s billed 10 and the deficit grew without bound), and it must
+// not exceed the provider's maxUnitsPerCharge clamp (60) or the recorded units outrun the payment.
 const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? "40"); // running leases metered at once
-const PER_TICK_CAP = Number(process.env.WORKER_PER_TICK_CAP ?? "10"); // max paid hits per lease per pass
+const PER_TICK_CAP = Number(process.env.WORKER_PER_TICK_CAP ?? "60"); // max catch-up units per lease per pass
 
 const registry = new SupabaseRegistry(cfg.supabase.url, cfg.supabase.serviceRoleKey);
 const admin = createClient(cfg.supabase.url, cfg.supabase.serviceRoleKey, { auth: { persistSession: false } });

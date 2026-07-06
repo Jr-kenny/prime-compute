@@ -67,6 +67,7 @@ function toCharge(raw: unknown): Charge {
     rentId: r.rent_id as string,
     providerId: r.provider_id as string,
     seq: Number(r.seq),
+    units: Number(r.units ?? 1), // rows from before batched billing are one unit each
     amount: Number(r.amount),
     feeAmount: Number(r.fee_amount ?? 0),
     feeSettlementRef: (r.fee_settlement_ref as string) ?? null,
@@ -273,7 +274,7 @@ export class SupabaseRegistry implements Registry {
   async recordCharge(t: Omit<Charge, "id" | "createdAt">): Promise<Charge> {
     const row = await this.one(
       this.db.from("charges").insert({
-        rent_id: t.rentId, provider_id: t.providerId, seq: t.seq, amount: t.amount,
+        rent_id: t.rentId, provider_id: t.providerId, seq: t.seq, units: t.units, amount: t.amount,
         fee_amount: t.feeAmount, fee_settlement_ref: t.feeSettlementRef,
         authorization_ref: t.authorizationRef, settled: t.settled, settlement_ref: t.settlementRef,
       }).select().single(),
@@ -315,13 +316,11 @@ export class SupabaseRegistry implements Registry {
     return rows.map((r) => toCharge(r));
   }
 
-  async countCharges(rentId: string): Promise<number> {
-    const { count, error } = await this.db
-      .from("charges")
-      .select("id", { count: "exact", head: true })
-      .eq("rent_id", rentId);
-    if (error) throw new Error(`countCharges: ${error.message}`);
-    return count ?? 0;
+  async billedUnits(rentId: string): Promise<number> {
+    const rows = await this.chargePages("billedUnits", (from, to) =>
+      this.db.from("charges").select("units").eq("rent_id", rentId).order("seq").range(from, to),
+    );
+    return rows.reduce((s, r) => s + Number((r as Row).units ?? 1), 0);
   }
 
   async listOutstandingFeeCharges(providerId: string): Promise<Charge[]> {

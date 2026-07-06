@@ -26,13 +26,15 @@ describe("VPN provide -> rent -> meter -> connect", () => {
     });
     await reg.updateRent(rent.id, { status: "running", providerId: provider.id, startedAt: new Date().toISOString() });
 
-    // One tick where the provider's /usage reports 2 pending GB units -> 2 fixed-price charges.
+    // One tick where the provider's /usage reports 2 pending GB units -> ONE batched payment
+    // worth 2 GB at the fixed per-GB price.
     const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 20_000n, capAtomic: 10_000_000n });
     const res = await meterTick(rent.id, {
       registry: reg, settlement, tickMs: 0, maxUnits: 100,
       readUsage: async () => 2, perTickCap: 10, nowMs: () => 1,
     });
     expect(res.charged).toBe(true);
-    expect((await reg.listCharges(rent.id)).length).toBe(2); // 2 GB -> 2 charges
+    expect(await reg.billedUnits(rent.id)).toBe(2); // 2 GB billed
+    expect(await reg.rentCost(rent.id)).toBe(40_000); // 2 * 20_000 atomic, one payment
   });
 });

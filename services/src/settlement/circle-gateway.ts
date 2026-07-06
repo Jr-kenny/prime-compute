@@ -41,6 +41,7 @@ export class CircleGatewaySettlementAdapter implements SettlementAdapter {
   private scheme: BatchEvmScheme;
   private spent = 0n;
   private lastAbortReason: string | null = null;
+  private callMaxAtomic: bigint | undefined; // per-call ceiling for the pay in flight (batch-scaled)
   private fetchImpl: typeof fetch;
   private api: string;
 
@@ -52,8 +53,11 @@ export class CircleGatewaySettlementAdapter implements SettlementAdapter {
     // The deterministic guard, same seam as the raw-key adapter: abort before signing.
     this.scheme.onBeforePaymentCreation(async (ctx) => {
       const nextAtomic = BigInt(ctx.selectedRequirements.amount);
+      // Tighter of the adapter-wide per-charge ceiling and this call's batch-scaled one.
+      const ceilings = [this.opts.maxPerChargeAtomic, this.callMaxAtomic].filter((c): c is bigint => c !== undefined);
       const decision = checkSpend({
-        nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic, maxPerChargeAtomic: this.opts.maxPerChargeAtomic,
+        nextAtomic, spentAtomic: this.spent, capAtomic: this.opts.capAtomic,
+        maxPerChargeAtomic: ceilings.length ? ceilings.reduce((a, b) => (a < b ? a : b)) : undefined,
       });
       if (!decision.ok) {
         this.lastAbortReason = decision.reason;
@@ -72,8 +76,9 @@ export class CircleGatewaySettlementAdapter implements SettlementAdapter {
     return { deposited: true, depositTxHash: txHash };
   }
 
-  async payForCompute(url: string): Promise<PaidCompute> {
+  async payForCompute(url: string, maxAtomic?: bigint): Promise<PaidCompute> {
     this.lastAbortReason = null;
+    this.callMaxAtomic = maxAtomic;
     try {
       const paid = await gatewayPay(url, this.scheme, { chainId: ARC_TESTNET_CHAIN_ID, fetchImpl: this.fetchImpl });
       this.spent += paid.amountAtomic;
@@ -81,6 +86,8 @@ export class CircleGatewaySettlementAdapter implements SettlementAdapter {
     } catch (err) {
       if (this.lastAbortReason) throw new SpendCapError(this.lastAbortReason);
       throw err;
+    } finally {
+      this.callMaxAtomic = undefined;
     }
   }
 
