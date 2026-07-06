@@ -30,8 +30,11 @@ services:
       # payments (or a bigger instance) take over.
       - key: WORKER_CONCURRENCY
         value: "100"
+      # Catch-up ceiling per lease per pass. Must beat worst-case pass latency in seconds
+      # (at 10, a lease visited every 18s billed 10 and fell behind forever) and must not
+      # exceed the provider's maxUnitsPerCharge clamp (60).
       - key: WORKER_PER_TICK_CAP
-        value: "10"
+        value: "60"
       # Secrets: sync:false means Render prompts for the value on first deploy.
       # Use the same values as the web app's env (root .env).
       - key: SUPABASE_URL
