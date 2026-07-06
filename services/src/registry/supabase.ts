@@ -316,11 +316,12 @@ export class SupabaseRegistry implements Registry {
     return rows.map((r) => toCharge(r));
   }
 
+  // Summed in the database (0021): the meter asks for these every tick, and pulling the
+  // charge rows out to add them here made egress grow with the square of a lease's lifetime.
   async billedUnits(rentId: string): Promise<number> {
-    const rows = await this.chargePages("billedUnits", (from, to) =>
-      this.db.from("charges").select("units").eq("rent_id", rentId).order("seq").range(from, to),
-    );
-    return rows.reduce((s, r) => s + Number((r as Row).units ?? 1), 0);
+    const { data, error } = await this.db.rpc("billed_units", { p_rent_id: rentId });
+    if (error) throw new Error(`billedUnits: ${error.message}`);
+    return Number(data ?? 0);
   }
 
   async listOutstandingFeeCharges(providerId: string): Promise<Charge[]> {
@@ -333,10 +334,9 @@ export class SupabaseRegistry implements Registry {
   }
 
   async rentCost(rentId: string): Promise<number> {
-    const rows = await this.chargePages("rentCost", (from, to) =>
-      this.db.from("charges").select("amount").eq("rent_id", rentId).order("seq").range(from, to),
-    );
-    return rows.reduce((s, r) => s + Number((r as Row).amount), 0);
+    const { data, error } = await this.db.rpc("rent_cost", { p_rent_id: rentId });
+    if (error) throw new Error(`rentCost: ${error.message}`);
+    return Number(data ?? 0);
   }
 
   async markChargeFeeSettled(chargeId: string, ref: string): Promise<void> {
