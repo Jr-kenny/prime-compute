@@ -61,6 +61,9 @@ export interface Registry {
   /** Stamp the fee nano-payment's settlement ref on a charge (fee streamed live or swept). */
   markChargeFeeSettled(chargeId: string, ref: string): Promise<void>;
   listCharges(rentId: string): Promise<Charge[]>;
+  /** How many charges this rent has. Metering derives seq/top-up boundaries from this, so it
+   * must stay exact for leases with far more charges than one query page can return. */
+  countCharges(rentId: string): Promise<number>;
   /** Fee receivables: this provider's charges with fee_amount > 0 and no remittance stamp, oldest first. */
   listOutstandingFeeCharges(providerId: string): Promise<Charge[]>;
   rentCost(rentId: string): Promise<number>;

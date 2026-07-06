@@ -173,6 +173,16 @@ export function registryContract(
       expect((await reg.listCharges(rent.id)).length).toBe(2);
     }, T);
 
+    test("countCharges is exact (metering derives seq and top-up boundaries from it)", async () => {
+      const provider = await reg.registerProvider({ ...sampleProvider, alias: "count-p" });
+      const rent = await reg.createRent({ name: "count-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });
+      expect(await reg.countCharges(rent.id)).toBe(0);
+      for (let seq = 0; seq < 3; seq++) {
+        await reg.recordCharge({ rentId: rent.id, providerId: provider.id, seq, amount: 100, feeAmount: 0, feeSettlementRef: null, authorizationRef: null, settled: false, settlementRef: `ref-${seq}` });
+      }
+      expect(await reg.countCharges(rent.id)).toBe(3);
+    }, T);
+
     test("recordCharge persists feeAmount; rentCost is what the renter paid", async () => {
       const provider = await reg.registerProvider({ ...sampleProvider, alias: "fee-p" });
       const rent = await reg.createRent({ name: "fee-rent", owner: { kind: "user", id: "u1", walletAddress: "0x0" }, spec: { resourceType: "GPU", region: null } });

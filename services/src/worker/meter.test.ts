@@ -157,6 +157,96 @@ test("meterTick tops up the float in chunks, not every tick", async () => {
   expect((await reg.listCharges(rent.id)).length).toBe(6);
 });
 
+test("a catch-up tick that jumps past the top-up boundary still refills the float", async () => {
+  const { reg, rent } = await seed(); // price 100 atomic/unit
+  // EOA rich, float buffer of 3 units. Old modulo trigger only refilled when the charge count sat
+  // EXACTLY on a multiple of 3; a multi-unit catch-up tick skips those and the float starved.
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, topupUnits: 3 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 3, topupUnits: 3, nowMs: () => clock, perTickCap: 10 };
+
+  await meterTick(rent.id, deps); // bootstrap: 1 charge, float has 2 units left
+  const depositsAfterBootstrap = settlement.deposits;
+
+  // The next pass reaches this lease 8s late: 8 units owed, jumping the count from 1 straight
+  // past the 3-unit boundary. Crossing detection must refill; the skipped-multiple bug starved
+  // the float here and the payments failed while the lease still said "running".
+  clock += 8000;
+  const r = await meterTick(rent.id, deps);
+  expect(r.status).toBe("running");
+  expect(r.charged).toBe(true);
+  expect(settlement.deposits).toBeGreaterThan(depositsAfterBootstrap); // the boundary crossing refilled
+  expect((await reg.listCharges(rent.id)).length).toBe(9); // 1 bootstrap + 8 catch-up, none dropped
+});
+
+test("a catch-up tick cannot bill past the spend cap", async () => {
+  const { reg } = await seed();
+  // Cap allows 2 units at 100 atomic each (250 total). A 10s catch-up owes 10 units; only the
+  // capped remainder may be billed, never the whole backlog.
+  const rent = await reg.createRent({ name: "capped-catchup", owner: { kind: "user", id: "u9", walletAddress: "0x0" },
+    spec: { resourceType: "GPU", region: null }, maxSpendAtomic: 250 });
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 100 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 100, nowMs: () => clock, perTickCap: 10 };
+
+  await meterTick(rent.id, deps); // bootstrap: 100 spent, cap has room for exactly 1 more
+  clock += 10_000;
+  await meterTick(rent.id, deps); // owes 10, may bill only 1
+  expect(await reg.rentCost(rent.id)).toBe(200); // never past 250
+  expect((await reg.listCharges(rent.id)).length).toBe(2);
+  clock += 1001;
+  const r = await meterTick(rent.id, deps); // next unit would cross the cap -> completed
+  expect(r.status).toBe("completed");
+});
+
+test("a pay failure caused by a dry float is not blamed on the provider", async () => {
+  const { reg, rent, p1 } = await seedTwoGpus();
+  await reg.updateRent(rent.id, { status: "running", providerId: p1.id, startedAt: new Date().toISOString() });
+
+  // pay() always fails, but every failure probe finds the float needed (and got) a refill:
+  // that's a funding-shaped failure. The provider's health streak must NOT build, so no
+  // migration fires no matter how many ticks pass.
+  const fundingStarved = {
+    buyerAddress: "0xbuyer",
+    async ensureFunded() { return { deposited: true, depositTxHash: "0xdep" }; },
+    async payForCompute(): Promise<never> { throw new Error("insufficient gateway balance"); },
+    async reconcile(ref: string) { return { ref, status: "completed" as const, settled: true }; },
+  };
+  const health = tracker();
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement: fundingStarved, tickMs: 1000, maxUnits: 100, nowMs: () => clock, health, degradation: deadModel, maxMigrations: 3 };
+
+  for (let i = 0; i < 5; i++) { await meterTick(rent.id, deps); clock += 1001; }
+  const r = await reg.getRent(rent.id);
+  expect(r?.status).toBe("running");
+  expect(r?.providerId).toBe(p1.id); // still on the original provider: our wallet was the problem
+  expect((await reg.listDecisionLogs(rent.id)).length).toBe(0); // no migrate/hold ever considered
+});
+
+test("a pay failure with a dry EOA behind it suspends with the grace stamp", async () => {
+  const { reg, rent, p1 } = await seedTwoGpus();
+  await reg.updateRent(rent.id, { status: "running", providerId: p1.id, startedAt: new Date().toISOString() });
+
+  // pay() fails AND the refill probe throws: the wallet is empty end-to-end. That's the same
+  // balance-suspend as the pre-loop top-up path, not a provider health sample.
+  const dryWallet = {
+    buyerAddress: "0xbuyer",
+    async ensureFunded(): Promise<{ deposited: boolean }> { throw new Error("insufficient EOA balance for top-up"); },
+    async payForCompute(): Promise<never> { throw new Error("insufficient gateway balance"); },
+    async reconcile(ref: string) { return { ref, status: "completed" as const, settled: true }; },
+  };
+  // topupUnits unset here, so the pre-loop refill is keyed off maxUnits; use a count that's past
+  // the first boundary so the failure surfaces inside the pay loop, exercising the catch path.
+  await reg.updateRent(rent.id, { lastChargedAt: new Date(1_000_000 - 1001).toISOString() });
+  const r = await meterTick(rent.id, { registry: reg, settlement: dryWallet, tickMs: 1000, maxUnits: 100, topupUnits: 0, nowMs: () => 1_000_000 });
+  expect(r.status).toBe("suspended");
+  const after = await reg.getRent(rent.id);
+  expect(after?.status).toBe("suspended");
+  expect(after?.suspendedAt).toBeTruthy(); // grace timer armed, sweepSuspended can act on it
+});
+
 test("meterTick keeps charging past the estimate (continuous)", async () => {
   const { reg, rent } = await seed(); // estimatedUsage 3
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });

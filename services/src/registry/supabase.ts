@@ -287,24 +287,57 @@ export class SupabaseRegistry implements Registry {
     if (error) throw new Error(`markChargeSettled: ${error.message}`);
   }
 
+  // PostgREST caps any single response at 1000 rows, and a continuously-metered lease
+  // accumulates far more charges than that (one per second crosses 1000 in ~17 minutes).
+  // Unpaged reads silently truncated there, which froze seq, the spend-cap math, and the
+  // float top-up boundary all at once. So: counts come from a head-count query (exact
+  // regardless of the row cap), and full reads walk the table in pages.
+  private static readonly CHARGE_PAGE = 1000;
+
+  private async chargePages<T>(
+    ctx: string,
+    query: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  ): Promise<T[]> {
+    const page = SupabaseRegistry.CHARGE_PAGE;
+    const out: T[] = [];
+    for (let from = 0; ; from += page) {
+      const { data, error } = await query(from, from + page - 1);
+      if (error) throw new Error(`${ctx}: ${error.message}`);
+      out.push(...(data ?? []));
+      if (!data || data.length < page) return out;
+    }
+  }
+
   async listCharges(rentId: string): Promise<Charge[]> {
-    const { data, error } = await this.db.from("charges").select().eq("rent_id", rentId).order("seq");
-    if (error) throw new Error(`listCharges: ${error.message}`);
-    return (data ?? []).map((r) => toCharge(r));
+    const rows = await this.chargePages("listCharges", (from, to) =>
+      this.db.from("charges").select().eq("rent_id", rentId).order("seq").range(from, to),
+    );
+    return rows.map((r) => toCharge(r));
+  }
+
+  async countCharges(rentId: string): Promise<number> {
+    const { count, error } = await this.db
+      .from("charges")
+      .select("id", { count: "exact", head: true })
+      .eq("rent_id", rentId);
+    if (error) throw new Error(`countCharges: ${error.message}`);
+    return count ?? 0;
   }
 
   async listOutstandingFeeCharges(providerId: string): Promise<Charge[]> {
-    const { data, error } = await this.db.from("charges").select("*")
-      .eq("provider_id", providerId).gt("fee_amount", 0).is("fee_settlement_ref", null)
-      .order("created_at", { ascending: true });
-    if (error) throw new Error(`listOutstandingFeeCharges: ${error.message}`);
-    return (data ?? []).map((r) => toCharge(r));
+    const rows = await this.chargePages("listOutstandingFeeCharges", (from, to) =>
+      this.db.from("charges").select("*")
+        .eq("provider_id", providerId).gt("fee_amount", 0).is("fee_settlement_ref", null)
+        .order("created_at", { ascending: true }).range(from, to),
+    );
+    return rows.map((r) => toCharge(r));
   }
 
   async rentCost(rentId: string): Promise<number> {
-    const { data, error } = await this.db.from("charges").select("amount").eq("rent_id", rentId);
-    if (error) throw new Error(`rentCost: ${error.message}`);
-    return (data ?? []).reduce((s, r) => s + Number((r as Row).amount), 0);
+    const rows = await this.chargePages("rentCost", (from, to) =>
+      this.db.from("charges").select("amount").eq("rent_id", rentId).order("seq").range(from, to),
+    );
+    return rows.reduce((s, r) => s + Number((r as Row).amount), 0);
   }
 
   async markChargeFeeSettled(chargeId: string, ref: string): Promise<void> {

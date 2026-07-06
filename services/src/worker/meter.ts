@@ -115,33 +115,23 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   // can't cover the refill the wallet is dry: suspend and stamp suspended_at for the grace timer.
   const priceAtomic = BigInt(Math.round(provider.pricePerCharge * 1_000_000));
 
-  // Optional spend cap: stop before a charge that would push total spend over it.
+  // Optional spend cap: stop before a charge that would push total spend over it, and remember
+  // how many whole units the cap still allows so a multi-unit catch-up tick can't blow past it
+  // either (the loop below bills up to perTickCap units after this check).
+  let capUnitsLeft = Infinity;
   if (rent.maxSpendAtomic != null) {
     const spent = await registry.rentCost(rentId);
     if (spent + Number(priceAtomic) > rent.maxSpendAtomic) {
       await registry.updateRent(rentId, { status: "completed", totalCost: spent, endedAt: isoNow(), statusReason: `reached spend cap of ${rent.maxSpendAtomic} atomic` });
       return { charged: false, status: "completed", reason: "spend cap reached" };
     }
+    if (priceAtomic > 0n) capUnitsLeft = Math.floor((rent.maxSpendAtomic - spent) / Number(priceAtomic));
   }
 
   // Optional time cap: stop once we're at/past expires_at.
   if (rent.expiresAt != null && clock() >= new Date(rent.expiresAt).getTime()) {
     await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow(), statusReason: "reached time limit" });
     return { charged: false, status: "completed", reason: "time cap reached" };
-  }
-
-  const topupUnits = deps.topupUnits ?? maxUnits;
-  if (topupUnits > 0 && priceAtomic > 0n) {
-    const charged = (await registry.listCharges(rentId)).length;
-    if (charged % topupUnits === 0) {
-      try {
-        await settlement.ensureFunded(BigInt(topupUnits) * priceAtomic);
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : "top-up failed";
-        await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
-        return { charged: false, status: "suspended", reason };
-      }
-    }
   }
 
   // What a "unit" is comes from the descriptor. Volume types (VPN, storage) owe however many whole
@@ -155,6 +145,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   const now = clock();
   const d = descriptorFor(provider.resourceType);
   const perTickCap = deps.perTickCap ?? 10;
+  const chargedSoFar = await registry.countCharges(rentId);
   let pending: number;
   let watermarkMs: number;
   let bootstrap = false;
@@ -162,7 +153,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     const accrued = deps.readUsage
       ? await deps.readUsage(`${provider.endpointUrl}/usage?session=${rent.id}`)
       : 0;
-    pending = Math.max(0, accrued - (await registry.listCharges(rentId)).length);
+    pending = Math.max(0, accrued - chargedSoFar);
     watermarkMs = now;
   } else if (rent.lastChargedAt) {
     watermarkMs = new Date(rent.lastChargedAt).getTime();
@@ -177,14 +168,36 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     return { charged: false, status: "running", reason: "no units pending" };
   }
 
+  const toCharge = Math.min(pending, perTickCap, capUnitsLeft);
+
+  // Keep the Gateway float fed as a rolling buffer of topupUnits of runway, refilled from the EOA
+  // in one chunk (ensureFunded is a no-op when the float still covers it). The trigger is "will
+  // this tick's charges cross a topupUnits boundary", NOT "does the count sit exactly on one": a
+  // catch-up tick bills several units at once and skips exact multiples, which under the old
+  // modulo check meant the refill could simply never fire again and the float drained while the
+  // lease still said running. Crossing detection can't be skipped. If the EOA can't cover the
+  // refill the wallet is dry: suspend and stamp suspended_at for the grace timer.
+  const topupUnits = deps.topupUnits ?? maxUnits;
+  if (topupUnits > 0 && priceAtomic > 0n) {
+    const crossesBoundary =
+      Math.floor(chargedSoFar / topupUnits) !== Math.floor((chargedSoFar + toCharge) / topupUnits);
+    if (chargedSoFar === 0 || crossesBoundary) {
+      try {
+        await settlement.ensureFunded(BigInt(Math.max(topupUnits, toCharge)) * priceAtomic);
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : "top-up failed";
+        await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
+        return { charged: false, status: "suspended", reason };
+      }
+    }
+  }
+
   const url = `${provider.endpointUrl}${d.path}?session=${rent.id}`;
   const lh = deps.health && deps.degradation ? deps.health.for(rentId, provider.id) : null;
   let chargedAny = false;
   let chargedCount = 0;
   let degradedReason: string | null = null;
-  const toCharge = Math.min(pending, perTickCap);
   for (let i = 0; i < toCharge; i++) {
-    const charges = await registry.listCharges(rentId);
     try {
       const paid = await settlement.payForCompute(url);
       const paidAtomic = Number(paid.amountAtomic);
@@ -194,7 +207,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
       // remittance covers this charge.
       const feeAtomic = Math.floor((paidAtomic * (deps.feeBps ?? 0)) / 10_000);
       await registry.recordCharge({
-        rentId, providerId: provider.id, seq: charges.length,
+        rentId, providerId: provider.id, seq: chargedSoFar + chargedCount,
         amount: paidAtomic, feeAmount: feeAtomic, feeSettlementRef: null,
         authorizationRef: null, settled: false, settlementRef: paid.settlementRef,
       });
@@ -206,9 +219,22 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
         await registry.updateRent(rentId, { status: "suspended", statusReason: e.message });
         return { charged: chargedAny, status: "suspended", reason: e.message };
       }
-      // A failed hit is a health sample too. Once the streak crosses the monitor's threshold the
-      // provider is degraded and we resolve a migrate/hold below instead of just retrying forever.
-      if (lh) {
+      // Before blaming the provider, check whose failure this was. A pay that failed because OUR
+      // float ran dry is a funding problem: probing ensureFunded either refills it (deposited =
+      // true -> retry next tick, no health penalty for the provider) or throws (the EOA is dry
+      // end-to-end -> balance-suspend with the grace stamp, same as the pre-loop refill path).
+      // Only a failure with a healthy float is a provider health sample; once the streak crosses
+      // the monitor's threshold we resolve a migrate/hold below instead of just retrying forever.
+      let fundingShaped = false;
+      try {
+        const probe = await settlement.ensureFunded(BigInt(Math.max(topupUnits, 1)) * priceAtomic);
+        fundingShaped = probe.deposited;
+      } catch (fundErr) {
+        const reason = fundErr instanceof Error ? fundErr.message : "top-up failed";
+        await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
+        return { charged: chargedAny, status: "suspended", reason };
+      }
+      if (!fundingShaped && lh) {
         const h = lh.monitor.observe({ ok: false });
         if (!h.healthy) degradedReason = h.reason;
       }
