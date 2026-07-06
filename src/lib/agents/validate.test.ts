@@ -57,6 +57,15 @@ test("parseProviderBody rejects a VPN listing missing exitLocation", () => {
   if (!r.ok) expect(r.message).toMatch(/exitLocation|specs/i);
 });
 
+test("parseProviderBody rejects a blank endpoint URL (the dashboard form ships one by default)", () => {
+  const r = parseProviderBody({
+    alias: "a1", endpointUrl: "", resourceType: "GPU", region: "US-East", pricePerCharge: 0.0001,
+    specs: { gpuModel: "H100", vramGb: 80, region: "US-East" },
+  });
+  expect(r.ok).toBe(false);
+  if (!r.ok) expect(r.message).toMatch(/endpointUrl/);
+});
+
 test("parseProviderBody rejects a non-positive or non-finite price", () => {
   const base = { alias: "a", endpointUrl: "https://x.example.com", resourceType: "GPU", region: "US" };
   expect(parseProviderBody({ ...base, pricePerCharge: 0 }).ok).toBe(false);

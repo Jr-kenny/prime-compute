@@ -9,6 +9,7 @@ import {
   createRentFor, listRentsFor, getRentFor, cancelRentFor, registerProviderFor, listMyProvidersFor,
 } from "@/lib/marketplace/service";
 import { tallyRentsByProvider } from "@/lib/marketplace/rent-counts";
+import { parseProviderBody } from "@/lib/agents/validate";
 
 // Humans are just one principal type; resolve the session to a Principal and use the shared service.
 function userPrincipal(user: { id: string; walletAddress: string }): Principal {
@@ -75,8 +76,14 @@ export const registerProvider = createServerFn({ method: "POST", strict: false }
   .validator((d: { accessToken: string; provider: NewProviderInput }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
+    // Same bouncer as the REST door: endpoint URL must be a real, public http(s) address (the
+    // metering worker pays whatever this URL serves, so it can't be blank or point inward),
+    // price must be positive, and specs must match the service type. The dashboard form used
+    // to skip all of this, which let endpoint-less listings into the marketplace.
+    const parsed = parseProviderBody(data.provider);
+    if (!parsed.ok) throw new Error(parsed.message);
     return registerProviderFor(getRegistry(), userPrincipal(user), {
-      ...data.provider,
+      ...parsed.value,
       trust: defaultTrust(),
       online: true,
       avgLatencyMs: 0,

@@ -64,6 +64,7 @@ function Register() {
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [providerId, setProviderId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
@@ -92,6 +93,7 @@ function Register() {
     }
 
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const specs = buildSpecs(form);
 
@@ -111,6 +113,10 @@ function Register() {
       setProviderId(created.id);
       setDone(true);
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+    } catch (e) {
+      // The server rejects incomplete listings (blank/private endpoint URL, bad price/specs);
+      // surface its message so the lister can fix the form instead of a silent no-op.
+      setSubmitError(e instanceof Error ? e.message : "registration failed, try again");
     } finally {
       setSubmitting(false);
     }
@@ -294,6 +300,12 @@ function Register() {
               {category === "network" && <Review label="VPN" value={`${form.exitLocation} · ${form.protocol} · ${form.bandwidthMbps} Mbps`} />}
               <Review label="Region" value={form.region} />
               <Review label="Price" value={`$${form.pricePerCharge.toFixed(7)} / sec`} />
+            </div>
+          )}
+
+          {!done && submitError && (
+            <div className="mt-6 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+              {submitError}
             </div>
           )}
 
