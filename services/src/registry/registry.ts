@@ -46,6 +46,11 @@ export interface Registry {
   listProviders(filter?: ProviderFilter): Promise<Provider[]>;
   getProvider(id: string): Promise<Provider | null>;
   setProviderOnline(id: string, online: boolean): Promise<void>;
+  /** Remove a listing from the marketplace and matching without touching its ledger history.
+   * Hard deletes are impossible by design: charges/rents reference the provider row forever.
+   * getProvider still resolves a delisted provider so history views and any still-running
+   * rent keep working; only listProviders hides it. */
+  delistProvider(id: string): Promise<void>;
   bumpComputeScore(id: string, delta: number): Promise<Provider>;
 
   createRent(r: NewRent): Promise<Rent>;

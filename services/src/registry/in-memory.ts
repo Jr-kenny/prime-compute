@@ -4,6 +4,7 @@ import type { DecisionLog } from "../runtime/types";
 
 export class InMemoryRegistry implements Registry {
   private providers = new Map<string, Provider>();
+  private delisted = new Set<string>();
   private rents = new Map<string, Rent>();
   private decisions: RentDecision[] = [];
   private decisionLogs: { rentId: string; log: DecisionLog }[] = [];
@@ -16,7 +17,7 @@ export class InMemoryRegistry implements Registry {
   }
 
   async listProviders(filter?: ProviderFilter): Promise<Provider[]> {
-    let out = [...this.providers.values()];
+    let out = [...this.providers.values()].filter((p) => !this.delisted.has(p.id));
     if (filter?.resourceType) out = out.filter((p) => p.resourceType === filter.resourceType);
     if (filter?.onlineOnly) out = out.filter((p) => p.online);
     if (filter?.ownerWallet) out = out.filter((p) => p.ownerWallet === filter.ownerWallet);
@@ -30,6 +31,11 @@ export class InMemoryRegistry implements Registry {
   async setProviderOnline(id: string, online: boolean): Promise<void> {
     const p = this.providers.get(id);
     if (p) this.providers.set(id, { ...p, online });
+  }
+
+  async delistProvider(id: string): Promise<void> {
+    this.delisted.add(id);
+    await this.setProviderOnline(id, false);
   }
 
   async bumpComputeScore(id: string, delta: number): Promise<Provider> {

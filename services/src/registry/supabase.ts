@@ -128,7 +128,7 @@ export class SupabaseRegistry implements Registry {
   }
 
   async listProviders(filter?: ProviderFilter): Promise<Provider[]> {
-    let q = this.db.from("providers").select();
+    let q = this.db.from("providers").select().is("delisted_at", null);
     if (filter?.resourceType) q = q.eq("resource_type", filter.resourceType);
     if (filter?.onlineOnly) q = q.eq("online", true);
     if (filter?.ownerWallet) q = q.eq("owner_wallet", filter.ownerWallet);
@@ -146,6 +146,13 @@ export class SupabaseRegistry implements Registry {
   async setProviderOnline(id: string, online: boolean): Promise<void> {
     const { error } = await this.db.from("providers").update({ online }).eq("id", id);
     if (error) throw new Error(`setProviderOnline: ${error.message}`);
+  }
+
+  async delistProvider(id: string): Promise<void> {
+    // online:false too, so guardrails reject it even for code paths holding a stale reference.
+    const { error } = await this.db.from("providers")
+      .update({ delisted_at: new Date().toISOString(), online: false }).eq("id", id);
+    if (error) throw new Error(`delistProvider: ${error.message}`);
   }
 
   async bumpComputeScore(id: string, delta: number): Promise<Provider> {

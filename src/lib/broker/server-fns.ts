@@ -7,6 +7,7 @@ import type { NewProvider, RentPatch } from "@services/registry/registry";
 import type { Principal, Rent, RentSpec } from "@services/domain";
 import {
   createRentFor, listRentsFor, getRentFor, cancelRentFor, registerProviderFor, listMyProvidersFor,
+  setProviderOnlineFor, delistProviderFor,
 } from "@/lib/marketplace/service";
 import { tallyRentsByProvider } from "@/lib/marketplace/rent-counts";
 import { parseProviderBody } from "@/lib/agents/validate";
@@ -88,6 +89,20 @@ export const registerProvider = createServerFn({ method: "POST", strict: false }
       online: true,
       avgLatencyMs: 0,
     });
+  });
+
+export const setProviderOnline = createServerFn({ method: "POST" })
+  .validator((d: { accessToken: string; providerId: string; online: boolean }) => d)
+  .handler(async ({ data }) => {
+    const user = await requireUser(data.accessToken);
+    await setProviderOnlineFor(getRegistry(), userPrincipal(user), data.providerId, data.online);
+  });
+
+export const delistProvider = createServerFn({ method: "POST" })
+  .validator((d: { accessToken: string; providerId: string }) => d)
+  .handler(async ({ data }) => {
+    const user = await requireUser(data.accessToken);
+    await delistProviderFor(getRegistry(), userPrincipal(user), data.providerId);
   });
 
 export const createRent = createServerFn({ method: "POST" })

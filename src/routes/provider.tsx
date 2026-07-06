@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { authGuard } from "../lib/auth/guard";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Server, PlusCircle } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Server, PlusCircle, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { Button } from "@/components/ui/button";
 import { OperationalTile } from "@/components/site/OperationalTile";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ComputeScoreRing } from "@/components/site/ComputeScoreRing";
 import { useSession } from "@/lib/auth/session";
-import { listMyProviders, listProviderRents } from "@/lib/broker/server-fns";
+import { listMyProviders, listProviderRents, setProviderOnline, delistProvider } from "@/lib/broker/server-fns";
 import type { Provider, Rent } from "@services/domain";
 
 export const Route = createFileRoute("/provider")({
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/provider")({
 function ProviderDash() {
   const { session, walletAddress } = useSession();
   const accessToken = session?.access_token;
-  const [onlineByServer, setOnlineByServer] = useState<Record<string, boolean>>({});
+  const queryClient = useQueryClient();
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
 
   const { data: myServers = [] } = useQuery({
@@ -59,8 +59,31 @@ function ProviderDash() {
 
   const allRents = Object.values(rentsByProvider).flat();
   const totalEarned = allRents.reduce((s, r) => s + r.totalCost, 0);
-  const isOnline = (s: Provider) => onlineByServer[s.id] ?? s.online;
+  const isOnline = (s: Provider) => s.online;
   const selectedServer = myServers.find((s) => s.id === selectedServerId) ?? null;
+
+  const refreshServers = () => queryClient.invalidateQueries({ queryKey: ["providers", "mine", accessToken] });
+
+  // The toggle writes through to the registry: offline means the broker stops matching new
+  // rents to this server (running ones keep going). Optimistic flip, refetch settles the truth.
+  const onlineMutation = useMutation({
+    mutationFn: (vars: { providerId: string; online: boolean }) =>
+      setProviderOnline({ data: { accessToken: accessToken!, ...vars } }),
+    onMutate: (vars) => {
+      queryClient.setQueryData<Provider[]>(["providers", "mine", accessToken], (list) =>
+        list?.map((p) => (p.id === vars.providerId ? { ...p, online: vars.online } : p)),
+      );
+    },
+    onSettled: refreshServers,
+  });
+
+  const delistMutation = useMutation({
+    mutationFn: (providerId: string) => delistProvider({ data: { accessToken: accessToken!, providerId } }),
+    onSuccess: () => {
+      setSelectedServerId(null);
+      refreshServers();
+    },
+  });
 
   return (
     <>
@@ -162,9 +185,15 @@ function ProviderDash() {
         rents={selectedServer ? rentsByProvider[selectedServer.id] ?? [] : []}
         online={selectedServer ? isOnline(selectedServer) : false}
         onOnlineChange={(v) =>
-          selectedServer && setOnlineByServer((m) => ({ ...m, [selectedServer.id]: v }))
+          selectedServer && onlineMutation.mutate({ providerId: selectedServer.id, online: v })
         }
-        onClose={() => setSelectedServerId(null)}
+        onDelist={() => selectedServer && delistMutation.mutate(selectedServer.id)}
+        delistPending={delistMutation.isPending}
+        delistError={delistMutation.error instanceof Error ? delistMutation.error.message : null}
+        onClose={() => {
+          delistMutation.reset();
+          setSelectedServerId(null);
+        }}
       />
     </>
   );
@@ -175,15 +204,24 @@ function ServerDetailSheet({
   rents,
   online,
   onOnlineChange,
+  onDelist,
+  delistPending,
+  delistError,
   onClose,
 }: {
   server: Provider | null;
   rents: Rent[];
   online: boolean;
   onOnlineChange: (v: boolean) => void;
+  onDelist: () => void;
+  delistPending: boolean;
+  delistError: string | null;
   onClose: () => void;
 }) {
   const runningRent = rents.find((r) => r.status === "running");
+  const activeRents = rents.filter((r) =>
+    r.status === "running" || r.status === "queued" || r.status === "paused" || r.status === "suspended",
+  );
   const cpuCores = server?.specs.cpuCores as number | undefined;
   const ramGb = server?.specs.ramGb as number | undefined;
   const storageGb = server?.specs.storageGb as number | undefined;
@@ -236,9 +274,25 @@ function ServerDetailSheet({
               </div>
             ) : (
               <div className="text-xs text-muted-foreground">
-                {online ? "Waiting for matched rents…" : "Server offline. Toggle to start accepting rents."}
+                {online ? "Waiting for matched rents…" : "Server offline. New rents won't match it; running ones continue."}
               </div>
             )}
+            <div className="border-t border-border pt-4 space-y-2">
+              <Button
+                variant="outline"
+                disabled={delistPending || activeRents.length > 0}
+                onClick={onDelist}
+                className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" /> {delistPending ? "Deleting…" : "Delete listing"}
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                {activeRents.length > 0
+                  ? `${activeRents.length} active lease${activeRents.length === 1 ? "" : "s"} on this server. Wait for them to end (toggle offline to stop new matches) before deleting.`
+                  : "Removes this server from the marketplace. Its payment history is kept."}
+              </p>
+              {delistError && <p className="text-[11px] text-destructive">{delistError}</p>}
+            </div>
           </div>
         )}
       </SheetContent>
