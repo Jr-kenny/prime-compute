@@ -22,6 +22,13 @@ services:
         value: "300"
       - key: WORKER_SUSPEND_GRACE_MS
         value: "3600000"
+      # Payment throughput: lanes shared by the whole fleet. Each metered second costs one
+      # x402 round trip, so lanes must comfortably exceed the number of concurrently running
+      # per-second leases or every meter lags. 40 covers ~30 live leases in real time.
+      - key: WORKER_CONCURRENCY
+        value: "40"
+      - key: WORKER_PER_TICK_CAP
+        value: "10"
       # Secrets: sync:false means Render prompts for the value on first deploy.
       # Use the same values as the web app's env (root .env).
       - key: SUPABASE_URL

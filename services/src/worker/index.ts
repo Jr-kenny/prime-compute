@@ -26,7 +26,12 @@ const LEASE_CAP_ATOMIC = BigInt(process.env.WORKER_LEASE_CAP_ATOMIC ?? "1000000"
 // lease left suspended for balance is terminated after the grace window.
 const TOPUP_UNITS = Number(process.env.WORKER_TOPUP_UNITS ?? "300"); // buffer size (deposit chunk)
 const SUSPEND_GRACE_MS = Number(process.env.WORKER_SUSPEND_GRACE_MS ?? String(60 * 60 * 1000)); // 1h
-const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? "10"); // running leases metered at once
+// Throughput: the fleet's payment rate is bounded by concurrency / pay-latency. Each metered
+// second is one x402 round trip (~1-2s), so 10 lanes tops out near 5-10 payments/sec TOTAL and
+// a fleet of 30 per-second leases visibly lags its own meter. 40 lanes covers that fleet at
+// real-time cadence; PER_TICK_CAP bounds how many catch-up seconds one lease can bill per pass.
+const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? "40"); // running leases metered at once
+const PER_TICK_CAP = Number(process.env.WORKER_PER_TICK_CAP ?? "10"); // max paid hits per lease per pass
 
 const registry = new SupabaseRegistry(cfg.supabase.url, cfg.supabase.serviceRoleKey);
 const admin = createClient(cfg.supabase.url, cfg.supabase.serviceRoleKey, { auth: { persistSession: false } });
@@ -87,6 +92,7 @@ const health = degradation
 const deps: WorkerDeps = {
   registry, settlementFor, rank, tickMs: TICK_MS, defaultMaxUnits: DEFAULT_MAX_UNITS,
   feeBps: Number(process.env.PLATFORM_FEE_BPS ?? "0"),
+  perTickCap: PER_TICK_CAP,
   health, degradation, maxMigrations: Number(process.env.WORKER_MAX_MIGRATIONS ?? "3"),
   topupUnits: TOPUP_UNITS, suspendGraceMs: SUSPEND_GRACE_MS, concurrency: CONCURRENCY,
 };
