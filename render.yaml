@@ -24,9 +24,12 @@ services:
         value: "3600000"
       # Payment throughput: lanes shared by the whole fleet. Each metered second costs one
       # x402 round trip, so lanes must comfortably exceed the number of concurrently running
-      # per-second leases or every meter lags. 40 covers ~30 live leases in real time.
+      # per-second leases or every meter lags. Idle lanes cost nothing (a lane above the live
+      # lease count is simply never used), so this is sized as headroom; the practical ceiling
+      # near 100 BUSY lanes is the free-tier box itself, which is where batched per-pass
+      # payments (or a bigger instance) take over.
       - key: WORKER_CONCURRENCY
-        value: "40"
+        value: "100"
       - key: WORKER_PER_TICK_CAP
         value: "10"
       # Secrets: sync:false means Render prompts for the value on first deploy.
