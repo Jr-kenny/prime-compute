@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { Copy, ArrowLeft, ArrowRight, Check, ExternalLink } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { getSpendWalletBalance, withdrawFromSpendWallet, getGatewayBalanceFn, re
 import { listMySpend } from "@/lib/wallet/history-fns";
 import { erc20Abi, parseUnits, formatUnits } from "viem";
 import { useAccount, useWriteContract, useReadContract } from "wagmi";
-import { usdcAddress } from "@/lib/wallet-connect/config";
+import { usdcAddress, explorerAddressUrl } from "@/lib/wallet-connect/config";
 
 function AddressRow({ label, hint, address }: { label: string; hint?: string; address: string }) {
   return (
@@ -28,6 +28,21 @@ function AddressRow({ label, hint, address }: { label: string; hint?: string; ad
           aria-label={`Copy ${label}`}
         >
           <Copy className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="border border-border shrink-0"
+          asChild
+        >
+          <a
+            href={address.startsWith("0x") ? explorerAddressUrl(address) : undefined}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`View ${label} on the Arc explorer`}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
         </Button>
       </div>
     </div>

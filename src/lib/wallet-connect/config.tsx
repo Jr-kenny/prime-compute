@@ -7,11 +7,19 @@ import { getDefaultConfig, RainbowKitProvider, darkTheme } from "@rainbow-me/rai
 import { WagmiProvider } from "wagmi";
 import "@rainbow-me/rainbowkit/styles.css";
 
+// The public Arc testnet explorer. Wired into the chain (so RainbowKit's account modal gets
+// "view on explorer" for free) and exported for direct links anywhere an address shows.
+export const arcExplorerUrl =
+  (import.meta.env.VITE_ARC_EXPLORER_URL as string | undefined) ?? "https://testnet.arcscan.app";
+
+export const explorerAddressUrl = (address: string) => `${arcExplorerUrl}/address/${address}`;
+
 export const arcTestnet = defineChain({
   id: Number(import.meta.env.VITE_ARC_CHAIN_ID ?? 5042002),
   name: "Arc Testnet",
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
   rpcUrls: { default: { http: [import.meta.env.VITE_ARC_RPC_URL as string] } },
+  blockExplorers: { default: { name: "Arc Explorer", url: arcExplorerUrl } },
   testnet: true,
 });
 
