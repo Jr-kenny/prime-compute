@@ -63,7 +63,7 @@ function Dashboard() {
     (acc, r) => acc + (r.providerId ? (providersById[r.providerId]?.pricePerCharge ?? 0) : 0),
     0,
   );
-  const totalSpent = rents.reduce((s, r) => s + r.totalCost, 0);
+  const totalSpent = rents.reduce((s, r) => s + r.totalCost, 0) / 1_000_000; // totalCost is atomic USDC
   const selectedRent = rents.find((r) => r.id === selectedRentId) ?? null;
 
   return (
@@ -134,7 +134,7 @@ function Dashboard() {
                       <td className="py-2">{r.name}</td>
                       <td className="text-muted-foreground">{r.providerId ? providersById[r.providerId]?.alias ?? "—" : "—"}</td>
                       <td>{r.startedAt && r.endedAt ? `${Math.round((new Date(r.endedAt).getTime() - new Date(r.startedAt).getTime()) / 60000)}m` : "—"}</td>
-                      <td>${r.totalCost.toFixed(4)}</td>
+                      <td>${(r.totalCost / 1_000_000).toFixed(6)}</td>
                       <td><StatusBadge status={r.status} /></td>
                       <td className="text-muted-foreground text-xs">{new Date(r.createdAt).toLocaleDateString()}</td>
                     </tr>
@@ -149,7 +149,7 @@ function Dashboard() {
             <TabsContent value="billing" className="mt-6 grid gap-6 lg:grid-cols-3">
               <div className="glass-card p-6 lg:col-span-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Total spent</div>
-                <div className="mt-2 text-3xl font-bold text-foreground">${totalSpent.toFixed(4)}</div>
+                <div className="mt-2 text-3xl font-bold text-foreground">${totalSpent.toFixed(6)}</div>
                 <div className="mt-1 text-xs text-muted-foreground">across {rents.length} rent{rents.length === 1 ? "" : "s"}</div>
               </div>
             </TabsContent>

@@ -58,7 +58,7 @@ function ProviderDash() {
   });
 
   const allRents = Object.values(rentsByProvider).flat();
-  const totalEarned = allRents.reduce((s, r) => s + r.totalCost, 0);
+  const totalEarned = allRents.reduce((s, r) => s + r.totalCost, 0) / 1_000_000; // totalCost is atomic USDC
   const isOnline = (s: Provider) => s.online;
   const selectedServer = myServers.find((s) => s.id === selectedServerId) ?? null;
 
@@ -137,7 +137,7 @@ function ProviderDash() {
             <TabsContent value="earnings" className="mt-6 grid gap-6 lg:grid-cols-3">
               <div className="glass-card p-6 lg:col-span-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Total earned</div>
-                <div className="mt-2 text-3xl font-bold text-foreground">${totalEarned.toFixed(4)}</div>
+                <div className="mt-2 text-3xl font-bold text-foreground">${totalEarned.toFixed(6)}</div>
                 <div className="mt-1 text-xs text-muted-foreground">billed to renters across {allRents.length} rent{allRents.length === 1 ? "" : "s"} · paid directly to your endpoint wallet</div>
               </div>
             </TabsContent>
@@ -150,7 +150,7 @@ function ProviderDash() {
                     <tr key={r.id}>
                       <td className="py-2">{r.name}</td>
                       <td>{r.startedAt && r.endedAt ? `${Math.round((new Date(r.endedAt).getTime() - new Date(r.startedAt).getTime()) / 60000)}m` : "—"}</td>
-                      <td>${r.totalCost.toFixed(4)}</td>
+                      <td>${(r.totalCost / 1_000_000).toFixed(6)}</td>
                       <td className="text-muted-foreground">{r.status}</td>
                     </tr>
                   ))}

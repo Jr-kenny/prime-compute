@@ -118,7 +118,7 @@ function ProviderDetail() {
                 <tr key={r.id}>
                   <td className="py-2 font-mono text-xs">{r.name}</td>
                   <td>{r.startedAt && r.endedAt ? `${Math.round((new Date(r.endedAt).getTime() - new Date(r.startedAt).getTime()) / 60000)}m` : "—"}</td>
-                  <td>${r.totalCost.toFixed(4)}</td>
+                  <td>${(r.totalCost / 1_000_000).toFixed(6)}</td>
                   <td><StatusBadge status={r.status} /></td>
                 </tr>
               ))}
