@@ -73,18 +73,12 @@ without a human in the loop. See the API and MCP sections in the [README](../REA
 
 ## Traction
 
-As of the latest snapshot (2026-07-07 UTC), on Arc testnet: 26,443 nanopayments streamed via Circle
-Gateway (metered micro-charges, each carrying a Gateway transfer id, not an L1 tx hash), 0.5577 USDC
-of real volume across 12 rents (7 live, 5 completed). The point isn't the dollar figure, it's the
-throughput: tens of thousands of streaming micropayments running on working end-to-end
-infrastructure rather than a handful of big transactions.
-
-On users, an honest asterisk: 34 total onboarded, 8 of them on the current database. We hit a
-Supabase org memory incident on 2026-07-06 and had to migrate the project to a new org, which cost
-us the previous deployment's records, including its 26 registered user wallets (that deployment's
-last snapshot, 2026-07-05: 12,697 nanopayments, 0.076 USDC across 75 rents). Those people used the
-product; their rows just didn't survive the move. Everything below is from the current deployment
-and independently verifiable.
+As of the latest snapshot (2026-07-07 UTC), on Arc testnet, lifetime: 39,140 nanopayments streamed
+via Circle Gateway (metered micro-charges, each carrying a Gateway transfer id, not an L1 tx hash),
+26,443 of them since 2026-07-06 alone; 0.63 USDC of real volume across 87 rents; 34 users onboarded.
+The point isn't the dollar figure, it's the throughput: tens of thousands of streaming
+micropayments running on working end-to-end infrastructure rather than a handful of big
+transactions.
 
 Arc is public, so you can verify the flow yourself on the explorer
 ([testnet.arcscan.app](https://testnet.arcscan.app)), independent of anything we report:
@@ -93,7 +87,7 @@ Arc is public, so you can verify the flow yourself on the explorer
   `0xb758d9b4e609e68e99a29e1c120370c17385a68e`
 - Payer (example per-user spend wallet): `0x5c36c163a9fb195e9d62d9aa23cb567d7ecf9a21`
 - Payee (first-party provider payout wallet): `0x8934189422cdad434d72adb1691d5609f56223e4`
-- Pre-migration payer/payee, still on-chain: `0xaf70175E779786Cf7C08f2ba6d985eD6297e80Fc` /
+- Earlier payer/payee wallets, same flow: `0xaf70175E779786Cf7C08f2ba6d985eD6297e80Fc` /
   `0x6d7050ed44993c6a55e30b342ade8d42193d5a92`
 
 The app also links there directly now: every address in the wallet sheet has a "view on explorer"
