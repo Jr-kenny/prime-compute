@@ -356,4 +356,23 @@ the estimate look like proof the deposit call was malformed when it was actually
 the estimate accept a pending-allowance/simulated-approve context, or return the revert reason string so it's
 obvious it's an allowance issue and not a bad signature/params.
 
+## Rate limits on the Gateway client surface as a bare string and read like an outage
+
+Area: Gateway (x402-batching client) - 2026-07-07
+
+With the always-on worker metering ~7 concurrent leases (a charge per lease per tick, plus a
+`getBalances` before each float refill), the Gateway client started throwing plain "API rate limit
+error". No status code surfaced through the SDK, no Retry-After, no indication of which endpoint or
+what the limit is, just that string where a deposit result should be. My worker treated any
+`ensureFunded` throw as "wallet is dry" and suspended the lease, so a 429 killed two live, funded
+rentals until I taught it to tell balance errors from everything else by regexing the message text,
+which is exactly the kind of string-matching that breaks on the next SDK release. Related: the same
+classification problem exists for `createContractExecutionTransaction` failures, where a transient
+"FAILED: FAILED_ON_ONCHAIN" and a genuinely empty wallet look identical. Three asks: (1) document
+the rate limits for the Gateway/balances/transfers endpoints so a metering service can budget calls
+per second, (2) surface 429s as a structured error (code + retryAfter) through the client instead of
+a message string, and (3) give errors a stable machine-readable class (rate_limit / insufficient_funds
+/ onchain_failure) so integrators can branch on cause without parsing prose. Streaming nanopayments
+means calling these APIs a lot; the error taxonomy is load-bearing at that call rate.
+
 <!-- Add new entries above this line as I hit them during implementation. -->
