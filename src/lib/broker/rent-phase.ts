@@ -68,9 +68,18 @@ export function rentPhase(rent: Rent, provider: Provider | undefined): RentPhase
         terminal: false,
       };
     case "completed":
-      return { phase: "completed", title: "Completed", description: "This rent finished and billing stopped.", canConnect: false, terminal };
+      return {
+        phase: "completed",
+        title: "Completed",
+        // A renter-stopped lease is still a completion (metered: they paid for what ran); say so.
+        description: rent.statusReason === "stopped by renter"
+          ? "You stopped this rent. You only paid for what ran."
+          : "This rent finished and billing stopped.",
+        canConnect: false,
+        terminal,
+      };
     case "cancelled":
-      return { phase: "cancelled", title: "Cancelled", description: "You stopped this rent.", canConnect: false, terminal };
+      return { phase: "cancelled", title: "Cancelled", description: "You cancelled this rent before it started; nothing was billed.", canConnect: false, terminal };
     case "failed":
       return { phase: "failed", title: "Couldn't start", description: "No provider matched this rent's requirements.", canConnect: false, terminal };
   }

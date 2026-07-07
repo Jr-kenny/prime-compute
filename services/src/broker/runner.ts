@@ -27,13 +27,13 @@ export type RunResult = {
 
 const now = () => new Date().toISOString();
 
-// Map how the stream stopped to the rent's terminal status. A clean budget/iteration
-// stop is completed; a user cancel is cancelled; a degradation we could not recover
-// from is failed.
+// Map how the stream stopped to the rent's terminal status. By the time the stream stops,
+// work ran and was metered, so a user cancel is a normal completion just like a budget or
+// cap stop (metered rental: you paid for what ran). Only a degradation we could not
+// recover from is failed.
 function finalStatus(stoppedBy: MigrationStoppedBy): RentStatus {
-  if (stoppedBy === "cancel") return "cancelled";
   if (stoppedBy === "unhealthy" || stoppedBy === "no-alternative") return "failed";
-  return "completed"; // maxUnits | cap
+  return "completed"; // maxUnits | cap | cancel
 }
 
 // One rent end to end: match -> guard -> record decision -> fund -> stream (with

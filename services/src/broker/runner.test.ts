@@ -28,13 +28,13 @@ test("happy path: records a decision, streams, finalizes completed with exact co
   expect(finalized?.totalCost).toBe(300);
 });
 
-test("cancel finalizes the rent as cancelled", async () => {
+test("cancel mid-stream finalizes the rent as completed (paid for what ran)", async () => {
   const { reg, rent } = await seeded();
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 100_000n });
   let n = 0;
   const result = await runRent(rent.id, { registry: reg, settlement }, { maxUnits: 100, shouldStop: () => n++ >= 1 });
   expect(result.stoppedBy).toBe("cancel");
-  expect((await reg.getRent(rent.id))?.status).toBe("cancelled");
+  expect((await reg.getRent(rent.id))?.status).toBe("completed");
 });
 
 test("no matching provider fails the rent without spending", async () => {

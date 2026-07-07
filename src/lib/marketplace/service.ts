@@ -42,6 +42,12 @@ export async function cancelRentFor(reg: Registry, principal: Principal, rentId:
   const rent = await reg.getRent(rentId);
   if (!rent || !ownsRent(principal, rent)) throw new Error("not your rent");
   if (!canCancel(rent)) throw new Error(`cannot cancel a rent with status "${rent.status}"`);
+  // Stopping a lease that already ran is the normal end of a metered rental (the renter paid
+  // for exactly what ran), so it completes. Only a rent stopped before it ever started, when
+  // nothing ran and nothing was billed, is a cancellation.
+  if (rent.startedAt) {
+    return reg.updateRent(rentId, { status: "completed", endedAt: new Date().toISOString(), statusReason: "stopped by renter" });
+  }
   return reg.updateRent(rentId, { status: "cancelled", endedAt: new Date().toISOString() });
 }
 
