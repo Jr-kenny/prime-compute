@@ -116,6 +116,53 @@ test("an empty EOA suspends with a stamp, and a refunded tick resumes and clears
   expect((await reg.getRent(rent.id))?.suspendedAt).toBeNull();
 });
 
+test("a transient funding error (rate limit) does NOT suspend a running lease", async () => {
+  const { reg, rent } = await seed();
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 1 });
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 1, nowMs: () => clock };
+  await meterTick(rent.id, deps); // bootstrap charge, healthy
+
+  // The next refill boundary hits a Circle rate limit / on-chain blip instead of a dry wallet.
+  // The lease must stay running and retry, not park in suspended where nothing resumes it.
+  const flaky = {
+    ...settlement,
+    buyerAddress: settlement.buyerAddress,
+    ensureFunded: async () => { throw new Error("API rate limit error"); },
+    payForCompute: settlement.payForCompute.bind(settlement),
+    reconcile: settlement.reconcile.bind(settlement),
+  };
+  clock += 1001;
+  const res = await meterTick(rent.id, { ...deps, settlement: flaky });
+  expect(res.status).toBe("running");
+  expect((await reg.getRent(rent.id))?.status).toBe("running");
+
+  // Once the blip clears, the next tick charges normally again.
+  clock += 1001;
+  const recovered = await meterTick(rent.id, deps);
+  expect(recovered.status).toBe("running");
+  expect(recovered.charged).toBe(true);
+});
+
+test("a transient funding error during provisioning leaves the rent queued for retry", async () => {
+  const { reg, rent } = await seed();
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
+  const flaky = {
+    ...settlement,
+    buyerAddress: settlement.buyerAddress,
+    ensureFunded: async () => { throw new Error("contract execution approve(address,uint256) FAILED: FAILED_ON_ONCHAIN"); },
+    payForCompute: settlement.payForCompute.bind(settlement),
+    reconcile: settlement.reconcile.bind(settlement),
+  };
+  const res = await provisionLease(rent.id, { registry: reg, settlement: flaky, maxUnits: 3 });
+  expect(res.status).toBe("queued");
+  expect((await reg.getRent(rent.id))?.status).toBe("queued");
+  // And with the blip gone, the same rent provisions fine.
+  const ok = await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3 });
+  expect(ok.status).toBe("running");
+});
+
 test("meterTick completes a lease at its expires_at time", async () => {
   const { reg } = await seed();
   const start = 1_000_000;

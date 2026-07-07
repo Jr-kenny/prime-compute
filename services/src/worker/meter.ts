@@ -13,6 +13,13 @@ import { descriptorFor } from "../services/registry";
 
 const isoNow = () => new Date().toISOString();
 
+// Only a genuinely dry wallet should suspend a lease. Everything else the funding path can
+// throw (a Circle API rate limit, a transient on-chain approve/deposit failure, an RPC blip)
+// is retryable, and suspending on it parks a healthy funded lease forever: nothing ever
+// auto-resumes a suspend. Balance errors are the ones that need the renter to act.
+const isBalanceError = (msg: string) =>
+  /insufficient|exceeds\s.*balance|not enough|balance (is )?too low/i.test(msg);
+
 export type ProvisionDeps = {
   registry: Registry;
   settlement: SettlementAdapter;
@@ -51,8 +58,12 @@ export async function provisionLease(rentId: string, deps: ProvisionDeps): Promi
     if (minAtomic > 0n) await settlement.ensureFunded(minAtomic);
   } catch (e) {
     const reason = e instanceof Error ? e.message : "funding failed";
-    await registry.updateRent(rentId, { status: "suspended", statusReason: reason });
-    return { status: "suspended", reason };
+    if (isBalanceError(reason)) {
+      await registry.updateRent(rentId, { status: "suspended", statusReason: reason });
+      return { status: "suspended", reason };
+    }
+    // Transient funding error: leave the rent queued; the next worker pass retries provisioning.
+    return { status: "queued", reason: `transient funding error, retrying: ${reason}` };
   }
 
   await registry.updateRent(rentId, {
@@ -190,8 +201,13 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
         await settlement.ensureFunded(BigInt(Math.max(topupUnits, toCharge)) * priceAtomic);
       } catch (e) {
         const reason = e instanceof Error ? e.message : "top-up failed";
-        await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
-        return { charged: false, status: "suspended", reason };
+        if (isBalanceError(reason)) {
+          await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
+          return { charged: false, status: "suspended", reason };
+        }
+        // Transient refill failure: try the charge anyway (the float may still cover it). If
+        // the pay fails too, the stall path advances the watermark so the gap is never
+        // retro-billed, and the next tick retries the refill.
       }
     }
   }
@@ -243,8 +259,13 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
       fundingShaped = probe.deposited;
     } catch (fundErr) {
       const reason = fundErr instanceof Error ? fundErr.message : "top-up failed";
-      await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
-      return { charged: false, status: "suspended", reason };
+      if (isBalanceError(reason)) {
+        await registry.updateRent(rentId, { status: "suspended", statusReason: reason, suspendedAt: isoNow() });
+        return { charged: false, status: "suspended", reason };
+      }
+      // Transient probe failure (rate limit, RPC blip): funding-shaped, not the provider's
+      // fault. Keep running, no health penalty; the stall watermark bills nothing for the gap.
+      fundingShaped = true;
     }
     if (!fundingShaped && lh) {
       const h = lh.monitor.observe({ ok: false });
