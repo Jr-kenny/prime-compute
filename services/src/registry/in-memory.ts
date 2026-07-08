@@ -63,6 +63,8 @@ export class InMemoryRegistry implements Registry {
       endedAt: null,
       lastChargedAt: null,
       leaseAccessToken: null,
+      networkHostname: null,
+      networkStatus: null,
       feesSweptAt: null,
       statusReason: null,
       maxSpendAtomic: r.maxSpendAtomic ?? null,

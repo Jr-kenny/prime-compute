@@ -60,6 +60,8 @@ export type Rent = {
   endedAt: string | null;
   lastChargedAt: string | null; // when the meter last charged this lease (resumability)
   leaseAccessToken: string | null; // shown to the user as the connect credential
+  networkHostname: string | null; // the box's private hostname on the overlay (null = none provisioned)
+  networkStatus: string | null; // "provisioned" | "unprovisioned" | null; drives the fail-soft retry
   feesSweptAt: string | null; // when outstanding platform fees were collected after the rent ended
   statusReason: string | null; // why a non-happy status happened (e.g. the funding error behind a suspend)
   // Optional caps on a continuous lease (null = no cap). A set cap completes the lease.
