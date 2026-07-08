@@ -4,6 +4,7 @@ import { InMemoryRegistry } from "@services/registry/in-memory";
 import { defaultTrust } from "@services/trust/trust";
 import type { Principal } from "@services/domain";
 import { createRentFor, listRentsFor, getRentFor, cancelRentFor, registerProviderFor, listMyProvidersFor, setProviderOnlineFor, delistProviderFor } from "./service";
+import { FakeNetworkAdapter } from "@services/network/fake";
 
 const agent: Principal = { kind: "agent", id: "agent-1", walletAddress: "0xAGENT" };
 const other: Principal = { kind: "agent", id: "agent-2", walletAddress: "0xOTHER" };
@@ -33,6 +34,25 @@ test("getRentFor / cancelRentFor enforce ownership", async () => {
   await expect(cancelRentFor(reg, other, rent.id)).rejects.toThrow(/not your rent/);
   const cancelled = await cancelRentFor(reg, agent, rent.id);
   expect(cancelled.status).toBe("cancelled");
+});
+
+test("cancelRentFor revokes network access (a terminal transition the worker never sees)", async () => {
+  const reg = new InMemoryRegistry();
+  const net = new FakeNetworkAdapter();
+  const rent = await createRentFor(reg, agent, { name: "j", spec: { resourceType: "GPU", region: null } });
+  await net.mintRentAccess({ rentId: rent.id, providerId: "p1" }); // pretend it was granted at open
+  await cancelRentFor(reg, agent, rent.id, net);
+  expect(net.revoked).toContain(rent.id);
+});
+
+test("registerProviderFor puts the box on the network", async () => {
+  const reg = new InMemoryRegistry();
+  const net = new FakeNetworkAdapter();
+  const p = await registerProviderFor(reg, agent, {
+    alias: "n", endpointUrl: "http://x", resourceType: "GPU", region: "US-East",
+    specs: {}, online: true, trust: defaultTrust(), pricePerCharge: 0.0001, computeScore: 90, avgLatencyMs: 1,
+  }, net);
+  expect(net.nodes).toContain(p.id);
 });
 
 test("registerProviderFor sets ownerWallet + listMyProvidersFor filters by it", async () => {

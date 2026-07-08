@@ -2,6 +2,8 @@
 import type { Registry, NewProvider } from "@services/registry/registry";
 import type { Principal, Rent, Provider, RentSpec } from "@services/domain";
 import { canCancel } from "@services/rent-transitions";
+import type { NetworkAdapter } from "@services/network/adapter";
+import { NoNetworkAdapter } from "@services/network/none";
 import { walletProviderFor, liveWalletDeps } from "./wallet";
 
 export type NewRentInput = {
@@ -38,21 +40,47 @@ export async function getRentFor(reg: Registry, principal: Principal, rentId: st
   return rent && ownsRent(principal, rent) ? rent : null;
 }
 
-export async function cancelRentFor(reg: Registry, principal: Principal, rentId: string): Promise<Rent> {
+export async function cancelRentFor(
+  reg: Registry,
+  principal: Principal,
+  rentId: string,
+  network: NetworkAdapter = new NoNetworkAdapter(),
+): Promise<Rent> {
   const rent = await reg.getRent(rentId);
   if (!rent || !ownsRent(principal, rent)) throw new Error("not your rent");
   if (!canCancel(rent)) throw new Error(`cannot cancel a rent with status "${rent.status}"`);
   // Stopping a lease that already ran is the normal end of a metered rental (the renter paid
   // for exactly what ran), so it completes. Only a rent stopped before it ever started, when
   // nothing ran and nothing was billed, is a cancellation.
-  if (rent.startedAt) {
-    return reg.updateRent(rentId, { status: "completed", endedAt: new Date().toISOString(), statusReason: "stopped by renter" });
+  const stopped = rent.startedAt
+    ? await reg.updateRent(rentId, { status: "completed", endedAt: new Date().toISOString(), statusReason: "stopped by renter" })
+    : await reg.updateRent(rentId, { status: "cancelled", endedAt: new Date().toISOString() });
+  // This is a terminal transition the worker never sees (the renter drove it), so revoke here
+  // too. Best-effort: the rent is already stopped, and an ephemeral key expires on its own.
+  try {
+    await network.revokeRentAccess(rentId);
+  } catch (e) {
+    console.warn(`network revoke failed for cancelled lease ${rentId} (will expire on its own):`, e);
   }
-  return reg.updateRent(rentId, { status: "cancelled", endedAt: new Date().toISOString() });
+  return stopped;
 }
 
-export function registerProviderFor(reg: Registry, principal: Principal, input: NewProviderInput): Promise<Provider> {
-  return reg.registerProvider({ ...input, ownerWallet: principal.walletAddress });
+export async function registerProviderFor(
+  reg: Registry,
+  principal: Principal,
+  input: NewProviderInput,
+  network: NetworkAdapter = new NoNetworkAdapter(),
+): Promise<Provider> {
+  const provider = await reg.registerProvider({ ...input, ownerWallet: principal.walletAddress });
+  // Put the box on the overlay so leases against it can grant private access. Best-effort: a
+  // down/unconfigured network service must never block a provider from listing.
+  try {
+    const node = await network.ensureProviderNode(provider.id);
+    if (node) console.log(`[network] provider ${provider.id} join key issued`);
+  } catch (e) {
+    console.warn(`network ensureProviderNode failed for provider ${provider.id}:`, e);
+  }
+  return provider;
 }
 
 export function listMyProvidersFor(reg: Registry, principal: Principal): Promise<Provider[]> {

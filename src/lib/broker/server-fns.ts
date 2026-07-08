@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRegistry } from "./registry";
+import { getNetwork } from "./network";
 import { requireUser } from "../auth/require-user";
 import { defaultTrust } from "@services/trust/trust";
 import { canPause, canResume } from "@services/rent-transitions";
@@ -18,6 +19,7 @@ function userPrincipal(user: { id: string; walletAddress: string }): Principal {
 }
 import { loadBrokerAgent } from "./agent";
 import { decide, makeDecideClient, type DecideClient } from "@services/runtime/decide";
+import { loadConfig } from "@services/config";
 import type { DecisionContext } from "@services/runtime/types";
 import { CHAT_ACTIONS, chatFallback, shapeChatResult, type ChatResult } from "./lumen-chat";
 
@@ -88,7 +90,7 @@ export const registerProvider = createServerFn({ method: "POST", strict: false }
       trust: defaultTrust(),
       online: true,
       avgLatencyMs: 0,
-    });
+    }, getNetwork());
   });
 
 export const setProviderOnline = createServerFn({ method: "POST" })
@@ -150,15 +152,17 @@ export const cancelRent = createServerFn({ method: "POST" })
   .validator((d: { accessToken: string; rentId: string }) => d)
   .handler(async ({ data }) => {
     const user = await requireUser(data.accessToken);
-    return cancelRentFor(getRegistry(), userPrincipal(user), data.rentId);
+    return cancelRentFor(getRegistry(), userPrincipal(user), data.rentId, getNetwork());
   });
 
 // Build the model client, or null if LLM_* isn't configured. makeDecideClient() throws
 // eagerly on missing config (loadConfig throws), which would 500 the chat before decide()'s
 // own fallback can engage — so a missing/broken model degrades to a deterministic answer.
+// Chat uses the fast chatModel: a person is watching this spinner, and the big model's
+// 35-60s tool-calls are what made Lumen "unreachable" whenever they crossed the timeout.
 function tryMakeDecideClient(): DecideClient | null {
   try {
-    return makeDecideClient();
+    return makeDecideClient(loadConfig().llm.chatModel);
   } catch {
     return null;
   }

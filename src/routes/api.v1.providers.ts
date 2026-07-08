@@ -2,6 +2,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { getRegistry } from "@/lib/broker/registry";
+import { getNetwork } from "@/lib/broker/network";
 import { registerProviderFor } from "@/lib/marketplace/service";
 import { authAgent, json, errorResponse } from "@/lib/agents/http";
 import { parseProviderBody } from "@/lib/agents/validate";
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/api/v1/providers")({
         const provider = await registerProviderFor(getRegistry(), principal, {
           ...parsed.value,
           trust: defaultTrust(),
-        });
+        }, getNetwork());
         return json(provider, 201);
       },
     },

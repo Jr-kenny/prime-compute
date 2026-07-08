@@ -6,6 +6,7 @@ import { loadConfig } from "../config";
 import { liveBrokerDeps } from "../broker/deps";
 import { makeSettlementFactory, type Payer } from "./settlement-factory";
 import { workerPass, type WorkerDeps } from "./loop";
+import { makeNetworkAdapter } from "../network/factory";
 import { LeaseHealthTracker } from "./lease-health";
 import type { RankStrategy } from "../broker/matching";
 import type { DegradationDeps } from "../broker/degradation";
@@ -62,6 +63,15 @@ const settlementFor = makeSettlementFactory(loadPayer, {
   capAtomic: LEASE_CAP_ATOMIC, rpcUrl: process.env.ARC_RPC_URL, usdcAddress: process.env.USDC_ADDRESS,
 });
 
+// Private connectivity is opt-in: unset NETWORK_SERVICE_URL yields a no-op adapter and leases
+// keep getting a plain token exactly as before. When configured, the worker mints VPN access at
+// lease open and revokes it at close, all fail-soft so it can never gate the money path.
+const network = makeNetworkAdapter({
+  NETWORK_SERVICE_URL: process.env.NETWORK_SERVICE_URL,
+  NETWORK_SERVICE_SECRET: process.env.NETWORK_SERVICE_SECRET,
+});
+if (process.env.NETWORK_SERVICE_URL) console.log("[worker] private connectivity enabled via network service");
+
 // The soul-driven ranker AND degradation responder, both reasoning from the shipped soul with the
 // deterministic scorer / migrate-to-best as the built-in fallback inside decide(). If LLM_* is
 // unset we run without either: deterministic ranking, and a degraded provider just retries (no
@@ -98,6 +108,7 @@ const deps: WorkerDeps = {
   perTickCap: PER_TICK_CAP,
   health, degradation, maxMigrations: Number(process.env.WORKER_MAX_MIGRATIONS ?? "3"),
   topupUnits: TOPUP_UNITS, suspendGraceMs: SUSPEND_GRACE_MS, concurrency: CONCURRENCY,
+  network,
 };
 
 let running = false;
