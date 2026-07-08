@@ -21,6 +21,17 @@ const isoNow = () => new Date().toISOString();
 const isBalanceError = (msg: string) =>
   /insufficient|exceeds\s.*balance|not enough|balance (is )?too low/i.test(msg);
 
+// Best-effort: money has already stopped by the time we revoke, so a failed revoke must not
+// throw out of the tick. Tailscale ephemeral keys expire on their own as a backstop.
+async function revokeNetwork(network: NetworkAdapter | undefined, rentId: string): Promise<void> {
+  if (!network) return;
+  try {
+    await network.revokeRentAccess(rentId);
+  } catch (e) {
+    console.warn(`network revoke failed for lease ${rentId} (will expire on its own):`, e);
+  }
+}
+
 export type ProvisionDeps = {
   registry: Registry;
   settlement: SettlementAdapter;
@@ -68,7 +79,7 @@ export async function provisionLease(rentId: string, deps: ProvisionDeps): Promi
     return { status: "queued", reason: `transient funding error, retrying: ${reason}` };
   }
 
-  let leaseAccessToken = crypto.randomUUID();
+  let leaseAccessToken: string = crypto.randomUUID();
   let networkHostname: string | null = null;
   let networkStatus: string | null = null;
   if (deps.network) {
@@ -120,6 +131,7 @@ export type TickDeps = {
   degradation?: DegradationDeps;
   rank?: RankStrategy;     // used when re-ranking alternatives for a hand-off
   maxMigrations?: number;  // cap on hand-offs per lease (default 0 = never migrate)
+  network?: NetworkAdapter; // optional: revoke a lease's connectivity when it reaches a terminal state
 };
 
 export type TickResult = { charged: boolean; status: RentStatus | "missing"; reason: string };
@@ -161,6 +173,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     const spent = await registry.rentCost(rentId);
     if (spent + Number(priceAtomic) > rent.maxSpendAtomic) {
       await registry.updateRent(rentId, { status: "completed", totalCost: spent, endedAt: isoNow(), statusReason: `reached spend cap of ${rent.maxSpendAtomic} atomic` });
+      await revokeNetwork(deps.network, rentId);
       return { charged: false, status: "completed", reason: "spend cap reached" };
     }
     if (priceAtomic > 0n) capUnitsLeft = Math.floor((rent.maxSpendAtomic - spent) / Number(priceAtomic));
@@ -169,6 +182,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   // Optional time cap: stop once we're at/past expires_at.
   if (rent.expiresAt != null && clock() >= new Date(rent.expiresAt).getTime()) {
     await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow(), statusReason: "reached time limit" });
+    await revokeNetwork(deps.network, rentId);
     return { charged: false, status: "completed", reason: "time cap reached" };
   }
 
@@ -322,7 +336,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
 }
 
-export type SweepDeps = { registry: Registry; graceMs: number; nowMs?: () => number };
+export type SweepDeps = { registry: Registry; graceMs: number; nowMs?: () => number; network?: NetworkAdapter };
 
 // A lease suspended for balance whose suspended_at is older than the grace window is terminated
 // (completed with a reason) so dead leases don't linger. Only acts on balance-suspends: those carry
@@ -337,6 +351,7 @@ export async function sweepSuspended(rentId: string, deps: SweepDeps): Promise<{
     status: "completed", totalCost: await deps.registry.rentCost(rentId), endedAt: isoNow(),
     statusReason: "ended after balance stayed low past the grace window",
   });
+  await revokeNetwork(deps.network, rentId);
   return { status: "completed" };
 }
 

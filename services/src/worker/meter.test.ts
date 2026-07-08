@@ -219,6 +219,22 @@ test("meterTick completes a lease when its max-spend cap is reached", async () =
   expect(r?.statusReason).toContain("spend cap");
 });
 
+test("reaching the spend cap revokes network access", async () => {
+  const { reg } = await seed();
+  const rent = await reg.createRent({ name: "capped", owner: { kind: "user", id: "u2", walletAddress: "0x0" },
+    spec: { resourceType: "GPU", region: null }, maxSpendAtomic: 250 });
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n });
+  const net = new FakeNetworkAdapter();
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 100, topupUnits: 100, network: net });
+  expect(net.granted.has(rent.id)).toBe(true); // granted at open
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement, tickMs: 1000, maxUnits: 100, topupUnits: 100, nowMs: () => clock, network: net };
+  for (let i = 0; i < 5; i++) { await meterTick(rent.id, deps); clock += 1001; }
+  const r = await reg.getRent(rent.id);
+  expect(r?.status).toBe("completed");
+  expect(net.revoked).toContain(rent.id); // revoked at close
+});
+
 test("meterTick tops up the float in chunks, not every tick", async () => {
   const { reg, rent } = await seed();
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 1_000_000n, fundsRemaining: 1_000_000n });
