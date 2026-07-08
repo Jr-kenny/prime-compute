@@ -9,6 +9,7 @@ import { decideMigrateOrHold, type DegradationDeps } from "../broker/degradation
 import { SpendCapError } from "../settlement/spend-policy";
 import type { Provider, Rent, RentStatus } from "../domain";
 import type { LeaseHealthTracker, LeaseHealthState } from "./lease-health";
+import type { NetworkAdapter } from "../network/adapter";
 import { descriptorFor } from "../services/registry";
 
 const isoNow = () => new Date().toISOString();
@@ -26,6 +27,7 @@ export type ProvisionDeps = {
   rank?: RankStrategy;
   maxUnits: number;    // advisory estimate (display/buffer basis), no longer a hard stop
   topupUnits?: number; // buffer chunk deposited at provision + on low-water (default = maxUnits)
+  network?: NetworkAdapter; // optional: unset behaves as no-op (no connectivity provisioned)
 };
 
 export type ProvisionResult = { status: RentStatus; reason: string };
@@ -66,11 +68,32 @@ export async function provisionLease(rentId: string, deps: ProvisionDeps): Promi
     return { status: "queued", reason: `transient funding error, retrying: ${reason}` };
   }
 
+  let leaseAccessToken = crypto.randomUUID();
+  let networkHostname: string | null = null;
+  let networkStatus: string | null = null;
+  if (deps.network) {
+    try {
+      const access = await deps.network.mintRentAccess({ rentId, providerId: match.chosen.id });
+      if (access) {
+        leaseAccessToken = access.authKey;
+        networkHostname = access.hostname;
+        networkStatus = "provisioned";
+      }
+    } catch (e) {
+      // Connectivity is additive: a slow/down network service must not block the money path.
+      // Keep the fallback token, mark it for a later retry pass, and let the lease run.
+      networkStatus = "unprovisioned";
+      console.warn(`network mint failed for lease ${rentId}, running without connectivity:`, e);
+    }
+  }
+
   await registry.updateRent(rentId, {
     status: "running",
     providerId: match.chosen.id,
     startedAt: isoNow(),
-    leaseAccessToken: crypto.randomUUID(),
+    leaseAccessToken,
+    networkHostname,
+    networkStatus,
     statusReason: null,
   });
   return { status: "running", reason: "provisioned" };

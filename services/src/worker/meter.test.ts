@@ -2,6 +2,7 @@
 import { test, expect } from "bun:test";
 import { InMemoryRegistry } from "../registry/in-memory";
 import { FakeSettlementAdapter } from "../settlement/fake";
+import { FakeNetworkAdapter } from "../network/fake";
 import { defaultTrust } from "../trust/trust";
 import { provisionLease, meterTick, sweepSuspended } from "./meter";
 import { LeaseHealthTracker } from "./lease-health";
@@ -28,6 +29,29 @@ test("provisionLease matches a provider and flips the lease to running", async (
   expect(r?.status).toBe("running");
   expect(r?.providerId).toBeTruthy();
   expect(r?.leaseAccessToken).toBeTruthy();
+});
+
+test("provisionLease mints network access and stores hostname", async () => {
+  const { reg, rent } = await seed();
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 10_000n });
+  const net = new FakeNetworkAdapter();
+  const res = await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, network: net });
+  expect(res.status).toBe("running");
+  const r = await reg.getRent(rent.id);
+  expect(r?.leaseAccessToken).toBe(`tskey-${rent.id}`);
+  expect(r?.networkHostname).toBe(`box-${r?.providerId}`);
+  expect(r?.networkStatus).toBe("provisioned");
+});
+
+test("provisionLease fails soft when the network service is down", async () => {
+  const { reg, rent } = await seed();
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 10_000n });
+  const net = new FakeNetworkAdapter({ failMint: true });
+  const res = await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, network: net });
+  expect(res.status).toBe("running"); // lease still opens and will charge
+  const r = await reg.getRent(rent.id);
+  expect(r?.networkStatus).toBe("unprovisioned");
+  expect(r?.leaseAccessToken).toBeTruthy(); // fell back to a plain token
 });
 
 test("meterTick charges one unit and stamps lastChargedAt, completing at the budget", async () => {
