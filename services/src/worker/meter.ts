@@ -158,6 +158,22 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     return { charged: false, status: "suspended", reason: "no provider" };
   }
 
+  // A lease that opened (or migrated) while the network service was down runs unprovisioned;
+  // this is the retry pass the fail-soft marker exists for. Still best-effort every tick: the
+  // adapter's own timeout bounds the cost, and a failure just leaves the marker for next time.
+  if (deps.network && rent.networkStatus === "unprovisioned") {
+    try {
+      const access = await deps.network.mintRentAccess({ rentId, providerId: provider.id });
+      if (access) {
+        await registry.updateRent(rentId, {
+          leaseAccessToken: access.authKey, networkHostname: access.hostname, networkStatus: "provisioned",
+        });
+      }
+    } catch (e) {
+      console.warn(`network retry failed for lease ${rentId}, still unprovisioned:`, e);
+    }
+  }
+
   // Keep the Gateway float fed as a rolling buffer. The float is a fixed topupUnits-of-runway
   // buffer; every topupUnits charges it has drained, so we refill it from the EOA in one chunk
   // (ensureFunded is a no-op the rest of the time). Doing it on a charge-count boundary keeps
@@ -394,6 +410,24 @@ async function resolveDegradation(
     await registry.recordDecisionLog(rentId, choice.log);
     await registry.updateRent(rentId, { providerId: choice.target.id });
     deps.health!.onMigrate(rentId, choice.target.id);
+    // Connectivity follows the lease: the old box's grant is dead weight (revoke, best-effort)
+    // and the renter needs a key + hostname for the box it now runs on. A failed re-mint marks
+    // the lease unprovisioned (no stale hostname pointing at the old box) and the per-tick
+    // retry above heals it; never gates the hand-off itself.
+    if (deps.network && rent.networkStatus) {
+      await revokeNetwork(deps.network, rentId);
+      try {
+        const access = await deps.network.mintRentAccess({ rentId, providerId: choice.target.id });
+        if (access) {
+          await registry.updateRent(rentId, {
+            leaseAccessToken: access.authKey, networkHostname: access.hostname, networkStatus: "provisioned",
+          });
+        }
+      } catch (e) {
+        await registry.updateRent(rentId, { networkHostname: null, networkStatus: "unprovisioned" });
+        console.warn(`network re-mint failed for migrated lease ${rentId}, marked for retry:`, e);
+      }
+    }
     return `degraded (${reason}); migrated to ${choice.target.alias}`;
   }
 

@@ -54,6 +54,32 @@ test("provisionLease fails soft when the network service is down", async () => {
   expect(r?.leaseAccessToken).toBeTruthy(); // fell back to a plain token
 });
 
+test("a tick retries network provisioning for a lease that opened unprovisioned", async () => {
+  const { reg, rent } = await seed();
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 10_000n });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, network: new FakeNetworkAdapter({ failMint: true }) });
+  expect((await reg.getRent(rent.id))?.networkStatus).toBe("unprovisioned");
+
+  // The network service is back by the next pass: the tick heals the lease's connectivity.
+  const healed = new FakeNetworkAdapter();
+  await meterTick(rent.id, { registry: reg, settlement, tickMs: 1000, maxUnits: 3, network: healed });
+  const r = await reg.getRent(rent.id);
+  expect(r?.networkStatus).toBe("provisioned");
+  expect(r?.networkHostname).toBe(`box-${r?.providerId}`);
+  expect(r?.leaseAccessToken).toBe(`tskey-${rent.id}`); // the plain token is replaced by the real key
+});
+
+test("a tick leaves an unprovisioned lease running when the network service is still down", async () => {
+  const { reg, rent } = await seed();
+  const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 10_000n });
+  const net = new FakeNetworkAdapter({ failMint: true });
+  await provisionLease(rent.id, { registry: reg, settlement, maxUnits: 3, network: net });
+
+  const res = await meterTick(rent.id, { registry: reg, settlement, tickMs: 1000, maxUnits: 3, network: net });
+  expect(res.status).toBe("running"); // still fail-soft: retry never gates the money path
+  expect((await reg.getRent(rent.id))?.networkStatus).toBe("unprovisioned");
+});
+
 test("meterTick charges one unit and stamps lastChargedAt, completing at the budget", async () => {
   const { reg, rent } = await seed();
   const settlement = new FakeSettlementAdapter({ pricePerChargeAtomic: 100n, capAtomic: 10_000n });
@@ -521,6 +547,45 @@ test("a degrading provider hands off to a healthy alternative after the failure 
   expect(r.status).toBe("running");
   expect((await reg.getRent(rent.id))?.providerId).toBe(p2.id); // handed off, and NOT back to the pinned p1
   expect((await reg.listDecisionLogs(rent.id)).length).toBeGreaterThan(0); // the hand-off is on the record
+});
+
+test("a hand-off re-points network access at the new box", async () => {
+  const { reg, rent, p1, p2 } = await seedTwoGpus();
+  await reg.updateRent(rent.id, { status: "running", providerId: p1.id, startedAt: new Date().toISOString() });
+  const net = new FakeNetworkAdapter();
+  await net.mintRentAccess({ rentId: rent.id, providerId: p1.id }); // granted at open
+  await reg.updateRent(rent.id, { networkHostname: `box-${p1.id}`, networkStatus: "provisioned" });
+
+  const health = tracker();
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement: brokenProvider, tickMs: 1000, maxUnits: 100, nowMs: () => clock, health, degradation: deadModel, maxMigrations: 3, network: net };
+  for (let i = 0; i < 3; i++) { await meterTick(rent.id, deps); clock += 1001; }
+
+  const r = await reg.getRent(rent.id);
+  expect(r?.providerId).toBe(p2.id); // sanity: the hand-off happened
+  expect(net.revoked).toContain(rent.id); // the old box's grant is gone
+  expect(net.granted.get(rent.id)).toBe(p2.id); // access re-minted for the new box
+  expect(r?.networkHostname).toBe(`box-${p2.id}`); // stored connect info matches where the lease now runs
+  expect(r?.leaseAccessToken).toBe(`tskey-${rent.id}`);
+});
+
+test("a hand-off whose re-mint fails marks the lease unprovisioned instead of lying", async () => {
+  const { reg, rent, p1, p2 } = await seedTwoGpus();
+  await reg.updateRent(rent.id, {
+    status: "running", providerId: p1.id, startedAt: new Date().toISOString(),
+    networkHostname: `box-${p1.id}`, networkStatus: "provisioned",
+  });
+  const net = new FakeNetworkAdapter({ failMint: true });
+
+  const health = tracker();
+  let clock = 1_000_000;
+  const deps = { registry: reg, settlement: brokenProvider, tickMs: 1000, maxUnits: 100, nowMs: () => clock, health, degradation: deadModel, maxMigrations: 3, network: net };
+  for (let i = 0; i < 3; i++) { await meterTick(rent.id, deps); clock += 1001; }
+
+  const r = await reg.getRent(rent.id);
+  expect(r?.providerId).toBe(p2.id); // the hand-off still happens (connectivity never gates it)
+  expect(r?.networkStatus).toBe("unprovisioned"); // honest state, and the per-tick retry will heal it
+  expect(r?.networkHostname).toBeNull(); // no stale hostname pointing at the old box
 });
 
 test("a degrading provider with no alternative keeps retrying rather than killing the lease", async () => {
