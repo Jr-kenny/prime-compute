@@ -1,4 +1,4 @@
-import type { ActionSpec, Decision, Proposal } from "@services/runtime/types";
+import type { ActionSpec, Decision, FallbackReason, Proposal } from "@services/runtime/types";
 import type { Provider } from "@services/domain";
 
 // The conversational action set. The model picks one per turn; only `recommend_provider`
@@ -31,16 +31,25 @@ export type ChatResult = {
   provider?: Provider;
 };
 
-// The deterministic plan for when the model is unavailable or unconfigured. A single,
-// honest answer so the chat never errors out.
-export function chatFallback(): Proposal[] {
+// The deterministic plan for when the model path fails. A single, honest answer so the chat
+// never errors out — and honest means matching what actually happened: a slow model and a
+// model that answered unusably are not unreachable, and saying "can't reach" for those sends
+// debugging at the wrong layer (it nearly got the provider swapped out).
+const STILL_HERE = "but I can still help you browse providers and queue compute from the marketplace.";
+const FALLBACK_MESSAGES: Record<FallbackReason, string> = {
+  timeout: `My reasoning model is taking too long to answer right now, ${STILL_HERE}`,
+  no_tool_call: `My reasoning model gave me an answer I couldn't use for this, ${STILL_HERE}`,
+  no_proposals: `My reasoning model gave me an answer I couldn't use for this, ${STILL_HERE}`,
+  error: `I can't reach my reasoning model right now, ${STILL_HERE}`,
+};
+
+export function chatFallback(reason?: FallbackReason): Proposal[] {
   return [
     {
       action: "answer",
       score: 1,
-      rationale: ["model unavailable; deterministic fallback"],
-      userExplanation:
-        "I can't reach my reasoning model right now, but I can still help you browse providers and queue compute from the marketplace.",
+      rationale: [`model path failed (${reason ?? "unconfigured"}); deterministic fallback`],
+      userExplanation: FALLBACK_MESSAGES[reason ?? "error"],
     },
   ];
 }

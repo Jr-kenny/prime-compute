@@ -2,7 +2,7 @@ import { generateText, tool } from "ai";
 import { z } from "zod";
 import { makeModel } from "../llm";
 import { assemblePrompt, type AssembledPrompt } from "./prompt";
-import type { Soul, Policy, DecisionContext, ActionSpec, Proposal, Decision } from "./types";
+import type { Soul, Policy, DecisionContext, ActionSpec, Proposal, Decision, FallbackReason } from "./types";
 
 // The model-call seam. Real impl talks to the model; tests inject a deterministic stub.
 export type DecideClient = {
@@ -23,8 +23,9 @@ export type DecideInput = {
   actions: ActionSpec[];
   client: DecideClient;
   // The consumer's deterministic plan for when the model is unavailable. Optional; if
-  // omitted, a model failure yields empty proposals flagged usedFallback.
-  fallback?: () => Proposal[] | Promise<Proposal[]>;
+  // omitted, a model failure yields empty proposals flagged usedFallback. Receives the
+  // classified reason so it can tailor its answer (a slow model isn't an unreachable one).
+  fallback?: (reason?: FallbackReason) => Proposal[] | Promise<Proposal[]>;
   // Upper bound on the model call before it's treated as down. Defaults to
   // DEFAULT_DECIDE_TIMEOUT_MS.
   timeoutMs?: number;
@@ -67,13 +68,15 @@ export async function decide(input: DecideInput): Promise<Decision> {
 
   let proposals: Proposal[] = [];
   let usedFallback = false;
+  let fallbackReason: FallbackReason | undefined;
   try {
     proposals = await withTimeout(client.propose(prompt, actions), timeoutMs, timer);
     if (proposals.length === 0) throw new Error("model returned no proposals");
   } catch (e) {
     console.error("[decide fallback reason]", e);
     usedFallback = true;
-    proposals = fallback ? await fallback() : [];
+    fallbackReason = classifyFailure(e);
+    proposals = fallback ? await fallback(fallbackReason) : [];
   }
 
   return {
@@ -82,7 +85,18 @@ export async function decide(input: DecideInput): Promise<Decision> {
     policyVersion: policy.version,
     decisionId: crypto.randomUUID(),
     usedFallback,
+    ...(fallbackReason ? { fallbackReason } : {}),
   };
+}
+
+// All three known failure messages originate in this module (withTimeout and
+// makeDecideClient), so matching on them is matching our own contract, not the SDK's.
+function classifyFailure(e: unknown): FallbackReason {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.startsWith("decide timed out") || (e instanceof Error && e.name === "TimeoutError")) return "timeout";
+  if (msg.includes("model did not call propose_actions")) return "no_tool_call";
+  if (msg.includes("model returned no proposals")) return "no_proposals";
+  return "error";
 }
 
 // Small models (llama-3.1-8b via NIM, notably) often double-encode nested tool args,
@@ -113,9 +127,10 @@ export const proposeArgsSchema = z.object({
   ),
 });
 
-// The real model-backed client. Network + tool-calling live only here.
-export function makeDecideClient(): DecideClient {
-  const { provider, modelId } = makeModel();
+// The real model-backed client. Network + tool-calling live only here. `model` overrides
+// the configured default (the interactive chat passes the faster chatModel).
+export function makeDecideClient(model?: string): DecideClient {
+  const { provider, modelId } = makeModel(model);
   return {
     async propose(prompt, _actions) {
       const result = await generateText({
@@ -135,6 +150,12 @@ export function makeDecideClient(): DecideClient {
             parameters: proposeArgsSchema,
           }),
         },
+        // Left free to choose, llama models regularly answer in prose instead of calling the
+        // tool; the text is discarded and the turn degrades to the fallback (the worker logged
+        // "model did not call propose_actions" every few minutes). Forcing the call doesn't
+        // mute the soul: the voice lives in the user_explanation field inside the args, and a
+        // "none of these fit" escape hatch exists as a low-scoring `answer` action.
+        toolChoice: { type: "tool", toolName: "propose_actions" },
         maxSteps: 1,
       });
       const call = result.toolCalls.find((c) => c.toolName === "propose_actions");
