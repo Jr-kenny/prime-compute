@@ -57,6 +57,43 @@ test("falls back when the client hangs past the timeout", async () => {
   expect(d.proposals[0]?.action).toBe("hold");
 });
 
+// The UI turns usedFallback into a user-facing excuse, so the decision must say WHY the
+// model path failed: a slow endpoint, a prose answer with no tool call, and a dead endpoint
+// need different messages (today they all render as "can't reach my reasoning model").
+test("a generic client error is classified as 'error' and passed to the fallback", async () => {
+  const seen: (string | undefined)[] = [];
+  const client: DecideClient = { propose: async () => { throw new Error("connect ECONNREFUSED"); } };
+  const fallback = (reason?: string) => { seen.push(reason); return [{ action: "hold", score: 1, rationale: [], userExplanation: "f" }]; };
+  const d = await decide({ soul, policy, context, actions, client, fallback });
+  expect(d.fallbackReason).toBe("error");
+  expect(seen).toEqual(["error"]);
+});
+
+test("a prose answer without the tool call is classified as 'no_tool_call'", async () => {
+  const client: DecideClient = { propose: async () => { throw new Error("model did not call propose_actions"); } };
+  const d = await decide({ soul, policy, context, actions, client });
+  expect(d.fallbackReason).toBe("no_tool_call");
+});
+
+test("an empty proposal list is classified as 'no_proposals'", async () => {
+  const client: DecideClient = { propose: async () => [] };
+  const d = await decide({ soul, policy, context, actions, client });
+  expect(d.fallbackReason).toBe("no_proposals");
+});
+
+test("a hung call past the timeout is classified as 'timeout'", async () => {
+  const client: DecideClient = { propose: () => new Promise<Proposal[]>(() => {}) };
+  const immediateTimer = { set: (cb: () => void) => { queueMicrotask(cb); return 0; }, clear: () => {} };
+  const d = await decide({ soul, policy, context, actions, client, timeoutMs: 50, timer: immediateTimer });
+  expect(d.fallbackReason).toBe("timeout");
+});
+
+test("a successful decision carries no fallbackReason", async () => {
+  const client: DecideClient = { propose: async () => ranked };
+  const d = await decide({ soul, policy, context, actions, client });
+  expect(d.fallbackReason).toBeUndefined();
+});
+
 // Small models (e.g. llama-3.1-8b via NIM) often double-encode nested tool args, sending
 // `proposals` as a JSON *string* instead of an array. The schema must accept both shapes,
 // or every chat turn silently degrades to the fallback.

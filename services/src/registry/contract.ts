@@ -156,12 +156,21 @@ export function registryContract(
       expect(rent.lastChargedAt).toBeNull();
       expect(rent.leaseAccessToken).toBeNull();
       const ts = new Date().toISOString();
-      const updated = await reg.updateRent(rent.id, { lastChargedAt: ts, leaseAccessToken: "tok-123", status: "running" });
+      const updated = await reg.updateRent(rent.id, {
+        lastChargedAt: ts,
+        leaseAccessToken: "tok-123",
+        status: "running",
+        networkHostname: "box-p1",
+        networkStatus: "provisioned",
+      });
       // Compare by instant, not string: timestamptz round-trips as +00:00, in-memory keeps the Z form.
       expect(new Date(updated.lastChargedAt!).getTime()).toBe(new Date(ts).getTime());
       expect(updated.leaseAccessToken).toBe("tok-123");
+      expect(updated.networkHostname).toBe("box-p1");
+      expect(updated.networkStatus).toBe("provisioned");
       const reread = await reg.getRent(rent.id);
       expect(reread?.leaseAccessToken).toBe("tok-123");
+      expect(reread?.networkHostname).toBe("box-p1");
     }, T);
 
     test("recordCharge + rentCost sums consumed charges exactly", async () => {

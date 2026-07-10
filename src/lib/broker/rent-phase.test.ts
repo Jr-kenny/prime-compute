@@ -9,7 +9,7 @@ function rent(partial: Partial<Rent>): Rent {
     id: "r1", name: "n", userId: "u1", agentId: null, spec: { resourceType: "GPU", region: null },
     estimatedUsage: null, autonomyArmed: false, status: "queued", providerId: null,
     totalCost: 0, createdAt: "", startedAt: null, endedAt: null,
-    lastChargedAt: null, leaseAccessToken: null, ...partial,
+    lastChargedAt: null, leaseAccessToken: null, networkHostname: null, networkStatus: null, ...partial,
   };
 }
 

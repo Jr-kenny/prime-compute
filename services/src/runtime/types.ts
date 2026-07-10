@@ -23,12 +23,18 @@ export type Proposal = {
   userExplanation: string; // one concise natural-language line
 };
 
+// Why the model path failed, when it did. Consumers surface different messages for a slow
+// endpoint ("timeout"), a prose answer with no tool call ("no_tool_call"), an empty ranking
+// ("no_proposals"), and a genuinely failed call ("error").
+export type FallbackReason = "timeout" | "no_tool_call" | "no_proposals" | "error";
+
 export type Decision = {
   proposals: Proposal[];   // ranked best-first
   soulVersion: string;
   policyVersion: string;
   decisionId: string;
   usedFallback: boolean;   // true when the model was unavailable and this is deterministic
+  fallbackReason?: FallbackReason; // set only when usedFallback is true
 };
 
 // What the runtime is deciding about. The consumer builds this however it likes; the

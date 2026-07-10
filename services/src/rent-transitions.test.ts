@@ -19,6 +19,8 @@ function rentWithStatus(status: RentStatus): Rent {
     endedAt: null,
     lastChargedAt: null,
     leaseAccessToken: null,
+    networkHostname: null,
+    networkStatus: null,
   feesSweptAt: null,
   statusReason: null,
   maxSpendAtomic: null,

@@ -77,6 +77,28 @@ test("chatFallback returns a single answer proposal", () => {
   expect(props[0]!.action).toBe("answer");
 });
 
+// The fallback message must match what actually happened. A slow model and a model that
+// answered in prose are not unreachable, and telling the user "can't reach" for those
+// sends debugging in the wrong direction (it nearly got the provider swapped out).
+test("chatFallback explains a timeout as slowness, not unreachability", () => {
+  const msg = chatFallback("timeout")[0]!.userExplanation;
+  expect(msg).toContain("taking too long");
+  expect(msg).not.toContain("can't reach");
+});
+
+test("chatFallback explains an unusable answer honestly", () => {
+  for (const reason of ["no_tool_call", "no_proposals"] as const) {
+    const msg = chatFallback(reason)[0]!.userExplanation;
+    expect(msg).toContain("couldn't use");
+    expect(msg).not.toContain("can't reach");
+  }
+});
+
+test("chatFallback keeps the can't-reach message for real errors and when unconfigured", () => {
+  expect(chatFallback("error")[0]!.userExplanation).toContain("can't reach");
+  expect(chatFallback()[0]!.userExplanation).toContain("can't reach");
+});
+
 test("CHAT_ACTIONS exposes the three chat actions", () => {
   expect(CHAT_ACTIONS.map((a) => a.name).sort()).toEqual(["answer", "recommend_provider", "report_status"]);
 });

@@ -9,6 +9,7 @@ import { decideMigrateOrHold, type DegradationDeps } from "../broker/degradation
 import { SpendCapError } from "../settlement/spend-policy";
 import type { Provider, Rent, RentStatus } from "../domain";
 import type { LeaseHealthTracker, LeaseHealthState } from "./lease-health";
+import type { NetworkAdapter } from "../network/adapter";
 import { descriptorFor } from "../services/registry";
 
 const isoNow = () => new Date().toISOString();
@@ -20,12 +21,24 @@ const isoNow = () => new Date().toISOString();
 const isBalanceError = (msg: string) =>
   /insufficient|exceeds\s.*balance|not enough|balance (is )?too low/i.test(msg);
 
+// Best-effort: money has already stopped by the time we revoke, so a failed revoke must not
+// throw out of the tick. Tailscale ephemeral keys expire on their own as a backstop.
+async function revokeNetwork(network: NetworkAdapter | undefined, rentId: string): Promise<void> {
+  if (!network) return;
+  try {
+    await network.revokeRentAccess(rentId);
+  } catch (e) {
+    console.warn(`network revoke failed for lease ${rentId} (will expire on its own):`, e);
+  }
+}
+
 export type ProvisionDeps = {
   registry: Registry;
   settlement: SettlementAdapter;
   rank?: RankStrategy;
   maxUnits: number;    // advisory estimate (display/buffer basis), no longer a hard stop
   topupUnits?: number; // buffer chunk deposited at provision + on low-water (default = maxUnits)
+  network?: NetworkAdapter; // optional: unset behaves as no-op (no connectivity provisioned)
 };
 
 export type ProvisionResult = { status: RentStatus; reason: string };
@@ -66,11 +79,32 @@ export async function provisionLease(rentId: string, deps: ProvisionDeps): Promi
     return { status: "queued", reason: `transient funding error, retrying: ${reason}` };
   }
 
+  let leaseAccessToken: string = crypto.randomUUID();
+  let networkHostname: string | null = null;
+  let networkStatus: string | null = null;
+  if (deps.network) {
+    try {
+      const access = await deps.network.mintRentAccess({ rentId, providerId: match.chosen.id });
+      if (access) {
+        leaseAccessToken = access.authKey;
+        networkHostname = access.hostname;
+        networkStatus = "provisioned";
+      }
+    } catch (e) {
+      // Connectivity is additive: a slow/down network service must not block the money path.
+      // Keep the fallback token, mark it for a later retry pass, and let the lease run.
+      networkStatus = "unprovisioned";
+      console.warn(`network mint failed for lease ${rentId}, running without connectivity:`, e);
+    }
+  }
+
   await registry.updateRent(rentId, {
     status: "running",
     providerId: match.chosen.id,
     startedAt: isoNow(),
-    leaseAccessToken: crypto.randomUUID(),
+    leaseAccessToken,
+    networkHostname,
+    networkStatus,
     statusReason: null,
   });
   return { status: "running", reason: "provisioned" };
@@ -97,6 +131,7 @@ export type TickDeps = {
   degradation?: DegradationDeps;
   rank?: RankStrategy;     // used when re-ranking alternatives for a hand-off
   maxMigrations?: number;  // cap on hand-offs per lease (default 0 = never migrate)
+  network?: NetworkAdapter; // optional: revoke a lease's connectivity when it reaches a terminal state
 };
 
 export type TickResult = { charged: boolean; status: RentStatus | "missing"; reason: string };
@@ -123,6 +158,22 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     return { charged: false, status: "suspended", reason: "no provider" };
   }
 
+  // A lease that opened (or migrated) while the network service was down runs unprovisioned;
+  // this is the retry pass the fail-soft marker exists for. Still best-effort every tick: the
+  // adapter's own timeout bounds the cost, and a failure just leaves the marker for next time.
+  if (deps.network && rent.networkStatus === "unprovisioned") {
+    try {
+      const access = await deps.network.mintRentAccess({ rentId, providerId: provider.id });
+      if (access) {
+        await registry.updateRent(rentId, {
+          leaseAccessToken: access.authKey, networkHostname: access.hostname, networkStatus: "provisioned",
+        });
+      }
+    } catch (e) {
+      console.warn(`network retry failed for lease ${rentId}, still unprovisioned:`, e);
+    }
+  }
+
   // Keep the Gateway float fed as a rolling buffer. The float is a fixed topupUnits-of-runway
   // buffer; every topupUnits charges it has drained, so we refill it from the EOA in one chunk
   // (ensureFunded is a no-op the rest of the time). Doing it on a charge-count boundary keeps
@@ -138,6 +189,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     const spent = await registry.rentCost(rentId);
     if (spent + Number(priceAtomic) > rent.maxSpendAtomic) {
       await registry.updateRent(rentId, { status: "completed", totalCost: spent, endedAt: isoNow(), statusReason: `reached spend cap of ${rent.maxSpendAtomic} atomic` });
+      await revokeNetwork(deps.network, rentId);
       return { charged: false, status: "completed", reason: "spend cap reached" };
     }
     if (priceAtomic > 0n) capUnitsLeft = Math.floor((rent.maxSpendAtomic - spent) / Number(priceAtomic));
@@ -146,6 +198,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   // Optional time cap: stop once we're at/past expires_at.
   if (rent.expiresAt != null && clock() >= new Date(rent.expiresAt).getTime()) {
     await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow(), statusReason: "reached time limit" });
+    await revokeNetwork(deps.network, rentId);
     return { charged: false, status: "completed", reason: "time cap reached" };
   }
 
@@ -299,7 +352,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
 }
 
-export type SweepDeps = { registry: Registry; graceMs: number; nowMs?: () => number };
+export type SweepDeps = { registry: Registry; graceMs: number; nowMs?: () => number; network?: NetworkAdapter };
 
 // A lease suspended for balance whose suspended_at is older than the grace window is terminated
 // (completed with a reason) so dead leases don't linger. Only acts on balance-suspends: those carry
@@ -314,6 +367,7 @@ export async function sweepSuspended(rentId: string, deps: SweepDeps): Promise<{
     status: "completed", totalCost: await deps.registry.rentCost(rentId), endedAt: isoNow(),
     statusReason: "ended after balance stayed low past the grace window",
   });
+  await revokeNetwork(deps.network, rentId);
   return { status: "completed" };
 }
 
@@ -356,6 +410,24 @@ async function resolveDegradation(
     await registry.recordDecisionLog(rentId, choice.log);
     await registry.updateRent(rentId, { providerId: choice.target.id });
     deps.health!.onMigrate(rentId, choice.target.id);
+    // Connectivity follows the lease: the old box's grant is dead weight (revoke, best-effort)
+    // and the renter needs a key + hostname for the box it now runs on. A failed re-mint marks
+    // the lease unprovisioned (no stale hostname pointing at the old box) and the per-tick
+    // retry above heals it; never gates the hand-off itself.
+    if (deps.network && rent.networkStatus) {
+      await revokeNetwork(deps.network, rentId);
+      try {
+        const access = await deps.network.mintRentAccess({ rentId, providerId: choice.target.id });
+        if (access) {
+          await registry.updateRent(rentId, {
+            leaseAccessToken: access.authKey, networkHostname: access.hostname, networkStatus: "provisioned",
+          });
+        }
+      } catch (e) {
+        await registry.updateRent(rentId, { networkHostname: null, networkStatus: "unprovisioned" });
+        console.warn(`network re-mint failed for migrated lease ${rentId}, marked for retry:`, e);
+      }
+    }
     return `degraded (${reason}); migrated to ${choice.target.alias}`;
   }
 
