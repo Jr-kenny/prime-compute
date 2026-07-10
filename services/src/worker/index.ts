@@ -126,6 +126,15 @@ async function tick() {
 setInterval(tick, TICK_MS);
 console.log(`[worker] metering loop started (tick ${TICK_MS}ms)`);
 
+// The box OOM-cycles every few hours and Render's free tier exposes no memory graph, so the
+// worker narrates its own footprint: one greppable line a minute is enough to see the growth
+// curve in the logs and catch the next death with numbers attached.
+setInterval(() => {
+  const m = process.memoryUsage();
+  const mb = (n: number) => Math.round(n / 1048576);
+  console.log(`[mem] rss=${mb(m.rss)}MB heapUsed=${mb(m.heapUsed)}MB heapTotal=${mb(m.heapTotal)}MB external=${mb(m.external)}MB`);
+}, 60_000);
+
 // Render's free tier is a WEB service: expose /health so it stays up and an external pinger can keep
 // it warm. The metering loop runs regardless; this is just the liveness surface.
 const port = Number(process.env.PORT ?? "8787");
