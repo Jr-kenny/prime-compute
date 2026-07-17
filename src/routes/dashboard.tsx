@@ -42,11 +42,11 @@ function Dashboard() {
     queryKey: ["rents", "mine", accessToken],
     queryFn: () => listMyRents({ data: { accessToken: accessToken! } }),
     enabled: !!accessToken,
-    // Realtime (below) pushes the instant a rent changes; this is just a safety net in case the
-    // socket drops, so we still reconcile occasionally while something is active.
+    // Realtime (below) applies canonical row updates without a server round-trip. This slow safety
+    // reconciliation only covers a dropped socket; it must not shadow every per-second payment.
     refetchInterval: (query) => {
       const rs = (query.state.data as Rent[] | undefined) ?? [];
-      return rs.some((r) => r.status === "running" || r.status === "queued" || r.status === "suspended") ? 20000 : false;
+      return rs.some((r) => r.status === "running" || r.status === "queued" || r.status === "suspended") ? 60000 : false;
     },
   });
   useRealtimeRents(session?.user?.id, accessToken);
