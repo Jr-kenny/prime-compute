@@ -288,10 +288,18 @@ export class SupabaseRegistry implements Registry {
         rent_id: t.rentId, provider_id: t.providerId, seq: t.seq, units: t.units, amount: t.amount,
         fee_amount: t.feeAmount, fee_settlement_ref: t.feeSettlementRef,
         authorization_ref: t.authorizationRef, settled: t.settled, settlement_ref: t.settlementRef,
-      }).select().single(),
+      // The caller already owns every ledger field it just inserted. Returning the full row on
+      // every per-second payment needlessly sends that same payload back across PostgREST; only
+      // the generated audit fields are required to satisfy the Registry contract.
+      }).select("id,created_at").single(),
       "recordCharge",
     );
-    return toCharge(row);
+    const generated = row as unknown as Row;
+    return {
+      ...t,
+      id: generated.id as string,
+      createdAt: generated.created_at as string,
+    };
   }
 
   async markChargeSettled(chargeId: string): Promise<void> {

@@ -132,9 +132,22 @@ export type TickDeps = {
   rank?: RankStrategy;     // used when re-ranking alternatives for a hand-off
   maxMigrations?: number;  // cap on hand-offs per lease (default 0 = never migrate)
   network?: NetworkAdapter; // optional: revoke a lease's connectivity when it reaches a terminal state
+  // The production worker already fetched the running rent and keeps restart-safe counters in a
+  // local cache. Supplying these snapshots removes four redundant Supabase reads per payment.
+  // Direct callers can omit them and retain the fully self-loading behavior.
+  rentSnapshot?: Rent;
+  providerSnapshot?: Provider | null;
+  billedUnitsSnapshot?: number;
+  spentAtomicSnapshot?: number;
 };
 
-export type TickResult = { charged: boolean; status: RentStatus | "missing"; reason: string };
+export type TickResult = {
+  charged: boolean;
+  status: RentStatus | "missing";
+  reason: string;
+  chargedUnits?: number;
+  chargedAmountAtomic?: number;
+};
 
 // One metering step for one running lease. Charges at most one unit per tickMs (this is also what
 // makes a worker restart safe: a just-charged lease isn't charged again until tickMs elapses, and
@@ -144,7 +157,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   const { registry, settlement, tickMs, maxUnits } = deps;
   const clock = deps.nowMs ?? Date.now;
 
-  const rent = await registry.getRent(rentId);
+  const rent = deps.rentSnapshot ?? await registry.getRent(rentId);
   if (!rent) return { charged: false, status: "missing", reason: "rent not found" };
   if (rent.status !== "running") return { charged: false, status: rent.status, reason: "not running" };
 
@@ -152,7 +165,9 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     return { charged: false, status: "running", reason: "not yet" };
   }
 
-  const provider = rent.providerId ? await registry.getProvider(rent.providerId) : null;
+  const provider = deps.providerSnapshot !== undefined
+    ? deps.providerSnapshot
+    : rent.providerId ? await registry.getProvider(rent.providerId) : null;
   if (!provider) {
     await registry.updateRent(rentId, { status: "suspended", statusReason: "the lease's provider is no longer registered" });
     return { charged: false, status: "suspended", reason: "no provider" };
@@ -184,9 +199,14 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   // Optional spend cap: stop before a charge that would push total spend over it, and remember
   // how many whole units the cap still allows so a multi-unit catch-up tick can't blow past it
   // either (the loop below bills up to perTickCap units after this check).
+  let spentAtomic = deps.spentAtomicSnapshot;
+  const currentSpent = async () => {
+    if (spentAtomic === undefined) spentAtomic = await registry.rentCost(rentId);
+    return spentAtomic;
+  };
   let capUnitsLeft = Infinity;
   if (rent.maxSpendAtomic != null) {
-    const spent = await registry.rentCost(rentId);
+    const spent = await currentSpent();
     if (spent + Number(priceAtomic) > rent.maxSpendAtomic) {
       await registry.updateRent(rentId, { status: "completed", totalCost: spent, endedAt: isoNow(), statusReason: `reached spend cap of ${rent.maxSpendAtomic} atomic` });
       await revokeNetwork(deps.network, rentId);
@@ -197,7 +217,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
 
   // Optional time cap: stop once we're at/past expires_at.
   if (rent.expiresAt != null && clock() >= new Date(rent.expiresAt).getTime()) {
-    await registry.updateRent(rentId, { status: "completed", totalCost: await registry.rentCost(rentId), endedAt: isoNow(), statusReason: "reached time limit" });
+    await registry.updateRent(rentId, { status: "completed", totalCost: await currentSpent(), endedAt: isoNow(), statusReason: "reached time limit" });
     await revokeNetwork(deps.network, rentId);
     return { charged: false, status: "completed", reason: "time cap reached" };
   }
@@ -213,7 +233,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   const now = clock();
   const d = descriptorFor(provider.resourceType);
   const perTickCap = deps.perTickCap ?? 60;
-  const chargedSoFar = await registry.billedUnits(rentId);
+  const chargedSoFar = deps.billedUnitsSnapshot ?? await registry.billedUnits(rentId);
   let pending: number;
   let watermarkMs: number;
   let bootstrap = false;
@@ -274,11 +294,16 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   const lh = deps.health && deps.degradation ? deps.health.for(rentId, provider.id) : null;
   let chargedAny = false;
   let chargedUnits = 0;
+  let chargedAmountAtomic = 0;
   let degradedReason: string | null = null;
   // The ceiling is round(units * price), matching how the provider prices the batch: listings
   // can price finer than one atomic unit (4.5 atomic/sec), so rounding per unit first would
   // undercut the provider's honest ask and refuse the batch.
   const batchCeilingAtomic = BigInt(Math.round(toCharge * provider.pricePerCharge * 1_000_000));
+  // Capture the ledger total before recording the payment. In the production path this is a
+  // cached restart-safe value; direct callers resolve it once from the database. Reading it after
+  // the insert would count the new payment twice when constructing rents.total_cost.
+  const spentBeforePayment = await currentSpent();
   try {
     const paid = await settlement.payForCompute(url, batchCeilingAtomic);
     const paidAtomic = Number(paid.amountAtomic);
@@ -294,6 +319,7 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
     });
     chargedAny = true;
     chargedUnits = toCharge;
+    chargedAmountAtomic = paidAtomic;
     lh?.monitor.observe({ ok: true }); // a paid hit is a healthy sample; clears the failure streak
   } catch (e) {
     if (e instanceof SpendCapError) {
@@ -336,35 +362,42 @@ export async function meterTick(rentId: string, deps: TickDeps): Promise<TickRes
   const stalled = chargedUnits < toCharge;
   const newWatermarkMs =
     d.metering === "volume" || bootstrap || stalled ? now : watermarkMs + chargedUnits * tickMs;
+  const newTotalCost = spentBeforePayment + chargedAmountAtomic;
 
   if (lh && degradedReason) {
     const reason = await resolveDegradation(rentId, rent, provider, lh, degradedReason, deps);
-    await registry.updateRent(rentId, { totalCost: await registry.rentCost(rentId), lastChargedAt: new Date(newWatermarkMs).toISOString(), suspendedAt: null });
-    return { charged: chargedAny, status: "running", reason };
+    await registry.updateRent(rentId, { totalCost: newTotalCost, lastChargedAt: new Date(newWatermarkMs).toISOString(), suspendedAt: null });
+    return { charged: chargedAny, status: "running", reason, chargedUnits, chargedAmountAtomic };
   }
 
   // A healthy running tick clears any prior balance-suspend stamp so the grace timer resets.
   await registry.updateRent(rentId, {
-    totalCost: await registry.rentCost(rentId),
+    totalCost: newTotalCost,
     lastChargedAt: new Date(newWatermarkMs).toISOString(),
     suspendedAt: null,
   });
-  return { charged: chargedAny, status: "running", reason: chargedAny ? "charged" : "transient" };
+  return {
+    charged: chargedAny,
+    status: "running",
+    reason: chargedAny ? "charged" : "transient",
+    chargedUnits,
+    chargedAmountAtomic,
+  };
 }
 
-export type SweepDeps = { registry: Registry; graceMs: number; nowMs?: () => number; network?: NetworkAdapter };
+export type SweepDeps = { registry: Registry; graceMs: number; nowMs?: () => number; network?: NetworkAdapter; rentSnapshot?: Rent };
 
 // A lease suspended for balance whose suspended_at is older than the grace window is terminated
 // (completed with a reason) so dead leases don't linger. Only acts on balance-suspends: those carry
 // a suspended_at stamp. A refund that flipped the lease back to running cleared the stamp already.
 export async function sweepSuspended(rentId: string, deps: SweepDeps): Promise<{ status: RentStatus | "missing" }> {
   const clock = deps.nowMs ?? Date.now;
-  const rent = await deps.registry.getRent(rentId);
+  const rent = deps.rentSnapshot ?? await deps.registry.getRent(rentId);
   if (!rent) return { status: "missing" };
   if (rent.status !== "suspended" || !rent.suspendedAt) return { status: rent.status };
   if (clock() - new Date(rent.suspendedAt).getTime() < deps.graceMs) return { status: "suspended" };
   await deps.registry.updateRent(rentId, {
-    status: "completed", totalCost: await deps.registry.rentCost(rentId), endedAt: isoNow(),
+    status: "completed", totalCost: rent.totalCost, endedAt: isoNow(),
     statusReason: "ended after balance stayed low past the grace window",
   });
   await revokeNetwork(deps.network, rentId);

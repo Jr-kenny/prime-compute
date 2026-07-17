@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { loadConfig } from "../config";
 import { liveBrokerDeps } from "../broker/deps";
 import { makeSettlementFactory, type Payer } from "./settlement-factory";
-import { workerPass, type WorkerDeps } from "./loop";
+import { createWorkerState, workerPass, type WorkerDeps } from "./loop";
 import { makeNetworkAdapter } from "../network/factory";
 import { LeaseHealthTracker } from "./lease-health";
 import type { RankStrategy } from "../broker/matching";
@@ -109,6 +109,10 @@ const deps: WorkerDeps = {
   health, degradation, maxMigrations: Number(process.env.WORKER_MAX_MIGRATIONS ?? "3"),
   topupUnits: TOPUP_UNITS, suspendGraceMs: SUSPEND_GRACE_MS, concurrency: CONCURRENCY,
   network,
+  state: createWorkerState(),
+  queuedPollMs: Number(process.env.WORKER_QUEUED_POLL_MS ?? "5000"),
+  suspendedPollMs: Number(process.env.WORKER_SUSPENDED_POLL_MS ?? "60000"),
+  providerCacheMs: Number(process.env.WORKER_PROVIDER_CACHE_MS ?? "60000"),
 };
 
 let running = false;
